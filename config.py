@@ -1,0 +1,69 @@
+"""
+配置文件 - 管理API密钥和全局设置
+"""
+import os
+from dotenv import load_dotenv
+
+# 加载.env文件中的环境变量
+load_dotenv()
+
+# DeepSeek API配置
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+# 可选：Anthropic API配置（备用）
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+
+# 文件路径配置
+INPUT_DIR = os.path.join(os.path.dirname(__file__), "input")
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
+TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
+# 确保目录存在
+os.makedirs(INPUT_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# API调用参数
+MAX_TOKENS = 4096
+TEMPERATURE = 0.7
+
+# 智慧树平台配置
+PLATFORM_CONFIG = {
+    # API基础URL（注意：实际API在cloudapi子域名）
+    "base_url": os.getenv("PLATFORM_BASE_URL", "https://cloudapi.polymas.com"),
+    # 认证Cookie
+    "cookie": os.getenv("PLATFORM_COOKIE", ""),
+    # Authorization JWT Token
+    "authorization": os.getenv("PLATFORM_AUTHORIZATION", ""),
+    # 课程ID
+    "course_id": os.getenv("PLATFORM_COURSE_ID", ""),
+    # 训练任务ID
+    "train_task_id": os.getenv("PLATFORM_TRAIN_TASK_ID", ""),
+    # 起始节点ID（训练开始）
+    "start_node_id": os.getenv("PLATFORM_START_NODE_ID", ""),
+    # 结束节点ID（训练结束）
+    "end_node_id": os.getenv("PLATFORM_END_NODE_ID", ""),
+}
+
+# 平台API端点配置
+PLATFORM_ENDPOINTS = {
+    "create_step": "/teacher-course/abilityTrain/createScriptStep",
+    "edit_step": "/teacher-course/abilityTrain/editScriptStep",
+    "create_flow": "/teacher-course/abilityTrain/createScriptStepFlow",
+    "edit_flow": "/teacher-course/abilityTrain/editScriptStepFlow",
+}
+
+# 卡片默认配置（字段名已通过抓包确认）
+# 这些配置项用于创建卡片节点时的默认值
+CARD_DEFAULTS = {
+    # AI模型ID (modelId)
+    "model_id": os.getenv("CARD_MODEL_ID", ""),
+    # 历史记录数量 (historyRecordNum)：0=不保留，-1=全部
+    "history_num": int(os.getenv("CARD_HISTORY_NUM", "0")),
+    # 虚拟训练官名字 (trainerName)
+    "trainer_name": os.getenv("CARD_TRAINER_NAME", ""),
+    # 默认交互轮次 (interactiveRounds)，如果LLM未指定
+    "default_interaction_rounds": int(os.getenv("CARD_DEFAULT_INTERACTION_ROUNDS", "5")),
+}
