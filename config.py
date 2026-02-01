@@ -53,6 +53,8 @@ PLATFORM_ENDPOINTS = {
     "edit_step": "/teacher-course/abilityTrain/editScriptStep",
     "create_flow": "/teacher-course/abilityTrain/createScriptStepFlow",
     "edit_flow": "/teacher-course/abilityTrain/editScriptStepFlow",
+    "edit_configuration": "/teacher-course/abilityTrain/editConfiguration",
+    "create_score_item": "/teacher-course/abilityTrain/createScoreItem",
 }
 
 # 卡片默认配置（字段名已通过抓包确认）
@@ -66,4 +68,15 @@ CARD_DEFAULTS = {
     "trainer_name": os.getenv("CARD_TRAINER_NAME", ""),
     # 默认交互轮次 (interactiveRounds)，如果LLM未指定
     "default_interaction_rounds": int(os.getenv("CARD_DEFAULT_INTERACTION_ROUNDS", "5")),
+}
+
+# 卡片生成器配置
+# 可选值: "default" (传统方式), "dspy" (DSPy结构化生成)
+CARD_GENERATOR_TYPE = os.getenv("CARD_GENERATOR_TYPE", "default")
+
+# 评价项配置（注入时使用）
+EVALUATION_CONFIG = {
+    "enabled": os.getenv("ENABLE_EVALUATION", "true").lower() in ("true", "1", "yes"),
+    "auto_generate": os.getenv("AUTO_GENERATE_EVALUATION", "true").lower() in ("true", "1", "yes"),
+    "target_total_score": int(os.getenv("EVALUATION_TARGET_SCORE", "100")),
 }

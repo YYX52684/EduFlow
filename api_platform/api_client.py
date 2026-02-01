@@ -72,6 +72,8 @@ class PlatformAPIClient:
             "edit_step": "/teacher-course/abilityTrain/editScriptStep",
             "create_flow": "/teacher-course/abilityTrain/createScriptStepFlow",
             "edit_flow": "/teacher-course/abilityTrain/editScriptStepFlow",
+            "edit_configuration": "/teacher-course/abilityTrain/editConfiguration",
+            "create_score_item": "/teacher-course/abilityTrain/createScoreItem",
         }
     
     def set_endpoints(self, endpoints: dict):
@@ -306,7 +308,8 @@ class PlatformAPIClient:
         start_step_id: str,
         end_step_id: str,
         transition_prompt: str,
-        flow_condition: str = ""
+        flow_condition: str = "",
+        is_default: bool = True
     ) -> dict:
         """
         修改连线（设置B类卡片内容和跳转条件）
@@ -317,12 +320,14 @@ class PlatformAPIClient:
             end_step_id: 结束节点ID
             transition_prompt: 过渡提示词（B类卡片内容）
             flow_condition: 跳转条件（如"卡片1B"，与A类卡片的跳转指令对应）
+            is_default: 是否为默认跳转（单线路情况下始终为True）
             
         Returns:
             修改结果
         """
-        # 如果没有指定跳转条件，使用默认值"1"表示默认跳转
-        condition = flow_condition if flow_condition else "1"
+        # 跳转条件：如果设置了条件则使用，否则留空
+        # 注意：isDefault=1 表示默认跳转，在单线路情况下即使有条件也需要勾选
+        condition = flow_condition if flow_condition else ""
         
         request_body = {
             "trainTaskId": self.train_task_id,
@@ -334,16 +339,71 @@ class PlatformAPIClient:
             "transitionPrompt": transition_prompt,  # B类卡片内容在这里！
             "transitionHistoryNum": -1,  # -1 表示全部历史记录
             "flowSettingType": "quick",
-            "isDefault": 1 if not flow_condition else 0,  # 有条件时不是默认跳转
+            "isDefault": 1 if is_default else 0,  # 单线路情况下始终为1（勾选默认跳转）
             "isError": False,
-            "flowCondition": condition,  # 跳转条件（如"卡片1B"）
+            "flowCondition": condition,  # 跳转条件（如"卡片1B"），可以为空
             "flowConfiguration": {
                 "relation": "and",
                 "conditions": [{"text": "条件组1", "relation": "and", "conditions": [{"text": condition}]}]
-            }
+            } if condition else {}
         }
         
         return self._make_request("POST", self.endpoints["edit_flow"], data=request_body)
+    
+    # ========== 任务配置与评价项 ==========
+    
+    def edit_configuration(
+        self,
+        task_name: str,
+        description: str = "",
+        train_time: int = -1
+    ) -> dict:
+        """
+        更新训练任务配置
+        
+        Args:
+            task_name: 任务名称
+            description: 任务描述
+            train_time: 训练时长（分钟），-1 表示不限时
+            
+        Returns:
+            API 响应
+        """
+        request_body = {
+            "trainTaskId": self.train_task_id,
+            "trainTaskName": task_name,
+            "description": description,
+            "trainTime": train_time,
+        }
+        return self._make_request("POST", self.endpoints["edit_configuration"], data=request_body)
+    
+    def create_score_item(
+        self,
+        item_name: str,
+        score: int,
+        description: str = "",
+        require_detail: str = ""
+    ) -> dict:
+        """
+        创建评价项
+        
+        Args:
+            item_name: 评价项名称
+            score: 分值
+            description: 评价描述
+            require_detail: 详细要求
+            
+        Returns:
+            API 响应
+        """
+        request_body = {
+            "trainTaskId": self.train_task_id,
+            "itemName": item_name,
+            "score": score,
+            "description": description,
+            "requireDetail": require_detail,
+        }
+        return self._make_request("POST", self.endpoints["create_score_item"], data=request_body)
     
     # ========== 批量操作 ==========
     
@@ -453,9 +513,10 @@ class PlatformAPIClient:
                         start_step_id=start_id,
                         end_step_id=end_id,
                         transition_prompt=b_cards[i]["transition_prompt"],
-                        flow_condition=flow_condition
+                        flow_condition=flow_condition,
+                        is_default=True  # 单线路情况下始终勾选默认跳转
                     )
-                    print(f"  [OK] 卡片{i+1}A → 卡片{i+2}A (含B类卡片{i+1}B, 跳转条件: {flow_condition})")
+                    print(f"  [OK] 卡片{i+1}A → 卡片{i+2}A (含B类卡片{i+1}B, 跳转条件: {flow_condition}, 默认跳转: 是)")
                 else:
                     print(f"  [OK] 卡片{i+1}A → 卡片{i+2}A (无B类卡片，默认跳转)")
                 
@@ -475,7 +536,24 @@ class PlatformAPIClient:
                 progress_callback(current_step, total_steps, "连接训练结束节点")
             try:
                 flow_result = self.create_flow(step_ids[-1], self.end_node_id)
-                print(f"  [OK] 卡片{len(step_ids)}A → 训练结束")
+                flow_id = flow_result.get("_flow_id")
+                
+                # 检查是否有最后一张B类卡片需要设置
+                # 最后一张B类卡片的索引 = len(a_cards) - 1
+                last_b_index = len(a_cards) - 1
+                if last_b_index < len(b_cards) and b_cards[last_b_index].get("transition_prompt"):
+                    flow_condition = b_cards[last_b_index].get("flow_condition", f"卡片{len(a_cards)}B")
+                    self.edit_flow(
+                        flow_id=flow_id,
+                        start_step_id=step_ids[-1],
+                        end_step_id=self.end_node_id,
+                        transition_prompt=b_cards[last_b_index]["transition_prompt"],
+                        flow_condition=flow_condition,
+                        is_default=True  # 单线路情况下始终勾选默认跳转
+                    )
+                    print(f"  [OK] 卡片{len(step_ids)}A → 训练结束 (含B类卡片{len(a_cards)}B, 跳转条件: {flow_condition}, 默认跳转: 是)")
+                else:
+                    print(f"  [OK] 卡片{len(step_ids)}A → 训练结束 (无B类卡片)")
             except Exception as e:
                 print(f"  [失败] 连接训练结束节点失败: {e}")
         else:

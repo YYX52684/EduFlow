@@ -98,6 +98,19 @@ class CardGenerator:
         if "student_role" in stage:
             student_role_hint = f"- 学生扮演的角色：{stage['student_role']}"
         
+        # 为第一张卡片添加开场白要求
+        is_first_card = stage_index == 1
+        prologue_requirement = ""
+        prologue_output_section = ""
+        
+        if is_first_card:
+            prologue_requirement = """
+7. **开场白设计**：这是第一张卡片，需要设计一段精彩的开场白，就像剧本杀中NPC的开场介绍一样，用于在交互开始前展示给学生，建立场景氛围和角色第一印象"""
+            prologue_output_section = """
+# Prologue
+[开场白：NPC角色的自我介绍或场景引入，50-80字左右，用于在交互开始前展示给学生]
+"""
+        
         user_prompt = f"""# 完整剧本
 
 {full_script}
@@ -124,12 +137,12 @@ class CardGenerator:
 3. **开放式交互**：允许学生用多种方式回应，只要合理就推进剧情
 4. **适时引导**：只有当学生明显卡住时，才在对话中自然地给予提示
 5. **场景切换**：当剧情达到自然转折点时，跳转到：{next_card}
-6. **简洁对话**：平台以语音形式沟通，每次回复**控制在50-100字左右**，不要长篇大论
+6. **简洁对话**：平台以语音形式沟通，每次回复**控制在50-100字左右**，不要长篇大论{prologue_requirement}
 
 ## 输出格式
 
 请按以下结构输出卡片内容：
-
+{prologue_output_section}
 # Role
 [NPC是谁，背景、性格、说话方式]
 
@@ -146,6 +159,7 @@ class CardGenerator:
 # Constraints
 [角色扮演的限制和注意事项]
 - 完全沉浸在角色中
+- **每轮只问1-2个问题**，避免连续追问多个问题让学生疲惫
 - **严禁任何括号内容**：不要用（）写心理活动、动作描写、旁白等
 - 所有对话都应该可以直接朗读，不要有舞台剧式的提示
 - **控制对话长度**：每次回复50-100字左右，简洁有力
@@ -160,10 +174,25 @@ class CardGenerator:
         except Exception as e:
             raise RuntimeError(f"生成A类卡片失败: {e}")
     
+    def _is_same_role(self, current_role: str, next_role: str) -> bool:
+        """判断前后角色是否相同（模糊匹配）"""
+        if not current_role or not next_role:
+            return True  # 如果角色信息缺失，默认视为同一角色
+        
+        # 提取角色名称的核心部分进行比较
+        current_name = current_role.split('，')[0].split(',')[0].strip()
+        next_name = next_role.split('，')[0].split(',')[0].strip()
+        
+        return current_name == next_name
+    
     def generate_card_b(self, stage: dict, stage_index: int, total_stages: int,
                         next_stage: Optional[dict], full_script: str) -> str:
         """
-        生成B类卡片（场景过渡/旁白卡片）
+        生成B类卡片（场景过渡卡片）
+        
+        根据前后阶段的NPC角色是否相同，自动选择：
+        - 角色相同：简洁的功能性过渡（无旁白）
+        - 角色不同：包含旁白的角色切换过渡
         
         Args:
             stage: 当前阶段信息字典
@@ -178,6 +207,11 @@ class CardGenerator:
         is_last_stage = stage_index >= total_stages
         next_card = "结束" if is_last_stage else f"卡片{stage_index + 1}A"
         
+        # 判断前后角色是否相同
+        current_role = stage.get('role', '')
+        next_role = next_stage.get('role', '') if next_stage else ''
+        use_narrator = not self._is_same_role(current_role, next_role) and not is_last_stage
+        
         next_stage_info = ""
         if next_stage:
             next_stage_info = f"""
@@ -185,6 +219,50 @@ class CardGenerator:
 - 标题：{next_stage['title']}
 - 角色：{next_stage['role']}
 - 目标：{next_stage['task']}"""
+        
+        # 根据是否需要旁白选择不同的prompt
+        if use_narrator:
+            # 角色不同，需要旁白来衔接
+            output_format = """## 输出格式
+
+请按以下结构输出卡片内容：
+
+# Role
+[旁白/叙述者的定位，1句话即可]
+
+# Context
+[说明本过渡语的使用原则：根据上一环节实际表现，表现好则肯定，表现不足则简要指出，然后衔接角色切换。1-2句话]
+
+# Output
+[过渡内容，**控制在50-80字**：体现「根据事实」——可写肯定版/指出不足版两种表述或通用指引，然后说明角色切换、介绍新角色登场]
+
+# Transition
+输出完毕后，仅输出：**{next_card}**
+
+# Constraints
+- **严禁任何括号内容**
+- **控制输出长度**：# Output部分50-80字
+- 所有文字都应该可以直接朗读出来""".format(next_card=next_card)
+        else:
+            # 角色相同，简洁过渡
+            output_format = """## 输出格式
+
+请按以下结构输出卡片内容（注意：不需要Role部分，因为角色没有变化）：
+
+# Context
+[说明本过渡语的使用原则：根据上一环节实际表现，表现好则肯定，表现不足则简要指出，然后开启下一环节。1句话]
+
+# Output
+[简洁的过渡语，**控制在30-80字**：体现「根据事实」——可写肯定版（如肯定其陈述）与指出不足版（如简要指出缺失后）两种表述，或一句通用指引（如「根据上一环节表现予以肯定或简要指出不足后，接下来进入……」）。不要第三人称场景描写]
+
+# Transition
+输出完毕后，仅输出：**{next_card}**
+
+# Constraints
+- **严禁任何括号内容**
+- **严禁第三人称描述或场景叙述**
+- **控制输出长度**：# Output部分30-50字
+- 所有文字都应该可以直接朗读出来""".format(next_card=next_card)
         
         user_prompt = f"""# 完整剧本
 
@@ -194,57 +272,39 @@ class CardGenerator:
 
 # 当前任务
 
-请为【第{stage_index}幕 → 第{stage_index + 1}幕】的过渡设计B类卡片（场景过渡/旁白）。
+请为【第{stage_index}幕 → 第{stage_index + 1}幕】的过渡设计B类卡片。
 
 ## 上一幕信息
 - 阶段编号：{stage_index}/{total_stages}
 - 场景标题：{stage['title']}
 - 场景目标：{stage['task']}
 - 关键剧情点：{', '.join(stage['key_points'])}
+- 当前角色：{current_role}
 {next_stage_info}
+
+## 角色变化情况
+{"前后角色不同，需要旁白来衔接角色切换" if use_narrator else "前后角色相同，只需要简洁的功能性过渡，不需要旁白"}
 
 ## 设计要求
 
-1. **承上启下**：自然地连接上一幕和下一幕
-2. **场景描述**：描述场景变化、时间流逝、氛围转换
-3. **剧情铺垫**：为下一幕做适当铺垫，引起学生兴趣
-4. {"**总结收尾**：这是最后一幕，需要对整个体验做总结" if is_last_stage else "**引入下一幕**：自然引入下一个场景和角色"}
+1. **根据事实进行过渡**：过渡语应根据上一环节**实际对话表现**来写——学生做得好就肯定，做得不好就简要指出问题，然后开启下一环节。不要一律中性或一律表扬，要根据事实；指出不足时也要自然开启下一步。
+2. {"**角色切换**：说明上一个角色退场，新角色登场" if use_narrator else "**简洁过渡**：直接衔接下一环节，不需要场景描写"}
+3. {"**总结收尾**：这是最后一幕，需要对整个体验做总结" if is_last_stage else "**引入下一幕**：自然引入下一个场景"}
 
 ## 重要！严禁括号内容
 
 - **绝对不要使用任何括号**来写动作描写、场景描写、旁白等
 - 错误示例：（灯光渐暗）、（转身离开）、（场景切换到...）
-- 正确做法：用自然的叙述语言描述，所有内容都应该可以直接朗读
-- 原因：平台只有一个语音通道，括号内容会非常出戏
+- 正确做法：用自然的叙述语言描述
 
-## 重要！控制输出长度
+{"" if use_narrator else '''## 重要！禁止第三人称描述
 
-- 平台以**语音形式**与学生沟通，过长的文本会让体验变差
-- # Output 部分的文字**控制在50-80字左右**（约20-30秒朗读）
-- 简洁有力，点到为止，不要铺陈太多
+- **不要使用第三人称描述角色**，如"陈新农微微颔首"、"他的目光转向..."
+- 因为前后是同一个角色，不需要旁白式的场景描写
+- 只需要简洁地说明进入下一环节即可
+'''}
 
-## 输出格式
-
-请按以下结构输出卡片内容：
-
-# Role
-[旁白/叙述者的定位，1-2句话即可]
-
-# Context
-[上一幕发生了什么，简要说明]
-
-# Output
-[具体的过渡内容，**控制在50-80字**，简洁有力：
-- 简短回顾上一幕（1句话）
-- 自然引入下一幕（1-2句话）]
-
-# Transition
-输出完毕后，仅输出：**{next_card}**
-
-# Constraints
-- **严禁任何括号内容**（心理、动作、场景描写都不要用括号）
-- **控制输出长度**：# Output部分50-80字左右
-- 所有文字都应该可以直接朗读出来
+{output_format}
 
 ---
 

@@ -98,7 +98,7 @@ def test_stage_meta_parsing():
     print("Test 3: Stage Meta Parsing")
     print("=" * 60)
     
-    from platform.card_injector import CardInjector
+    from api_platform.card_injector import CardInjector
     
     # Mock card content with metadata
     test_content = '''# Card 1A
@@ -134,7 +134,7 @@ def test_parsed_card_to_format():
     print("Test 4: ParsedCard.to_a_card_format Config Merge")
     print("=" * 60)
     
-    from platform.card_injector import ParsedCard
+    from api_platform.card_injector import ParsedCard
     
     # Create test card with LLM-specified config
     card = ParsedCard(
@@ -186,7 +186,7 @@ def test_api_client_params():
     print("Test 5: API Client create_step Parameters")
     print("=" * 60)
     
-    from platform.api_client import PlatformAPIClient
+    from api_platform.api_client import PlatformAPIClient
     import inspect
     
     # Get create_step method parameters

@@ -10,8 +10,8 @@ import sys
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from platform.card_injector import CardInjector, ParsedCard
-from platform.api_client import PlatformAPIClient
+from api_platform.card_injector import CardInjector, ParsedCard
+from api_platform.api_client import PlatformAPIClient
 from config import PLATFORM_CONFIG, PLATFORM_ENDPOINTS
 
 

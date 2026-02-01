@@ -3,6 +3,10 @@
 """
 教学卡片自动生成脚本
 支持从 Markdown、DOCX、PDF 格式的教学剧本生成 A/B 类教学卡片
+
+新增功能：
+- 学生模拟测试：使用LLM模拟学生与卡片NPC进行对话
+- 交互质量评估：基于对话日志生成多维度评估报告
 """
 import argparse
 import os
@@ -12,10 +16,24 @@ from datetime import datetime
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import INPUT_DIR, OUTPUT_DIR, PLATFORM_CONFIG, PLATFORM_ENDPOINTS
-from parsers import parse_markdown, parse_docx, parse_pdf
-from generators import ContentSplitter, CardGenerator
-from platform import PlatformAPIClient, CardInjector
+from config import (
+    INPUT_DIR,
+    OUTPUT_DIR,
+    PLATFORM_CONFIG,
+    PLATFORM_ENDPOINTS,
+    CARD_GENERATOR_TYPE,
+    DEEPSEEK_API_KEY,
+    EVALUATION_CONFIG,
+)
+from parsers import (
+    parse_markdown,
+    parse_docx,
+    parse_pdf,
+    extract_task_meta_from_doc,
+)
+from generators import ContentSplitter, CardGenerator, DSPyCardGenerator, DSPY_AVAILABLE, list_frameworks, get_framework
+from generators.evaluation_section import build_evaluation_markdown
+from api_platform import PlatformAPIClient, CardInjector
 
 
 def get_parser_for_file(file_path: str):
@@ -109,12 +127,20 @@ def create_platform_client() -> PlatformAPIClient:
     return client
 
 
-def inject_cards_to_platform(md_path: str, preview_only: bool = False, verbose: bool = False) -> bool:
+def inject_cards_to_platform(
+    md_path: str,
+    task_name: str = None,
+    description: str = None,
+    preview_only: bool = False,
+    verbose: bool = False,
+) -> bool:
     """
-    将Markdown文件中的卡片注入到平台
+    将Markdown文件中的卡片注入到平台，并可选配置任务名称/描述与评价项。
     
     Args:
         md_path: Markdown文件路径
+        task_name: 任务名称（为空则不调用 editConfiguration）
+        description: 任务描述（为空则不调用 editConfiguration）
         preview_only: 是否仅预览
         verbose: 详细输出
         
@@ -142,16 +168,20 @@ def inject_cards_to_platform(md_path: str, preview_only: bool = False, verbose: 
             injector.preview_cards(md_path)
             return True
         
-        # 执行注入
+        # 执行注入（含任务配置与评价项）
         print(f"\n源文件: {md_path}")
+        if task_name:
+            print(f"任务名称: {task_name}")
         print("正在注入卡片到平台...\n")
         
         def inject_progress(current: int, total: int, message: str):
             progress_callback(current, total, message)
         
-        result = injector.inject_from_file(
+        result = injector.inject_with_config(
             md_path,
-            progress_callback=inject_progress
+            task_name=task_name,
+            description=description,
+            progress_callback=inject_progress,
         )
         
         # 显示结果
@@ -159,6 +189,8 @@ def inject_cards_to_platform(md_path: str, preview_only: bool = False, verbose: 
         print("注入结果:")
         print(f"  A类卡片（节点）: {result['successful_a_cards']}/{result['total_a_cards']} 成功")
         print(f"  B类卡片（连线）: {result['successful_b_cards']}/{result['total_b_cards']} 成功")
+        if result.get("evaluation_items_count") is not None:
+            print(f"  评价项: {result['evaluation_items_count']} 个，总分 {result.get('total_score', 0)}")
         
         if verbose:
             print("\nA类卡片详情:")
@@ -231,6 +263,287 @@ def inject_only_mode(md_path: str, preview_only: bool = False, verbose: bool = F
     else:
         print("\n[失败] 注入过程中出现错误")
         sys.exit(1)
+
+
+def run_simulation(
+    md_path: str,
+    persona_id: str = "excellent",
+    mode: str = "auto",
+    output_dir: str = "simulator_output",
+    verbose: bool = False,
+    run_evaluation: bool = True,
+):
+    """
+    运行学生模拟测试
+    
+    Args:
+        md_path: 卡片Markdown文件路径
+        persona_id: 人设标识符 (excellent/average/struggling 或自定义文件路径)
+        mode: 会话模式 (auto/manual/hybrid)
+        output_dir: 输出目录
+        verbose: 详细输出
+        run_evaluation: 是否运行评估
+    """
+    from simulator import SessionRunner, SessionConfig, SessionMode
+    from simulator import Evaluator, EvaluatorFactory
+    
+    print("=" * 60)
+    print("学生模拟测试")
+    print("=" * 60)
+    print(f"\n卡片文件: {md_path}")
+    print(f"人设: {persona_id}")
+    print(f"模式: {mode}")
+    print()
+    
+    # 创建会话配置
+    config = SessionConfig(
+        mode=SessionMode(mode),
+        persona_id=persona_id,
+        output_dir=output_dir,
+        verbose=verbose,
+    )
+    
+    # 创建并运行会话
+    runner = SessionRunner(config)
+    runner.load_cards(md_path)
+    runner.setup()
+    
+    try:
+        log = runner.run()
+        
+        # 运行评估
+        if run_evaluation and log.summary.get("status") == "completed":
+            print("\n" + "=" * 60)
+            print("开始评估对话质量...")
+            print("=" * 60)
+            
+            evaluator = EvaluatorFactory.create_from_env()
+            dialogue = runner.get_dialogue_for_evaluation()
+            
+            report = evaluator.evaluate(
+                dialogue,
+                session_id=log.session_id
+            )
+            
+            # 保存报告
+            reports_dir = os.path.join(output_dir, "reports")
+            evaluator.save_report(report, reports_dir)
+            
+            print("\n[完成] 模拟测试和评估已完成!")
+        else:
+            print("\n[完成] 模拟测试已完成（跳过评估）")
+            
+    except KeyboardInterrupt:
+        print("\n[中断] 用户中断测试")
+    except Exception as e:
+        print(f"\n[错误] 模拟测试失败: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+def run_batch_simulation(
+    md_path: str,
+    personas: list,
+    output_dir: str = "simulator_output",
+    verbose: bool = False,
+):
+    """
+    批量运行多个人设的模拟测试
+    
+    Args:
+        md_path: 卡片Markdown文件路径
+        personas: 人设列表
+        output_dir: 输出目录
+        verbose: 详细输出
+    """
+    print("=" * 60)
+    print("批量学生模拟测试")
+    print("=" * 60)
+    print(f"\n卡片文件: {md_path}")
+    print(f"人设列表: {', '.join(personas)}")
+    print()
+    
+    results = []
+    
+    for i, persona in enumerate(personas, 1):
+        print(f"\n{'='*40}")
+        print(f"[{i}/{len(personas)}] 测试人设: {persona}")
+        print(f"{'='*40}")
+        
+        # 为每个人设创建单独的输出目录
+        persona_output = os.path.join(output_dir, f"persona_{persona}")
+        
+        try:
+            run_simulation(
+                md_path=md_path,
+                persona_id=persona,
+                mode="auto",
+                output_dir=persona_output,
+                verbose=verbose,
+                run_evaluation=True,
+            )
+            results.append((persona, "成功"))
+        except Exception as e:
+            print(f"[错误] 人设 {persona} 测试失败: {e}")
+            results.append((persona, f"失败: {e}"))
+    
+    # 显示批量测试结果
+    print("\n" + "=" * 60)
+    print("批量测试结果汇总")
+    print("=" * 60)
+    for persona, status in results:
+        print(f"  - {persona}: {status}")
+
+
+def run_evaluation_only(log_path: str, output_dir: str = None):
+    """
+    仅运行评估（对已有的对话日志）
+    
+    Args:
+        log_path: 会话日志文件路径（JSON格式）
+        output_dir: 输出目录
+    """
+    from simulator import evaluate_session
+    
+    print("=" * 60)
+    print("对话质量评估")
+    print("=" * 60)
+    print(f"\n日志文件: {log_path}")
+    
+    if not os.path.exists(log_path):
+        print(f"[错误] 日志文件不存在: {log_path}")
+        sys.exit(1)
+    
+    try:
+        report = evaluate_session(log_path, output_dir)
+        print(f"\n[完成] 评估完成!")
+        print(f"  总分: {report.total_score:.1f}/100")
+        print(f"  评级: {report.get_rating()}")
+    except Exception as e:
+        print(f"\n[错误] 评估失败: {e}")
+        sys.exit(1)
+
+
+def generate_personas(
+    input_path: str,
+    num_personas: int = 3,
+    output_dir: str = None,
+    verbose: bool = False,
+):
+    """
+    根据原始教学材料生成推荐的学生角色配置
+    
+    Args:
+        input_path: 输入文件路径（剧本、课程大纲等）
+        num_personas: 生成的角色数量
+        output_dir: 输出目录
+        verbose: 详细输出
+    """
+    from simulator import PersonaGeneratorFactory
+    
+    print("=" * 60)
+    print("智能角色生成器")
+    print("=" * 60)
+    print(f"\n输入文件: {input_path}")
+    print(f"生成数量: {num_personas}")
+    print()
+    
+    # 读取输入文件
+    if not os.path.exists(input_path):
+        print(f"[错误] 文件不存在: {input_path}")
+        sys.exit(1)
+    
+    # 根据文件类型解析内容
+    try:
+        file_parser = get_parser_for_file(input_path)
+        content = file_parser(input_path)
+        print(f"[OK] 已读取文件，内容长度: {len(content)} 字符")
+    except ValueError as e:
+        # 如果不是支持的格式，尝试直接读取文本
+        with open(input_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        print(f"[OK] 已读取文本文件，内容长度: {len(content)} 字符")
+    
+    # 创建生成器
+    print("\n[生成] 正在调用Sonnet生成角色配置...")
+    generator = PersonaGeneratorFactory.create_from_env()
+    
+    try:
+        personas = generator.generate_from_material(
+            material_content=content,
+            num_personas=num_personas,
+            include_preset_types=True,
+        )
+        
+        print(f"\n[OK] 成功生成 {len(personas)} 个角色配置")
+        
+        # 显示生成结果
+        print("\n" + "-" * 40)
+        print("生成的角色概览:")
+        print("-" * 40)
+        for i, persona in enumerate(personas, 1):
+            print(f"\n【角色 {i}】{persona.name}")
+            print(f"  背景: {persona.background[:50]}..." if len(persona.background) > 50 else f"  背景: {persona.background}")
+            print(f"  性格: {persona.personality}")
+            print(f"  目标: {persona.goal[:50]}..." if len(persona.goal) > 50 else f"  目标: {persona.goal}")
+            print(f"  参与度: {persona.engagement_level}")
+            if verbose:
+                print(f"  优势: {', '.join(persona.strengths[:3])}")
+                print(f"  不足: {', '.join(persona.weaknesses[:2])}")
+        
+        # 保存到文件
+        saved_paths = generator.save_personas(personas, output_dir)
+        
+        print("\n" + "-" * 40)
+        print("已保存角色配置文件:")
+        print("-" * 40)
+        for path in saved_paths:
+            print(f"  - {path}")
+        
+        print("\n" + "=" * 60)
+        print("[完成] 角色生成成功!")
+        print("\n使用方法:")
+        for i, path in enumerate(saved_paths):
+            filename = os.path.basename(path)
+            print(f"  python main.py --simulate <cards.md> --persona \"custom/{filename}\"")
+        print("=" * 60)
+        
+    except Exception as e:
+        print(f"\n[错误] 角色生成失败: {e}")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+def list_personas():
+    """列出可用的人设"""
+    from simulator import PersonaManager
+    
+    print("=" * 60)
+    print("可用人设列表")
+    print("=" * 60)
+    
+    manager = PersonaManager()
+    
+    print("\n【预设人设】")
+    for name in manager.list_presets():
+        print(f"  - {name}")
+    
+    print("\n【自定义人设】")
+    custom = manager.list_custom()
+    if custom:
+        for name in custom:
+            print(f"  - custom/{name}")
+    else:
+        print("  (暂无)")
+    
+    print("\n使用方法:")
+    print("  --persona excellent        # 使用预设人设")
+    print("  --persona custom/xxx.yaml  # 使用自定义人设")
+    print("  --generate-personas <input_file>  # 根据材料生成推荐人设")
 
 
 def set_project_from_url(url: str):
@@ -323,10 +636,11 @@ def set_project_from_url(url: str):
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description='教学卡片自动生成脚本 - 从教学剧本生成 A/B 类卡片',
+        description='教学卡片自动生成与模拟测试工具',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
+  # ========== 卡片生成 ==========
   # 基本用法：生成卡片
   python main.py --input "./input/剧本.docx"
   python main.py --input "./input/剧本.pdf" --output "./output/课程卡片.md"
@@ -334,14 +648,46 @@ def main():
 
   # 生成并注入到平台
   python main.py --input "./input/剧本.docx" --inject
-  python main.py --input "./input/剧本.docx" --preview-inject  # 仅预览，不实际注入
+  python main.py --input "./input/剧本.docx" --preview-inject
 
   # 仅注入已生成的文件
   python main.py --inject-only "./output/cards_output_xxx.md"
-  python main.py --inject-only "./output/cards_output_xxx.md" --preview-inject
 
-  # 切换项目：从URL自动提取课程ID和训练任务ID
-  python main.py --set-project "https://hike-teaching-center.polymas.com/tch-hike/agent-course-full/课程ID/ability-training/create?trainTaskId=任务ID"
+  # ========== 学生模拟测试 ==========
+  # 自动模式（LLM扮演学生）
+  python main.py --simulate "output/cards_output_xxx.md" --persona "excellent"
+  
+  # 手动模式（终端输入）
+  python main.py --simulate "output/cards_output_xxx.md" --manual
+  
+  # 混合模式
+  python main.py --simulate "output/cards_output_xxx.md" --persona "average" --hybrid
+  
+  # 使用自定义人设
+  python main.py --simulate "output/cards.md" --persona "custom/entrepreneur.yaml"
+  
+  # 批量测试多种人设
+  python main.py --simulate "output/cards.md" --persona-batch "excellent,average,struggling"
+  
+  # 指定输出目录
+  python main.py --simulate "output/cards.md" --persona "excellent" --sim-output "simulator_output/"
+
+  # ========== 评估 ==========
+  # 评估已有的对话日志
+  python main.py --evaluate "simulator_output/logs/session_xxx.json"
+  
+  # 列出可用人设
+  python main.py --list-personas
+
+  # ========== 智能角色生成 ==========
+  # 根据原始剧本生成推荐的学生角色
+  python main.py --generate-personas "./input/剧本.docx"
+  
+  # 指定生成数量
+  python main.py --generate-personas "./input/剧本.md" --num-personas 5
+
+  # ========== 项目配置 ==========
+  python main.py --set-project "https://hike-teaching-center.polymas.com/..."
         """
     )
     
@@ -393,6 +739,95 @@ def main():
         help='从智慧树页面URL提取并设置课程ID和训练任务ID'
     )
     
+    parser.add_argument(
+        '--use-dspy',
+        action='store_true',
+        help='使用DSPy结构化生成器（推荐，可减少括号等违规输出）'
+    )
+    
+    parser.add_argument(
+        '--framework',
+        metavar='ID',
+        default=None,
+        help='指定生成框架 ID（如 default, dspy）。不指定时根据配置或交互选择'
+    )
+    
+    parser.add_argument(
+        '--list-frameworks',
+        action='store_true',
+        help='列出框架库中所有可用生成框架后退出'
+    )
+    
+    # ========== 学生模拟测试参数 ==========
+    parser.add_argument(
+        '--simulate',
+        metavar='MD_FILE',
+        help='运行学生模拟测试，指定卡片Markdown文件'
+    )
+    
+    parser.add_argument(
+        '--persona',
+        default='excellent',
+        help='学生人设 (excellent/average/struggling 或自定义文件路径)'
+    )
+    
+    parser.add_argument(
+        '--manual',
+        action='store_true',
+        help='手动输入模式（从终端输入学生回复）'
+    )
+    
+    parser.add_argument(
+        '--hybrid',
+        action='store_true',
+        help='混合模式（可在自动和手动间切换）'
+    )
+    
+    parser.add_argument(
+        '--persona-batch',
+        metavar='PERSONAS',
+        help='批量测试多种人设，逗号分隔 (如: excellent,average,struggling)'
+    )
+    
+    parser.add_argument(
+        '--sim-output',
+        default='simulator_output',
+        help='模拟测试输出目录 (默认: simulator_output)'
+    )
+    
+    parser.add_argument(
+        '--no-eval',
+        action='store_true',
+        help='模拟测试后不运行评估'
+    )
+    
+    # ========== 评估参数 ==========
+    parser.add_argument(
+        '--evaluate',
+        metavar='LOG_FILE',
+        help='评估已有的对话日志文件（JSON格式）'
+    )
+    
+    parser.add_argument(
+        '--list-personas',
+        action='store_true',
+        help='列出所有可用的人设'
+    )
+    
+    # ========== 角色生成参数 ==========
+    parser.add_argument(
+        '--generate-personas',
+        metavar='INPUT_FILE',
+        help='根据原始教学材料生成推荐的学生角色配置'
+    )
+    
+    parser.add_argument(
+        '--num-personas',
+        type=int,
+        default=3,
+        help='生成的角色数量 (默认: 3)'
+    )
+    
     args = parser.parse_args()
     
     # 处理设置项目模式
@@ -400,14 +835,86 @@ def main():
         set_project_from_url(args.set_project)
         return
     
+    # 处理列出生成框架
+    if args.list_frameworks:
+        frameworks = list_frameworks()
+        if not frameworks:
+            print("框架库中暂无可用生成框架。请在 generators/frameworks/ 下添加框架。")
+            return
+        print("可用生成框架:")
+        print("-" * 50)
+        for i, m in enumerate(frameworks, 1):
+            print(f"  {i}. {m['id']} - {m['name']}")
+            if m.get('description'):
+                print(f"     {m['description']}")
+        print("-" * 50)
+        return
+    
+    # 处理列出人设
+    if args.list_personas:
+        list_personas()
+        return
+    
+    # 处理角色生成
+    if args.generate_personas:
+        generate_personas(
+            input_path=os.path.abspath(args.generate_personas),
+            num_personas=args.num_personas,
+            output_dir=args.sim_output + "/custom" if args.sim_output != "simulator_output" else None,
+            verbose=args.verbose,
+        )
+        return
+    
+    # 处理评估模式
+    if args.evaluate:
+        run_evaluation_only(args.evaluate, args.sim_output)
+        return
+    
+    # 处理学生模拟测试模式
+    if args.simulate:
+        md_path = os.path.abspath(args.simulate)
+        
+        if not os.path.exists(md_path):
+            print(f"错误: 卡片文件不存在: {md_path}")
+            sys.exit(1)
+        
+        # 批量测试模式
+        if args.persona_batch:
+            personas = [p.strip() for p in args.persona_batch.split(',')]
+            run_batch_simulation(
+                md_path=md_path,
+                personas=personas,
+                output_dir=args.sim_output,
+                verbose=args.verbose,
+            )
+            return
+        
+        # 确定会话模式
+        if args.manual:
+            mode = "manual"
+        elif args.hybrid:
+            mode = "hybrid"
+        else:
+            mode = "auto"
+        
+        run_simulation(
+            md_path=md_path,
+            persona_id=args.persona,
+            mode=mode,
+            output_dir=args.sim_output,
+            verbose=args.verbose,
+            run_evaluation=not args.no_eval,
+        )
+        return
+    
     # 处理仅注入模式
     if args.inject_only:
         inject_only_mode(args.inject_only, args.preview_inject, args.verbose)
         return
     
-    # 非inject-only模式需要--input参数
+    # 非其他模式需要--input参数
     if not args.input:
-        parser.error("需要提供 --input 参数，或使用 --inject-only 模式")
+        parser.error("需要提供 --input 参数，或使用 --simulate/--inject-only/--evaluate 等模式")
     
     # 检查输入文件
     input_path = os.path.abspath(args.input)
@@ -472,18 +979,91 @@ def main():
         
         # 步骤3: 生成卡片
         print("[3] 步骤3: 生成教学卡片...")
-        generator = CardGenerator()
+        
+        # 选择生成框架
+        frameworks = list_frameworks()
+        if not frameworks:
+            print("   [错误] 框架库中暂无可用生成框架。请在 generators/frameworks/ 下添加框架。")
+            sys.exit(1)
+        
+        framework_id = args.framework
+        if framework_id is None and CARD_GENERATOR_TYPE:
+            # 配置中的 CARD_GENERATOR_TYPE 与某框架 id 一致则直接使用
+            for m in frameworks:
+                if m["id"] == CARD_GENERATOR_TYPE:
+                    framework_id = CARD_GENERATOR_TYPE
+                    break
+        if framework_id is None and args.use_dspy:
+            framework_id = "dspy" if any(m["id"] == "dspy" for m in frameworks) else None
+        
+        if framework_id is None and len(frameworks) == 1:
+            framework_id = frameworks[0]["id"]
+        elif framework_id is None and len(frameworks) > 1:
+            # 交互式选择
+            print("\n   请选择生成框架:")
+            for i, m in enumerate(frameworks, 1):
+                print(f"     {i}. {m['id']} - {m['name']}")
+            try:
+                choice = input("   请输入序号或框架 ID [1]: ").strip() or "1"
+                if choice.isdigit():
+                    idx = int(choice)
+                    if 1 <= idx <= len(frameworks):
+                        framework_id = frameworks[idx - 1]["id"]
+                    else:
+                        framework_id = frameworks[0]["id"]
+                else:
+                    framework_id = choice
+            except (EOFError, KeyboardInterrupt):
+                framework_id = frameworks[0]["id"]
+                print(f"   使用默认: {frameworks[0]['name']}")
+        
+        if framework_id is None:
+            framework_id = frameworks[0]["id"]
+        
+        try:
+            GeneratorClass, meta = get_framework(framework_id)
+            print(f"   [INFO] 使用生成框架: {meta['name']}")
+        except ValueError as e:
+            print(f"   [错误] {e}")
+            sys.exit(1)
+        
+        try:
+            generator = GeneratorClass(api_key=DEEPSEEK_API_KEY)
+        except Exception as e:
+            print(f"   [错误] 初始化生成框架失败: {e}")
+            sys.exit(1)
         
         cards_content = generator.generate_all_cards(
-            stages, 
+            stages,
             content,
             progress_callback=progress_callback
         )
         
         print("   [OK] 卡片生成完成\n")
         
-        # 步骤4: 保存输出
+        # 步骤4: 保存输出（含评价项章节）
         print("[4] 步骤4: 保存输出文件...")
+        
+        # 从输入文档提取任务元数据（用于评价项章节，注入时再用任务名/描述）
+        try:
+            task_meta = extract_task_meta_from_doc(input_path)
+        except (ValueError, FileNotFoundError):
+            task_meta = {
+                "task_name": os.path.basename(input_path),
+                "description": "",
+                "evaluation_items": [],
+            }
+        
+        # 追加评价项章节（原文档有则用，否则按阶段自动生成）
+        if EVALUATION_CONFIG.get("enabled", True):
+            evaluation_md = build_evaluation_markdown(
+                task_meta.get("evaluation_items", []),
+                stages,
+                target_total_score=EVALUATION_CONFIG.get("target_total_score", 100),
+                auto_generate_if_empty=EVALUATION_CONFIG.get("auto_generate", True),
+            )
+            if evaluation_md:
+                cards_content = cards_content + "\n\n---\n\n" + evaluation_md
         
         # 添加文件头信息
         header = f"""# 教学卡片
@@ -508,12 +1088,14 @@ def main():
         print(f"   输出文件: {output_path}")
         print("=" * 60)
         
-        # 如果指定了注入参数，执行注入
+        # 如果指定了注入参数，执行注入（传入从输入文档提取的任务名与描述）
         if args.inject or args.preview_inject:
             inject_cards_to_platform(
-                output_path, 
+                output_path,
+                task_name=task_meta.get("task_name"),
+                description=task_meta.get("description"),
                 preview_only=args.preview_inject,
-                verbose=args.verbose
+                verbose=args.verbose,
             )
         
     except FileNotFoundError as e:

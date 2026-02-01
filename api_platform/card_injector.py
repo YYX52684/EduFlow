@@ -50,6 +50,7 @@ class ParsedCard:
     stage_name: str = ""           # 阶段名称（简短，用于显示）
     stage_description: str = ""    # 阶段描述（详细说明）
     interaction_rounds: int = 0    # 交互轮次（0表示使用默认值）
+    prologue: str = ""             # 开场白（仅卡片1A使用）
     
     def to_a_card_format(self) -> dict:
         """
@@ -60,6 +61,9 @@ class ParsedCard:
         content = self.full_content
         content = re.sub(r'^#\s*卡片\d+[AB]\s*\n', '', content.strip())
         content = re.sub(r'<!--\s*STAGE_META:\s*\{.*?\}\s*-->\s*\n?', '', content)
+        
+        # 移除开场白部分（已单独提取）
+        content = re.sub(r'#\s*Prologue\s*\n.*?(?=\n#\s|\Z)', '', content, flags=re.DOTALL)
         
         # 使用阶段名称，如果没有则使用卡片标题
         step_name = self.stage_name if self.stage_name else self.title
@@ -74,7 +78,7 @@ class ParsedCard:
             "step_name": step_name,
             "llm_prompt": content,
             "description": description,
-            "prologue": "",
+            "prologue": self.prologue,  # 开场白（仅卡片1A会有内容）
             # 配置字段（从CARD_DEFAULTS获取默认值，字段名已通过抓包确认）
             "interaction_rounds": interaction_rounds,           # -> interactiveRounds
             "model_id": CARD_DEFAULTS.get("model_id", ""),      # -> modelId
@@ -168,6 +172,9 @@ class CardInjector:
             card.constraints = sections["Constraints"]
         if "Output Format" in sections:
             card.output_format = sections["Output Format"]
+        # 解析开场白（仅卡片1A会有）
+        if "Prologue" in sections:
+            card.prologue = sections["Prologue"]
         
         return card
     
@@ -214,6 +221,66 @@ class CardInjector:
             sections[current_section] = '\n'.join(current_content).strip()
         
         return sections
+    
+    def parse_evaluation_items(self, md_content: str) -> List[Dict[str, Any]]:
+        """
+        从 Markdown 内容中解析 ## 评价项 章节，提取各评价项。
+        
+        期望格式：
+        ## 评价项
+        ### 评价项1：名称
+        - **满分值**: 20
+        - **评价描述**: ...
+        - **详细要求**: ...
+        
+        Returns:
+            列表，每项为 {"item_name", "score", "description", "require_detail"}
+        """
+        items = []
+        if not md_content or "## 评价项" not in md_content:
+            return items
+        
+        # 只取 ## 评价项 及其后内容（到下一个 ## 或文件末尾）
+        start = md_content.find("## 评价项")
+        rest = md_content[start:]
+        end = rest.find("\n## ", 1)
+        section = rest[:end] if end > 0 else rest
+        
+        # 按 ### 评价项N： 分块
+        blocks = re.split(r"\n###\s*评价项\d*[：:]\s*", section)
+        for block in blocks:
+            block = block.strip()
+            if not block or block.startswith("#"):
+                continue
+            name = ""
+            score = 0
+            description = ""
+            require_detail = ""
+            # 第一行常为名称
+            lines = block.split("\n")
+            if lines:
+                name = lines[0].strip()
+            for line in lines[1:]:
+                line = line.strip()
+                if not line or not line.startswith("-"):
+                    continue
+                m_score = re.search(r"\*\*满分值\*\*\s*[：:]\s*(\d+)", line)
+                m_desc = re.search(r"\*\*评价描述\*\*\s*[：:]\s*(.+)", line)
+                m_req = re.search(r"\*\*详细要求\*\*\s*[：:]\s*(.+)", line)
+                if m_score:
+                    score = int(m_score.group(1))
+                if m_desc:
+                    description = m_desc.group(1).strip()
+                if m_req:
+                    require_detail = m_req.group(1).strip()
+            if name or score > 0:
+                items.append({
+                    "item_name": name or "未命名评价项",
+                    "score": score,
+                    "description": description,
+                    "require_detail": require_detail,
+                })
+        return items
     
     def separate_cards(self, cards: List[ParsedCard]) -> tuple:
         """
@@ -295,6 +362,59 @@ class CardInjector:
             "a_cards": [{"card_id": c.card_id, "title": c.title} for c in a_cards],
             "b_cards": [{"card_id": c.card_id, "title": c.title} for c in b_cards],
         }
+    
+    def inject_with_config(
+        self,
+        md_path: str,
+        task_name: Optional[str] = None,
+        description: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    ) -> Dict[str, Any]:
+        """
+        注入卡片并配置任务（含评价项）。
+        流程：解析 Markdown（含评价项）→ 注入卡片 → editConfiguration → 批量 createScoreItem。
+        """
+        path = Path(md_path)
+        if not path.exists():
+            raise FileNotFoundError(f"文件不存在: {md_path}")
+        content = path.read_text(encoding="utf-8")
+        
+        # 1. 解析评价项
+        evaluation_items = self.parse_evaluation_items(content)
+        total_score = sum(it.get("score", 0) for it in evaluation_items)
+        
+        # 2. 注入卡片（复用现有逻辑）
+        inject_result = self.inject_from_file(md_path, progress_callback=progress_callback)
+        
+        # 3. 配置任务信息（若提供了 task_name 或 description）
+        if task_name is not None or description is not None:
+            try:
+                self.api.edit_configuration(
+                    task_name=task_name or inject_result.get("task_name", "训练任务"),
+                    description=description or "",
+                    train_time=-1,
+                )
+                print("\n  [OK] 已更新任务配置（名称/描述/不限时）")
+            except Exception as e:
+                print(f"\n  [警告] 更新任务配置失败: {e}")
+        
+        # 4. 创建评价项（失败不影响卡片注入结果）
+        created = 0
+        for it in evaluation_items:
+            try:
+                self.api.create_score_item(
+                    item_name=it.get("item_name", "未命名"),
+                    score=int(it.get("score", 0)),
+                    description=it.get("description", ""),
+                    require_detail=it.get("require_detail", ""),
+                )
+                created += 1
+            except Exception as e:
+                print(f"  [警告] 创建评价项「{it.get('item_name', '')}」失败: {e}")
+        
+        inject_result["evaluation_items_count"] = created
+        inject_result["total_score"] = total_score
+        return inject_result
     
     def preview_cards(self, md_path: str) -> None:
         """预览解析结果"""
