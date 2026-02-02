@@ -80,3 +80,24 @@ EVALUATION_CONFIG = {
     "auto_generate": os.getenv("AUTO_GENERATE_EVALUATION", "true").lower() in ("true", "1", "yes"),
     "target_total_score": int(os.getenv("EVALUATION_TARGET_SCORE", "100")),
 }
+
+# DSPy 优化 + 外部评估指标配置
+OPTIMIZER_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output", "optimizer")
+os.makedirs(OPTIMIZER_OUTPUT_DIR, exist_ok=True)
+
+DSPY_OPTIMIZER_CONFIG = {
+    # 导出文件路径（外部平台评估结果）
+    "export_file_path": os.getenv("DSPY_EXPORT_FILE", os.path.join(OPTIMIZER_OUTPUT_DIR, "export_score.json")),
+    # 解析器: json | csv | custom
+    "parser": os.getenv("DSPY_EXPORT_PARSER", "json"),
+    # JSON 分数字段名
+    "json_score_key": os.getenv("DSPY_JSON_SCORE_KEY", "total_score"),
+    # CSV 分数列名（可选）
+    "csv_score_column": os.getenv("DSPY_CSV_SCORE_COLUMN") or None,
+    # 生成卡片输出路径（每轮优化写入）
+    "cards_output_path": os.getenv("DSPY_CARDS_OUTPUT", os.path.join(OPTIMIZER_OUTPUT_DIR, "cards_for_eval.md")),
+    # 优化器类型: bootstrap | mipro
+    "optimizer_type": os.getenv("DSPY_OPTIMIZER", "bootstrap"),
+    "max_rounds": int(os.getenv("DSPY_MAX_ROUNDS", "1")),
+    "max_bootstrapped_demos": int(os.getenv("DSPY_MAX_BOOTSTRAPPED_DEMOS", "4")),
+}

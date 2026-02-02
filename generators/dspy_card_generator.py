@@ -40,12 +40,12 @@ class CardASignature(dspy.Signature):
     content_excerpt: str = dspy.InputField(desc="原文参考内容")
     next_card_id: str = dspy.InputField(desc="下一张卡片ID，如'卡片1B'")
     
-    # 输出字段
-    role_section: str = dspy.OutputField(desc="# Role 部分：NPC是谁，背景、性格、说话方式。50-100字。")
-    context_section: str = dspy.OutputField(desc="# Context 部分：当前场景背景，学生扮演什么角色。50-100字。")
-    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：如何与学生对话，如何推进剧情。80-150字。重要：强调每轮只问1-2个问题，不要连续追问多个问题。")
-    transition_section: str = dspy.OutputField(desc="# Transition 部分：什么情况下触发场景切换。包含跳转指令。50-80字。")
-    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：角色扮演的限制和注意事项。使用短横线列表格式。必须包含'每轮只问1-2个问题'的约束。")
+    # 输出字段（人称约定：卡片给 NPC 用，「你」=NPC，「学生/对方」=学生，不用「我」）
+    role_section: str = dspy.OutputField(desc="# Role 部分：NPC是谁，背景、性格、说话方式。50-100字。用「你」指代 NPC，例如「你是张经理，食品厂设备采购经理……」。")
+    context_section: str = dspy.OutputField(desc="# Context 部分：当前场景背景，对方（学生）扮演什么角色。50-100字。用「你」指 NPC、「学生/对方」指学生，例如「学生扮演控制工程师，你正在向他介绍方案B……」。")
+    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：你（NPC）如何与学生/对方对话、推进剧情。80-150字。用「你」指 NPC、「学生/对方」指学生。重要：每轮只问1-2个问题，不要连续追问。")
+    transition_section: str = dspy.OutputField(desc="# Transition 部分：什么情况下触发场景切换。用「你」指 NPC、「学生/对方」指学生。包含跳转指令。50-80字。")
+    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：你（NPC）扮演时的限制和注意事项。使用短横线列表格式。必须包含'每轮只问1-2个问题'的约束。")
 
 
 class CardAPrologueSignature(dspy.Signature):
@@ -390,27 +390,19 @@ class DSPyCardGenerator:
         return "\n".join(sections)
     
     def _format_card_b(self, result: dspy.Prediction, stage_index: int, total_stages: int) -> str:
-        """格式化B类卡片输出"""
-        is_last = stage_index >= total_stages
-        next_card = "结束" if is_last else f"卡片{stage_index + 1}A"
-        
+        """格式化B类卡片输出（不再包含 # Transition / **卡片XA**，避免对话中出现跳转指令）"""
         sections = []
-        
-        # 根据是否使用旁白来决定格式
         use_narrator = getattr(result, 'use_narrator', False)
-        
         if use_narrator:
             # 旁白版：包含Role部分
             sections.append(f"# Role\n{result.role_section}\n")
             sections.append(f"# Context\n{result.context_section}\n")
             sections.append(f"# Output\n{result.output_section}\n")
-            sections.append(f"# Transition\n**{next_card}**\n")
             sections.append("# Constraints\n- **根据事实**：实际使用时过渡语应根据上一环节对话表现生成——表现好则肯定，表现不足则简要指出后开启下一环节。\n- **严禁任何括号内容**\n- **控制输出长度**：# Output部分50-80字\n- 所有文字都应该可以直接朗读出来")
         else:
             # 简洁版：无Role部分
             sections.append(f"# Context\n{result.context_section}\n")
             sections.append(f"# Output\n{result.output_section}\n")
-            sections.append(f"# Transition\n**{next_card}**\n")
             sections.append("# Constraints\n- **根据事实**：实际使用时过渡语应根据上一环节对话表现生成——表现好则肯定，表现不足则简要指出后开启下一环节。\n- **严禁任何括号内容**\n- **严禁第三人称描述或场景叙述**\n- **控制输出长度**：# Output部分30-80字\n- 所有文字都应该可以直接朗读出来")
         
         return "\n".join(sections)

@@ -24,6 +24,7 @@ from config import (
     CARD_GENERATOR_TYPE,
     DEEPSEEK_API_KEY,
     EVALUATION_CONFIG,
+    DSPY_OPTIMIZER_CONFIG,
 )
 from parsers import (
     parse_markdown,
@@ -828,6 +829,57 @@ def main():
         help='生成的角色数量 (默认: 3)'
     )
     
+    # ========== DSPy 优化参数 ==========
+    parser.add_argument(
+        '--optimize-dspy',
+        action='store_true',
+        help='运行 DSPy 生成器优化（使用外部评估导出文件作为指标）'
+    )
+    parser.add_argument(
+        '--trainset',
+        metavar='PATH',
+        help='trainset JSON 路径（用于 --optimize-dspy）；或构建时作为输出路径'
+    )
+    parser.add_argument(
+        '--devset',
+        metavar='PATH',
+        help='可选 devset JSON 路径（用于 --optimize-dspy）'
+    )
+    parser.add_argument(
+        '--build-trainset',
+        metavar='PATH',
+        help='从剧本文件或目录构建 trainset 并保存为 JSON（路径为输出文件）'
+    )
+    parser.add_argument(
+        '--validate-trainset',
+        metavar='PATH',
+        help='校验 trainset JSON 结构与评估标准对齐（见 Operations.md）'
+    )
+    parser.add_argument(
+        '--cards-output',
+        metavar='PATH',
+        default=None,
+        help='优化时生成卡片的输出路径（默认: output/optimizer/cards_for_eval.md）'
+    )
+    parser.add_argument(
+        '--export-file',
+        metavar='PATH',
+        default=None,
+        help='外部评估导出文件路径（优化时读取分数，默认: output/optimizer/export_score.json）'
+    )
+    parser.add_argument(
+        '--optimizer',
+        choices=['bootstrap', 'mipro'],
+        default='bootstrap',
+        help='优化器类型 (默认: bootstrap)'
+    )
+    parser.add_argument(
+        '--max-rounds',
+        type=int,
+        default=None,
+        help='Bootstrap 最大轮数（默认使用配置）'
+    )
+    
     args = parser.parse_args()
     
     # 处理设置项目模式
@@ -863,6 +915,81 @@ def main():
             output_dir=args.sim_output + "/custom" if args.sim_output != "simulator_output" else None,
             verbose=args.verbose,
         )
+        return
+    
+    # 处理构建 trainset
+    if args.build_trainset:
+        from generators.trainset_builder import build_trainset_from_path, save_trainset
+        if not args.input:
+            parser.error("--build-trainset 需要指定数据来源，请同时提供 --input（文件或目录）")
+        print("=" * 60)
+        print("构建 DSPy trainset")
+        print("=" * 60)
+        print(f"  数据来源: {args.input}")
+        print(f"  输出文件: {args.build_trainset}\n")
+        examples = build_trainset_from_path(args.input, verbose=args.verbose)
+        save_trainset(examples, args.build_trainset)
+        print(f"  [OK] 已保存 {len(examples)} 条样本到 {args.build_trainset}\n")
+        return
+
+    # 处理 trainset 校验
+    if args.validate_trainset:
+        from generators.trainset_builder import check_trainset_file
+        path = os.path.abspath(args.validate_trainset)
+        print("校验 trainset 结构与评估标准对齐")
+        print(f"  文件: {path}\n")
+        valid, messages = check_trainset_file(path, strict=False, check_eval_alignment=True)
+        for m in messages:
+            print(f"  {m}")
+        if valid:
+            print("\n  [OK] 通过（仅有建议时可忽略）")
+        else:
+            print("\n  [失败] 存在结构错误，请修正后再用于 --optimize-dspy 或生成卡片")
+        return
+
+    # 处理 DSPy 优化
+    if args.optimize_dspy:
+        if not DSPY_AVAILABLE:
+            print("错误: 未安装 dspy-ai，请运行 pip install dspy-ai")
+            sys.exit(1)
+        if not args.trainset:
+            parser.error("--optimize-dspy 需要提供 --trainset（trainset JSON 路径）")
+        from generators.dspy_optimizer import run_optimize_dspy
+        cfg = DSPY_OPTIMIZER_CONFIG
+        output_cards = args.cards_output or cfg.get("cards_output_path", os.path.join(OUTPUT_DIR, "optimizer", "cards_for_eval.md"))
+        export_path = args.export_file or cfg.get("export_file_path", os.path.join(OUTPUT_DIR, "optimizer", "export_score.json"))
+        # 根据导出文件扩展名自动选择解析器：.md -> md，否则用配置
+        _ext = os.path.splitext(export_path)[1].lower()
+        _parser = "md" if _ext in (".md", ".markdown") else cfg.get("parser", "json")
+        export_config = {
+            "parser": _parser,
+            "json_score_key": cfg.get("json_score_key", "total_score"),
+            "csv_score_column": cfg.get("csv_score_column"),
+        }
+        print("=" * 60)
+        print("DSPy 生成器优化")
+        print("=" * 60)
+        print(f"  trainset: {args.trainset}")
+        print(f"  卡片输出: {output_cards}")
+        print(f"  导出文件（读取分数）: {export_path}\n")
+        try:
+            compiled = run_optimize_dspy(
+                trainset_path=os.path.abspath(args.trainset),
+                devset_path=os.path.abspath(args.devset) if args.devset else None,
+                output_cards_path=os.path.abspath(output_cards),
+                export_path=os.path.abspath(export_path),
+                export_config=export_config,
+                optimizer_type=args.optimizer,
+                api_key=DEEPSEEK_API_KEY,
+                max_rounds=args.max_rounds or cfg.get("max_rounds", 1),
+                max_bootstrapped_demos=cfg.get("max_bootstrapped_demos", 4),
+            )
+            print("\n  [OK] 优化完成。优化后的程序已返回（后续可接入保存/加载）。")
+        except Exception as e:
+            print(f"\n[错误] 优化失败: {e}")
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
         return
     
     # 处理评估模式
