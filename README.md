@@ -15,21 +15,16 @@
 
 ```
 EduFlow/
-├── main.py              # 主入口脚本
+├── main.py              # 命令行入口
+├── run_web.py           # Web 服务启动脚本（推荐）
 ├── config.py            # 配置文件
 ├── requirements.txt     # 依赖项
+├── api/                 # Web API（FastAPI）
+├── web/static/          # 前端静态页（index.html）
 ├── generators/          # 生成器模块
-│   ├── content_splitter.py  # 剧本分析器
-│   └── card_generator.py    # 卡片生成器
 ├── parsers/             # 文件解析器
-│   ├── md_parser.py     # Markdown解析
-│   ├── docx_parser.py   # Word文档解析
-│   └── pdf_parser.py    # PDF解析
 ├── platform/            # 平台对接模块
-│   ├── api_client.py    # 智慧树API客户端
-│   └── card_injector.py # 卡片注入器
 ├── templates/           # 模板文件
-│   └── system_context.md    # LLM系统上下文
 ├── input/               # 输入目录（放置剧本）
 └── output/              # 输出目录（生成的卡片）
 ```
@@ -58,7 +53,7 @@ pip install -r requirements.txt
 
 4. **配置环境变量**
 
-复制 `.env.example` 为 `.env`，并填写配置：
+复制 `.env.example` 为 `.env`，并填写配置（`.env` 含 API Key，**不要提交到 Git**；给同事时可私下发一份或让她按说明自建）：
 
 ```env
 # LLM API配置（必填）
@@ -162,6 +157,34 @@ python main.py --inject-only "output/cards_output_xxx.md"
 2. 打开浏览器开发者工具（F12）-> Network
 3. 进入你要编辑的课程/训练任务
 4. 从请求中获取相关ID和认证信息
+
+### 4. Web 交互（可选）
+
+在项目根目录启动 Web 服务后，用浏览器操作：上传剧本分析、生成卡片、模拟测试、评估与注入等。
+
+```bash
+# 本机使用（默认 HTTP）
+python run_web.py
+```
+
+- 本机访问：`http://localhost:8000/`，API 文档：`http://localhost:8000/docs`。
+
+**分享给同事（同一局域网）：**
+
+- 启动后终端会打印 **同事访问地址**（如 `http://192.168.x.x:8000`），同事用该地址打开即可。
+- 若同事需要用到 **「选择目录」** 上传（浏览器安全策略要求 HTTPS 或 localhost），请用 HTTPS 启动：
+  ```bash
+  pip install cryptography   # 首次使用 --https 时需安装
+  python run_web.py --https
+  ```
+  同事访问 `https://你的IP:8000`，浏览器提示证书不受信任时点「高级」→「继续访问」即可。
+- 若本机有防火墙，需放行 8000 端口或允许 Python 访问网络。
+
+**同事各自本地跑一份（互不影响）：**
+
+- 你把项目推到 Git，同事 `git clone` 后在本机执行上述安装与配置（含 `.env`），再运行 `python run_web.py`。这样她的上传与生成只在她本机的 `input/`、`output/`，不会影响你这边。
+
+更多说明见 [Operations.md](Operations.md) 第十一节。
 
 ## 注意事项
 

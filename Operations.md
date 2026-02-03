@@ -267,3 +267,17 @@ EduFlow/
 | `excellent` | 理解力强、回答准确、主动深入 | 测试NPC引导深度学习的能力 |
 | `average` | 正常水平、偶有疑惑 | 测试NPC常规教学流程 |
 | `struggling` | 理解困难、需要引导 | 测试NPC引导和纠错能力 |
+
+---
+
+### 十一、Web 交互
+
+在保留命令行（`python main.py ...`）的前提下，可通过 Web 界面操作：
+
+| 操作 | 说明 |
+|------|------|
+| 启动服务 | 在项目根目录执行：`python run_web.py`（或 `uvicorn api.app:app --reload --host 0.0.0.0`） |
+| 打开控制台 | 浏览器访问 `http://localhost:8000/` |
+| API 文档 | `http://localhost:8000/docs` |
+
+Web 支持：上传剧本并分析结构、生成教学卡片、运行自动模式模拟测试、评估会话日志。手动/混合模式模拟仍请使用命令行。

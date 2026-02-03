@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EduFlow 交互控制台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --natsume-paper: #f5f0e6;
+      --natsume-cream: #ebe4d8;
+      --natsume-ink: #4a4035;
+      --natsume-ink-light: #6b5f52;
+      --natsume-green: #6b7b6b;
+      --natsume-green-soft: #8f9d8f;
+      --natsume-leaf: #7d8b6f;
+      --natsume-border: #d4c9b8;
+      --natsume-shadow: rgba(74, 64, 53, 0.08);
+      --natsume-err: #a65d4a;
+      --sidebar-width: 280px;
+    }
+    html { scrollbar-gutter: stable; overflow-x: hidden; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Noto Serif SC", "Songti SC", serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background: var(--natsume-paper);
+      color: var(--natsume-ink);
+      line-height: 1.7;
+      min-height: 100vh;
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      background-image:
+        radial-gradient(ellipse at 20% 10%, rgba(139, 157, 143, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 90%, rgba(125, 139, 111, 0.05) 0%, transparent 50%);
+      display: flex;
+    }
+    body.sidebar-collapsed { --sidebar-width: 0; }
+    .local-sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      background: var(--natsume-cream);
+      border-right: 1px solid var(--natsume-border);
+      border-radius: 0 12px 12px 0;
+      box-shadow: 2px 0 12px var(--natsume-shadow);
+      z-index: 20;
+      transition: width 0.2s ease;
+      overflow-x: hidden;
+    }
+    .sidebar-resize-handle {
+      position: fixed;
+      left: calc(var(--sidebar-width) - 3px);
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      z-index: 21;
+      background: transparent;
+      transition: left 0.2s ease, background 0.15s;
+    }
+    .sidebar-resize-handle:hover { background: rgba(107, 123, 107, 0.2); }
+    body.sidebar-collapsed .sidebar-resize-handle { display: none; }
+    .sidebar-collapse-btn {
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translate(100%, -50%);
+      width: 18px;
+      height: 48px;
+      padding: 0;
+      margin: 0;
+      font-size: 0.75rem;
+      color: var(--natsume-ink-light);
+      background: var(--natsume-cream);
+      border: 1px solid var(--natsume-border);
+      border-left: none;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 2px 0 6px var(--natsume-shadow);
+      z-index: 22;
+    }
+    .sidebar-collapse-btn:hover { background: var(--natsume-border); color: var(--natsume-ink); }
+    body.sidebar-collapsed .sidebar-collapse-btn { display: none; }
+    .sidebar-expand-tab {
+      display: none;
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 56px;
+      padding: 0;
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--natsume-ink-light);
+      background: var(--natsume-cream);
+      border: 1px solid var(--natsume-border);
+      border-left: none;
+      border-radius: 0 8px 8px 0;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 2px 0 8px var(--natsume-shadow);
+      z-index: 22;
+    }
+    .sidebar-expand-tab:hover { background: var(--natsume-border); color: var(--natsume-ink); }
+    body.sidebar-collapsed .sidebar-expand-tab { display: flex; }
+    .main-content {
+      margin-left: var(--sidebar-width);
+      transition: margin-left 0.2s ease;
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 2rem 1.5rem;
+    }
+    .main-content-inner {
+      width: 100%;
+      max-width: 900px;
+    }
+    .local-sidebar .sidebar-head {
+      flex-shrink: 0;
+      padding: 0.85rem 0.75rem 0.6rem;
+      margin: 0.5rem 0.5rem 0 0.5rem;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 10px;
+      border: 1px solid var(--natsume-border);
+    }
+    .local-sidebar .sidebar-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--natsume-ink);
+      margin: 0 0 0.5rem 0;
+    }
+    .local-sidebar .sidebar-foot {
+      flex-shrink: 0;
+      padding: 0.6rem 0.75rem 0.85rem;
+      margin: 0 0.5rem 0.5rem 0.5rem;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 10px;
+      border: 1px solid var(--natsume-border);
+    }
+    .header {
+      margin-bottom: 2rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid var(--natsume-border);
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      color: var(--natsume-ink);
+      letter-spacing: 0.02em;
+      margin: 0 0 0.5rem 0;
+    }
+    .nav {
+      font-size: 0.95rem;
+      color: var(--natsume-ink-light);
+    }
+    .nav a {
+      color: var(--natsume-green);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .nav a:hover {
+      color: var(--natsume-leaf);
+      border-bottom-color: var(--natsume-leaf);
+    }
+    section {
+      margin: 1.75rem 0;
+      padding: 1.35rem 1.5rem;
+      background: var(--natsume-cream);
+      border: 1px solid var(--natsume-border);
+      border-radius: 12px;
+      box-shadow: 0 2px 12px var(--natsume-shadow);
+    }
+    section h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--natsume-ink);
+      margin: 0 0 0.6rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--natsume-border);
+    }
+    .section-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin: 0 0 0.6rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--natsume-border);
+    }
+    .section-title-row h2 { margin: 0; padding-bottom: 0; border-bottom: none; }
+    section p {
+      margin: 0 0 0.75rem 0;
+      color: var(--natsume-ink-light);
+      font-size: 0.95rem;
+    }
+    label {
+      display: block;
+      margin: 0.6rem 0 0.25rem;
+      font-size: 0.9rem;
+      color: var(--natsume-ink-light);
+    }
+    input[type="file"],
+    input[type="text"],
+    select {
+      width: 100%;
+      padding: 0.5rem 0.65rem;
+      font-family: inherit;
+      font-size: 0.95rem;
+      color: var(--natsume-ink);
+      background: var(--natsume-paper);
+      border: 1px solid var(--natsume-border);
+      border-radius: 8px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--natsume-green-soft);
+      box-shadow: 0 0 0 2px rgba(111, 125, 111, 0.15);
+    }
+    input::placeholder {
+      color: var(--natsume-border);
+    }
+    button {
+      margin-top: 0.5rem;
+      margin-right: 0.5rem;
+      padding: 0.5rem 1.1rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      color: var(--natsume-paper);
+      background: var(--natsume-green);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 2px 6px var(--natsume-shadow);
+    }
+    button:hover {
+      background: var(--natsume-leaf);
+    }
+    button:active {
+      transform: translateY(1px);
+    }
+    pre {
+      margin-top: 0.75rem;
+      padding: 1rem;
+      background: var(--natsume-paper);
+      border: 1px solid var(--natsume-border);
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--natsume-ink-light);
+    }
+    .msg {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--natsume-ink-light);
+    }
+    .err {
+      color: var(--natsume-err);
+    }
+    .btn-icon {
+      margin: 0;
+      padding: 0.35rem 0.5rem;
+      font-size: 1rem;
+      line-height: 1;
+      background: transparent;
+      color: var(--natsume-ink-light);
+      box-shadow: none;
+    }
+    .btn-icon:hover { background: var(--natsume-cream); color: var(--natsume-ink); }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(74, 64, 53, 0.35);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-panel {
+      background: var(--natsume-cream);
+      border: 1px solid var(--natsume-border);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px var(--natsume-shadow);
+      padding: 1.5rem;
+      max-width: 420px;
+      width: 90%;
+    }
+    .modal-panel h3 { margin: 0 0 1rem 0; font-size: 1.1rem; color: var(--natsume-ink); }
+    .modal-panel .modal-close { float: right; margin: -0.25rem 0 0 0; }
+    .drop-zone {
+      border: 2px dashed var(--natsume-border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+      color: var(--natsume-ink-light);
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--natsume-green-soft); background: rgba(143, 157, 143, 0.08); }
+    .drop-zone input[type="file"] { display: none; }
+    #scriptFile, #wallpaperFile { display: none !important; }
+    .wallpaper-preview {
+      margin-bottom: 0.75rem;
+      border: 1px solid var(--natsume-border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--natsume-paper);
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wallpaper-preview img { max-width: 100%; max-height: 160px; object-fit: contain; display: block; }
+    .wallpaper-preview .no-preview { color: var(--natsume-ink-light); font-size: 0.9rem; }
+    .file-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--natsume-border);
+      border-radius: 8px;
+      margin-top: 0.5rem;
+    }
+    .local-sidebar .file-list {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      overflow-y: auto;
+      border: none;
+      border-radius: 0;
+      margin: 0.5rem 0.5rem 0;
+      padding: 0.25rem 0;
+      background: transparent;
+    }
+    .file-list-item {
+      padding: 0.35rem 0.5rem 0.35rem 0.75rem;
+      font-size: 0.875rem;
+      color: var(--natsume-ink);
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      margin: 0 0.25rem 1px 0.25rem;
+      transition: background 0.15s;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-list-item:hover { background: rgba(143, 157, 143, 0.14); }
+    .script-upload-row { display: flex; gap: 1rem; margin-top: 0.75rem; flex-wrap: wrap; }
+    .script-upload-row .col { flex: 1; min-width: 200px; }
+    .save-to-input { margin-top: 0.75rem; }
+    .save-to-input label { display: inline; margin-left: 0.35rem; }
+    .save-to-input input[type="text"] { margin-top: 0.35rem; }
+    .local-sidebar .sidebar-head .breadcrumb {
+      font-size: 0.8rem;
+      color: var(--natsume-ink-light);
+      margin: 0.35rem 0 0 0;
+      min-height: 1.2em;
+    }
+    .local-sidebar .sidebar-head .breadcrumb {
+      font-size: 0.75rem;
+      color: var(--natsume-ink-light);
+      margin: 0.35rem 0 0 0;
+      min-height: 1em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .local-sidebar .breadcrumb span { cursor: pointer; }
+    .local-sidebar .breadcrumb span:hover { color: var(--natsume-green); }
+    .tree-depth-0 { padding-left: 0.5rem !important; }
+    .tree-depth-1 { padding-left: 1.25rem !important; }
+    .tree-depth-2 { padding-left: 2rem !important; }
+    .tree-depth-3 { padding-left: 2.75rem !important; }
+    .file-list-item .tree-arrow {
+      display: inline-block;
+      width: 1em;
+      margin-right: 0.2em;
+      font-size: 0.7em;
+      color: var(--natsume-ink-light);
+      transition: transform 0.15s;
+    }
+    .file-list-item.folder .tree-icon { color: var(--natsume-green-soft); margin-right: 0.25em; }
+    .file-list-item.file .tree-icon { color: var(--natsume-ink-light); margin-right: 0.35em; }
+    .file-list-item.up { font-style: italic; color: var(--natsume-green); }
+    .file-list-item.up::before { content: "↑ "; }
+    .file-list-item.selected { background: rgba(125, 139, 111, 0.22); }
+    .file-list-item.err { color: var(--natsume-err); }
+    .local-sidebar .local-selected { display: none; }
+    .local-sidebar .local-analyze-wrap { margin: 0; }
+    .local-analyze-wrap { margin-top: 0.5rem; }
+    .ctx-menu {
+      position: fixed;
+      z-index: 200;
+      background: var(--natsume-cream);
+      border: 1px solid var(--natsume-border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px var(--natsume-shadow);
+      padding: 0.25rem 0;
+      min-width: 140px;
+    }
+    .ctx-menu-item {
+      padding: 0.4rem 0.75rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      color: var(--natsume-ink);
+    }
+    .ctx-menu-item:hover { background: rgba(143, 157, 143, 0.15); }
+    .header, .local-sidebar, section, .main-content,
+    .sidebar-resize-handle, .sidebar-collapse-btn, .sidebar-expand-tab {
+      transition: opacity 0.22s ease;
+    }
+    body.ui-fade-out .header,
+    body.ui-fade-out .local-sidebar,
+    body.ui-fade-out section,
+    body.ui-fade-out .main-content,
+    body.ui-fade-out .sidebar-resize-handle,
+    body.ui-fade-out .sidebar-collapse-btn,
+    body.ui-fade-out .sidebar-expand-tab { opacity: 0; pointer-events: none; }
+    body.ui-hidden .local-sidebar,
+    body.ui-hidden .sidebar-resize-handle,
+    body.ui-hidden .sidebar-collapse-btn,
+    body.ui-hidden .sidebar-expand-tab,
+    body.ui-hidden .header,
+    body.ui-hidden section,
+    body.ui-hidden .main-content { display: none !important; }
+    body.ui-restoring .header,
+    body.ui-restoring .local-sidebar,
+    body.ui-restoring section,
+    body.ui-restoring .main-content,
+    body.ui-restoring .sidebar-resize-handle,
+    body.ui-restoring .sidebar-collapse-btn,
+    body.ui-restoring .sidebar-expand-tab { opacity: 0; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--natsume-cream); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--natsume-border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--natsume-green-soft); }
+  </style>
+</head>
+<body>
+  <aside id="localSidebar" class="local-sidebar">
+    <div class="sidebar-head">
+      <div class="sidebar-title">本地目录</div>
+      <button type="button" id="btnPickLocalDir">择定本地目录</button>
+      <div id="dirPickerTip" class="file-list-item err" style="display:none; margin-top:0.35rem; font-size:0.85em;"></div>
+      <div id="localBreadcrumb" class="breadcrumb"></div>
+    </div>
+    <div id="localFileList" class="file-list">请先择定本地目录</div>
+    <div class="sidebar-foot">
+      <div id="localSelected" class="local-selected"></div>
+      <div id="localAnalyzeBtnWrap" class="local-analyze-wrap" style="display:none"><button type="button" id="btnStartAnalysis">开始分析</button></div>
+    </div>
+  </aside>
+  <div id="sidebarResizeHandle" class="sidebar-resize-handle" title="拖拽调整宽度"></div>
+  <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="收起侧边栏">◀</button>
+  <button type="button" id="sidebarExpandTab" class="sidebar-expand-tab" title="展开侧边栏">▶</button>
+  <div class="main-content">
+  <div class="main-content-inner">
+  <header class="header">
+    <h1>EduFlow 交互控制台</h1>
+    <p class="nav">
+      <a href="/docs">API 文档 (OpenAPI)</a> · <a href="/api/health">健康检查</a>
+      <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
+    </p>
+  </header>
+
+  <div id="settingsModal" class="modal-overlay">
+    <div class="modal-panel">
+      <button type="button" id="btnCloseSettings" class="modal-close btn-icon">×</button>
+      <h3>网页设置</h3>
+      <label>壁纸</label>
+      <div id="wallpaperPreview" class="wallpaper-preview"><span class="no-preview">当前未设置壁纸</span></div>
+      <div id="wallpaperDropZone" class="drop-zone">将图片拖至此处，或点击选取</div>
+      <input type="file" id="wallpaperFile" accept="image/*">
+      <button type="button" id="btnClearWallpaper" style="margin-top:0.5rem">清除壁纸</button>
+    </div>
+  </div>
+
+  <section>
+    <h2>1. 剧本并分析结构</h2>
+    <p>从左侧目录选取剧本，或将文件拖入下方区域。</p>
+    <label>拖入或点选剧本</label>
+    <div id="scriptDropZone" class="drop-zone">将 .md / .docx / .pdf 拖至此处，或点击选取</div>
+    <input type="file" id="scriptFile" accept=".md,.docx,.pdf">
+    <div id="uploadMsg" class="msg"></div>
+    <pre id="uploadResult" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>2. 生成教学卡片</h2>
+    <p>先完成「上传并分析」，再点击生成。</p>
+    <label>生成框架</label>
+    <select id="frameworkId"></select>
+    <button id="btnGenCards">生成卡片</button>
+    <div id="genMsg" class="msg"></div>
+    <pre id="genResult" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>3. 学生模拟测试（自动模式）</h2>
+    <label>卡片文件路径（相对项目根，如 output/cards_output_xxx.md）</label>
+    <input type="text" id="cardsPath" placeholder="output/cards_output_20260202_170046.md">
+    <label>人设</label>
+    <select id="personaId"></select>
+    <button id="btnSimulate">运行模拟</button>
+    <div id="simMsg" class="msg"></div>
+    <pre id="simResult" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>4. 评估会话日志</h2>
+    <label>会话日志文件路径（如 simulator_output/logs/session_xxx.json）</label>
+    <input type="text" id="logPath" placeholder="simulator_output/logs/session_20260202_123456.json">
+    <button id="btnEvaluate">评估</button>
+    <div id="evalMsg" class="msg"></div>
+    <pre id="evalResult" style="display:none;"></pre>
+  </section>
+
+  <section>
+    <h2>5. 平台配置（智慧树）</h2>
+    <p>填写或修改后点击「保存配置」会写入 .env，后续「执行注入」将使用此配置。</p>
+    <label>PLATFORM_BASE_URL</label>
+    <input type="text" id="cfgBaseUrl" placeholder="https://cloudapi.polymas.com">
+    <label>PLATFORM_COOKIE</label>
+    <input type="text" id="cfgCookie" placeholder="">
+    <label>PLATFORM_AUTHORIZATION（JWT）</label>
+    <input type="text" id="cfgAuthorization" placeholder="">
+    <label>PLATFORM_COURSE_ID</label>
+    <input type="text" id="cfgCourseId" placeholder="">
+    <label>PLATFORM_TRAIN_TASK_ID</label>
+    <input type="text" id="cfgTrainTaskId" placeholder="">
+    <label>PLATFORM_START_NODE_ID（训练开始节点）</label>
+    <input type="text" id="cfgStartNodeId" placeholder="">
+    <label>PLATFORM_END_NODE_ID（训练结束节点）</label>
+    <input type="text" id="cfgEndNodeId" placeholder="">
+    <button id="btnLoadConfig">加载当前配置</button>
+    <button id="btnSaveConfig">保存配置</button>
+    <div id="configMsg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>6. 注入平台（智慧树）</h2>
+    <p>将已生成的卡片 Markdown 推送到智慧树平台；请先在「5. 平台配置」中填写并保存。</p>
+    <label>卡片文件路径（相对项目根）</label>
+    <input type="text" id="injectCardsPath" placeholder="output/cards_output_20260202_170046.md">
+    <label>任务名称（可选，为空则不更新任务配置）</label>
+    <input type="text" id="injectTaskName" placeholder="">
+    <label>任务描述（可选）</label>
+    <input type="text" id="injectDescription" placeholder="">
+    <button id="btnInjectPreview">预览注入</button>
+    <button id="btnInjectRun">执行注入</button>
+    <div id="injectMsg" class="msg"></div>
+    <pre id="injectResult" style="display:none;"></pre>
+  </section>
+  </div>
+  </div>
+
+  <script>
+    const API = '';
+    const WALLPAPER_KEY = 'eduflow_wallpaper';
+    const WALLPAPER_OVERLAY = 'linear-gradient(rgba(245, 240, 230, 0.88), rgba(245, 240, 230, 0.9)), ';
+    let lastUploadData = null;
+
+    function applyWallpaper(dataUrl) {
+      if (!dataUrl) {
+        document.body.style.backgroundImage = '';
+        document.body.style.backgroundSize = '';
+        return;
+      }
+      document.body.style.backgroundImage = WALLPAPER_OVERLAY + 'url(' + dataUrl + ')';
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+    }
+    function loadWallpaper() {
+      try {
+        const dataUrl = localStorage.getItem(WALLPAPER_KEY);
+        if (dataUrl) applyWallpaper(dataUrl);
+      } catch (e) {}
+    }
+    loadWallpaper();
+
+    var settingsModal = document.getElementById('settingsModal');
+    function updateWallpaperPreview() {
+      var wrap = document.getElementById('wallpaperPreview');
+      try {
+        var dataUrl = localStorage.getItem(WALLPAPER_KEY);
+        if (dataUrl) {
+          wrap.innerHTML = '<img src="' + dataUrl + '" alt="当前壁纸">';
+        } else {
+          wrap.innerHTML = '<span class="no-preview">当前未设置壁纸</span>';
+        }
+      } catch (e) {
+        wrap.innerHTML = '<span class="no-preview">当前未设置壁纸</span>';
+      }
+    }
+    document.getElementById('btnSettings').onclick = function() {
+      updateWallpaperPreview();
+      settingsModal.classList.add('show');
+    };
+    document.getElementById('btnCloseSettings').onclick = function() { settingsModal.classList.remove('show'); };
+    settingsModal.onclick = function(e) { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
+
+    var wallpaperDZ = document.getElementById('wallpaperDropZone');
+    var wallpaperInput = document.getElementById('wallpaperFile');
+    function setWallpaperFromFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      var r = new FileReader();
+      r.onload = function() {
+        try {
+          localStorage.setItem(WALLPAPER_KEY, r.result);
+          applyWallpaper(r.result);
+          updateWallpaperPreview();
+        } catch (e) { alert('壁纸过大或无法保存，请换一张较小的图片'); }
+      };
+      r.readAsDataURL(file);
+    }
+    wallpaperDZ.onclick = function() { wallpaperInput.click(); };
+    wallpaperInput.onchange = function() { setWallpaperFromFile(this.files[0]); this.value = ''; };
+    wallpaperDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
+    wallpaperDZ.ondragleave = function() { this.classList.remove('dragover'); };
+    wallpaperDZ.ondrop = function(e) {
+      e.preventDefault();
+      this.classList.remove('dragover');
+      var f = e.dataTransfer.files[0];
+      if (f) setWallpaperFromFile(f);
+    };
+    document.getElementById('btnClearWallpaper').onclick = function() {
+      localStorage.removeItem(WALLPAPER_KEY);
+      applyWallpaper(null);
+      updateWallpaperPreview();
+    };
+
+    document.addEventListener('dblclick', function(e) {
+      if (document.body.classList.contains('ui-hidden')) {
+        document.body.classList.remove('ui-hidden');
+        document.body.classList.add('ui-restoring');
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            document.body.classList.remove('ui-restoring');
+          });
+        });
+        return;
+      }
+      if (e.target.closest('button, a, input, select, textarea, .local-sidebar, .modal-overlay, .ctx-menu, section, header, .drop-zone, pre, .file-list, .breadcrumb, .sidebar-resize-handle, .sidebar-collapse-btn, .sidebar-expand-tab, .file-list-item, .nav a, label, [contenteditable]')) return;
+      document.body.classList.add('ui-fade-out');
+      setTimeout(function() {
+        document.body.classList.add('ui-hidden');
+        document.body.classList.remove('ui-fade-out');
+      }, 220);
+    });
+
+    (function() {
+      var SIDEBAR_WIDTH_KEY = 'eduflow_sidebar_width';
+      var SIDEBAR_COLLAPSED_KEY = 'eduflow_sidebar_collapsed';
+      var MIN_WIDTH = 200;
+      var MAX_WIDTH = 480;
+      var DEFAULT_WIDTH = 280;
+      var root = document.documentElement;
+      function getSidebarWidth() {
+        var w = parseFloat(getComputedStyle(root).getPropertyValue('--sidebar-width'));
+        return isNaN(w) ? DEFAULT_WIDTH : w;
+      }
+      function setSidebarWidth(px) {
+        px = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, px));
+        root.style.setProperty('--sidebar-width', px + 'px');
+        try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(px)); } catch (e) {}
+      }
+      function setCollapsed(collapsed) {
+        if (collapsed) document.body.classList.add('sidebar-collapsed');
+        else document.body.classList.remove('sidebar-collapsed');
+        try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) {}
+      }
+      function isCollapsed() { return document.body.classList.contains('sidebar-collapsed'); }
+      try {
+        var savedW = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+        if (savedW != null) {
+          var n = parseFloat(savedW);
+          if (!isNaN(n)) root.style.setProperty('--sidebar-width', Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) + 'px');
+        }
+        if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') document.body.classList.add('sidebar-collapsed');
+      } catch (e) {}
+      var resizeHandle = document.getElementById('sidebarResizeHandle');
+      var startX, startW;
+      resizeHandle.onmousedown = function(e) {
+        if (isCollapsed()) return;
+        e.preventDefault();
+        startX = e.clientX;
+        startW = getSidebarWidth();
+        function onMove(e) { setSidebarWidth(startW + (e.clientX - startX)); }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      };
+      document.getElementById('sidebarCollapseBtn').onclick = function() { setCollapsed(true); };
+      document.getElementById('sidebarExpandTab').onclick = function() {
+        setCollapsed(false);
+        var w = DEFAULT_WIDTH;
+        try { var s = localStorage.getItem(SIDEBAR_WIDTH_KEY); if (s != null) { var n = parseFloat(s); if (!isNaN(n)) w = n; } } catch (e) {}
+        setSidebarWidth(w);
+      };
+    })();
+
+    var handleStack = [];
+    var pathNames = [];
+    var treeRoot = null;
+    var ALLOWED_SCRIPT_EXT = ['.md', '.docx', '.pdf'];
+    var IDB_NAME = 'EduFlowIDB';
+    var IDB_STORE = 'handles';
+    var LAST_DIR_KEY = 'lastDir';
+
+    function openIDB() {
+      return new Promise(function(res, rej) {
+        var r = indexedDB.open(IDB_NAME, 1);
+        r.onerror = function() { rej(r.error); };
+        r.onsuccess = function() { res(r.result); };
+        r.onupgradeneeded = function() {
+          if (!r.result.objectStoreNames.contains(IDB_STORE)) r.result.createObjectStore(IDB_STORE);
+        };
+      });
+    }
+    function saveLastDir(handle) {
+      openIDB().then(function(db) {
+        return new Promise(function(res, rej) {
+          var t = db.transaction(IDB_STORE, 'readwrite');
+          t.objectStore(IDB_STORE).put(handle, LAST_DIR_KEY);
+          t.oncomplete = res;
+          t.onerror = rej;
+        });
+      }).catch(function() {});
+    }
+    async function restoreLastDir() {
+      try {
+        if (typeof showDirectoryPicker !== 'function') return;
+        var db = await openIDB();
+        var handle = await new Promise(function(res, rej) {
+          var t = db.transaction(IDB_STORE, 'readonly');
+          var req = t.objectStore(IDB_STORE).get(LAST_DIR_KEY);
+          req.onsuccess = function() { res(req.result); };
+          t.onerror = function() { rej(t.error); };
+        });
+        if (!handle || typeof handle.queryPermission !== 'function') return;
+        var state = await handle.queryPermission({ mode: 'read' });
+        if (state === 'granted') {
+          treeRoot = { name: handle.name, handle: handle, kind: 'dir', children: null, expanded: true };
+          await loadTreeChildren(treeRoot);
+          renderTree();
+          return;
+        }
+        if (state === 'prompt') {
+          state = await handle.requestPermission({ mode: 'read' });
+          if (state === 'granted') {
+            treeRoot = { name: handle.name, handle: handle, kind: 'dir', children: null, expanded: true };
+            await loadTreeChildren(treeRoot);
+            renderTree();
+            return;
+          }
+        }
+        var db2 = await openIDB();
+        await new Promise(function(res, rej) {
+          var t = db2.transaction(IDB_STORE, 'readwrite');
+          t.objectStore(IDB_STORE).delete(LAST_DIR_KEY);
+          t.oncomplete = res;
+          t.onerror = rej;
+        });
+      } catch (e) {}
+    }
+
+    async function loadDirEntries(handle) {
+      var dirs = [], files = [];
+      for (var it = handle.entries(); true;) {
+        var next = await it.next();
+        if (next.done) break;
+        var name = next.value[0];
+        var entry = next.value[1];
+        if (entry.kind === 'directory') dirs.push({ name: name, handle: entry });
+        else if (ALLOWED_SCRIPT_EXT.some(function(ext) { return name.toLowerCase().endsWith(ext); }))
+          files.push({ name: name, handle: entry });
+      }
+      dirs.sort(function(a, b) { return a.name.localeCompare(b.name); });
+      files.sort(function(a, b) { return a.name.localeCompare(b.name); });
+      return { dirs: dirs, files: files };
+    }
+    async function loadTreeChildren(dirNode) {
+      if (dirNode.children !== null) return;
+      var ent = await loadDirEntries(dirNode.handle);
+      dirNode.children = [];
+      ent.dirs.forEach(function(d) {
+        dirNode.children.push({ name: d.name, handle: d.handle, kind: 'dir', children: null, expanded: false });
+      });
+      ent.files.forEach(function(f) {
+        dirNode.children.push({ name: f.name, handle: f.handle, kind: 'file' });
+      });
+    }
+    function esc(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function renderTree() {
+      var el = document.getElementById('localFileList');
+      var bread = document.getElementById('localBreadcrumb');
+      if (!treeRoot) {
+        bread.innerHTML = '';
+        el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">请先择定本地目录</div>';
+        el._treeNodes = [];
+        el._fileHandles = [];
+        return;
+      }
+      bread.innerHTML = esc(treeRoot.name);
+      var flat = [];
+      function collect(node, depth) {
+        if (!node) return;
+        flat.push({ node: node, depth: depth });
+        if (node.kind === 'dir' && node.expanded && node.children) {
+          node.children.forEach(function(c) { collect(c, depth + 1); });
+        }
+      }
+      collect(treeRoot, 0);
+      var fileIndex = 0;
+      var html = '';
+      flat.forEach(function(item, idx) {
+        var node = item.node;
+        var depth = item.depth;
+        var d = Math.min(depth, 3);
+        var depthClass = 'tree-depth-' + d;
+        if (node.kind === 'dir') {
+          var arrow = node.expanded ? '▼' : '▶';
+          var expClass = node.expanded ? ' expanded' : '';
+          html += '<div class="file-list-item folder' + expClass + ' ' + depthClass + '" data-kind="dir" data-name="' + esc(node.name) + '" data-tidx="' + idx + '"><span class="tree-arrow">' + arrow + '</span><span class="tree-icon">📁</span>' + esc(node.name) + '</div>';
+        } else {
+          html += '<div class="file-list-item file ' + depthClass + '" data-name="' + esc(node.name) + '" data-kind="file" data-fidx="' + fileIndex + '" data-tidx="' + idx + '" draggable="true"><span class="tree-icon" style="margin-left:1em">📄</span>' + esc(node.name) + '</div>';
+          fileIndex++;
+        }
+      });
+      el.innerHTML = html || '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">（此层无剧本文件）</div>';
+      el._treeNodes = flat.map(function(item) { return item.node; });
+      el._fileHandles = flat.filter(function(item) { return item.node.kind === 'file'; }).map(function(item) { return { name: item.node.name, handle: item.node.handle }; });
+      document.getElementById('localSelected').textContent = '';
+      if (typeof pendingAnalysisHandle !== 'undefined') {
+        pendingAnalysisHandle = null;
+        var w = document.getElementById('localAnalyzeBtnWrap');
+        if (w) w.style.display = 'none';
+      }
+    }
+
+    (function showDirPickerTipIfInsecure() {
+      if (typeof window.isSecureContext !== 'boolean' || window.isSecureContext) return;
+      var tip = document.getElementById('dirPickerTip');
+      tip.textContent = '当前为 HTTP 访问，「选择目录」不可用。请本机用 python run_web.py --https 启动后访问 https://本机IP:8000，或使用右侧拖拽/选文件上传。';
+      tip.style.display = 'block';
+    })();
+
+    document.getElementById('btnPickLocalDir').onclick = async function() {
+      if (typeof showDirectoryPicker !== 'function') {
+        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">您的浏览器暂不支持选择目录，请用右侧拖拽上传</div>';
+        return;
+      }
+      try {
+        var rootHandle = await showDirectoryPicker({ id: 'eduflow-local-dir' });
+        treeRoot = { name: rootHandle.name, handle: rootHandle, kind: 'dir', children: null, expanded: true };
+        var el = document.getElementById('localFileList');
+        el.innerHTML = '加载中…';
+        await loadTreeChildren(treeRoot);
+        renderTree();
+        saveLastDir(rootHandle);
+      } catch (e) {
+        if (e.name !== 'AbortError') {
+          var msg = (e.name === 'SecurityError' || (e.message && e.message.indexOf('secure') !== -1))
+            ? '当前环境不允许选择目录（需 HTTPS 或 localhost）。请用右侧拖拽/选文件上传，或改用 https://本机IP:8000 访问。'
+            : '未择定目录';
+          document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">' + msg + '</div>';
+        }
+      }
+    };
+    restoreLastDir().catch(function() {});
+
+    async function runAnalysisForFile(fileHandle) {
+      var msg = document.getElementById('uploadMsg');
+      var pre = document.getElementById('uploadResult');
+      msg.textContent = '分析中…';
+      try {
+        var file = await fileHandle.getFile();
+        var fd = new FormData();
+        fd.append('file', file);
+        var r = await fetch(API + '/api/script/upload', { method: 'POST', body: fd });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        lastUploadData = d;
+        msg.textContent = '分析完成：' + (d.stages_count || 0) + ' 个阶段';
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify({ stages_count: d.stages_count, stages: d.stages }, null, 2);
+      } catch (err) {
+        msg.innerHTML = '<span class="err">' + err.message + '</span>';
+        pre.style.display = 'none';
+      }
+    }
+
+    function getFileHandleFromItem(listEl, item) {
+      if (item.getAttribute('data-kind') !== 'file') return null;
+      var idx = parseInt(item.getAttribute('data-fidx'), 10);
+      var files = listEl._fileHandles || [];
+      return files[idx] ? files[idx].handle : null;
+    }
+
+    function showContextMenu(x, y, fileHandle, fileName) {
+      var existing = document.getElementById('ctxMenu');
+      if (existing) existing.remove();
+      var menu = document.createElement('div');
+      menu.id = 'ctxMenu';
+      menu.className = 'ctx-menu';
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      var openItem = document.createElement('div');
+      openItem.className = 'ctx-menu-item';
+      openItem.textContent = '用默认方式打开';
+      openItem.onclick = async function() {
+        try {
+          var file = await fileHandle.getFile();
+          var url = URL.createObjectURL(file);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = file.name || fileName;
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (e) { }
+        document.getElementById('ctxMenu') && document.getElementById('ctxMenu').remove();
+      };
+      var analyzeItem = document.createElement('div');
+      analyzeItem.className = 'ctx-menu-item';
+      analyzeItem.textContent = '开始分析';
+      analyzeItem.onclick = function() {
+        runAnalysisForFile(fileHandle);
+        document.getElementById('ctxMenu') && document.getElementById('ctxMenu').remove();
+      };
+      menu.appendChild(openItem);
+      menu.appendChild(analyzeItem);
+      document.body.appendChild(menu);
+      function closeMenu() {
+        var m = document.getElementById('ctxMenu');
+        if (m) m.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+      setTimeout(function() { document.addEventListener('click', closeMenu); }, 0);
+    }
+
+    document.getElementById('localFileList').onclick = async function(e) {
+      var item = e.target.closest('.file-list-item');
+      if (!item) return;
+      var kind = item.getAttribute('data-kind');
+      var name = item.getAttribute('data-name');
+      if (kind === 'dir') {
+        var tidx = parseInt(item.getAttribute('data-tidx'), 10);
+        var node = this._treeNodes && this._treeNodes[tidx];
+        if (!node || node.kind !== 'dir') return;
+        if (node.expanded) {
+          node.expanded = false;
+          renderTree();
+        } else {
+          var el = this;
+          el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">加载中…</div>';
+          await loadTreeChildren(node);
+          node.expanded = true;
+          renderTree();
+        }
+        return;
+      }
+      if (kind === 'file') {
+        this.querySelectorAll('.file-list-item.selected').forEach(function(n) { n.classList.remove('selected'); });
+        item.classList.add('selected');
+        document.getElementById('localSelected').textContent = '已择定：' + name;
+      }
+    };
+
+    var pendingAnalysisHandle = null;
+    document.getElementById('btnStartAnalysis').onclick = function() {
+      if (pendingAnalysisHandle) {
+        runAnalysisForFile(pendingAnalysisHandle);
+        pendingAnalysisHandle = null;
+        document.getElementById('localAnalyzeBtnWrap').style.display = 'none';
+      }
+    };
+    document.getElementById('localFileList').ondblclick = async function(e) {
+      var item = e.target.closest('.file-list-item');
+      if (!item) return;
+      var kind = item.getAttribute('data-kind');
+      var name = item.getAttribute('data-name');
+      if (kind === 'dir') {
+        var tidx = parseInt(item.getAttribute('data-tidx'), 10);
+        var node = this._treeNodes && this._treeNodes[tidx];
+        if (!node || node.kind !== 'dir') return;
+        if (node.expanded) {
+          node.expanded = false;
+          renderTree();
+        } else {
+          var el = this;
+          el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">加载中…</div>';
+          await loadTreeChildren(node);
+          node.expanded = true;
+          renderTree();
+        }
+        return;
+      }
+      if (kind === 'file') {
+        var fh = getFileHandleFromItem(this, item);
+        if (fh) {
+          pendingAnalysisHandle = fh;
+          document.getElementById('localAnalyzeBtnWrap').style.display = 'block';
+        }
+      }
+    };
+
+    document.getElementById('localFileList').ondragstart = function(e) {
+      var item = e.target.closest('.file-list-item[data-kind="file"]');
+      if (!item) return;
+      var idx = parseInt(item.getAttribute('data-fidx'), 10);
+      var handles = this._fileHandles;
+      if (!handles || !handles[idx]) return;
+      e.dataTransfer.setData('text/plain', 'eduflow-file');
+      e.dataTransfer.effectAllowed = 'copy';
+      window._eduflowDraggedFileHandle = handles[idx].handle;
+    };
+    document.getElementById('localFileList').ondragend = function() {
+      window._eduflowDraggedFileHandle = null;
+    };
+    document.getElementById('localFileList').oncontextmenu = function(e) {
+      var item = e.target.closest('.file-list-item');
+      if (!item || item.getAttribute('data-kind') !== 'file') return;
+      e.preventDefault();
+      var fh = getFileHandleFromItem(this, item);
+      if (fh) showContextMenu(e.clientX, e.clientY, fh, item.getAttribute('data-name'));
+    };
+
+    async function loadFrameworks() {
+      const r = await fetch(API + '/api/frameworks');
+      const d = await r.json();
+      const sel = document.getElementById('frameworkId');
+      sel.innerHTML = (d.frameworks || []).map(f => '<option value="' + f.id + '">' + (f.name || f.id) + '</option>').join('') || '<option value="default">default</option>';
+    }
+    async function loadPersonas() {
+      const r = await fetch(API + '/api/personas');
+      const d = await r.json();
+      const sel = document.getElementById('personaId');
+      const opts = (d.presets || []).map(p => '<option value="' + p + '">' + p + '</option>');
+      (d.custom || []).forEach(c => opts.push('<option value="' + c + '">' + c + '</option>'));
+      sel.innerHTML = opts.join('') || '<option value="excellent">excellent</option>';
+    }
+    loadFrameworks();
+    loadPersonas();
+
+    async function loadPlatformConfig() {
+      try {
+        const r = await fetch(API + '/api/platform/config');
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        document.getElementById('cfgBaseUrl').value = d.base_url || '';
+        document.getElementById('cfgCookie').value = d.cookie || '';
+        document.getElementById('cfgAuthorization').value = d.authorization || '';
+        document.getElementById('cfgCourseId').value = d.course_id || '';
+        document.getElementById('cfgTrainTaskId').value = d.train_task_id || '';
+        document.getElementById('cfgStartNodeId').value = d.start_node_id || '';
+        document.getElementById('cfgEndNodeId').value = d.end_node_id || '';
+        document.getElementById('configMsg').textContent = '已加载当前配置';
+      } catch (e) {
+        document.getElementById('configMsg').innerHTML = '<span class="err">' + e.message + '</span>';
+      }
+    }
+    document.getElementById('btnLoadConfig').onclick = loadPlatformConfig;
+    document.getElementById('btnSaveConfig').onclick = async () => {
+      const msg = document.getElementById('configMsg');
+      try {
+        const r = await fetch(API + '/api/platform/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base_url: document.getElementById('cfgBaseUrl').value.trim(),
+            cookie: document.getElementById('cfgCookie').value.trim(),
+            authorization: document.getElementById('cfgAuthorization').value.trim(),
+            course_id: document.getElementById('cfgCourseId').value.trim(),
+            train_task_id: document.getElementById('cfgTrainTaskId').value.trim(),
+            start_node_id: document.getElementById('cfgStartNodeId').value.trim(),
+            end_node_id: document.getElementById('cfgEndNodeId').value.trim(),
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = d.message || '已保存';
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+      }
+    };
+    loadPlatformConfig();
+
+    var scriptDZ = document.getElementById('scriptDropZone');
+    var scriptFileInput = document.getElementById('scriptFile');
+    scriptDZ.onclick = function() { scriptFileInput.click(); };
+
+    async function handleScriptFile(file) {
+      if (!file) return;
+      var msg = document.getElementById('uploadMsg');
+      var pre = document.getElementById('uploadResult');
+      msg.textContent = '上传并分析中…';
+      try {
+        var fd2 = new FormData();
+        fd2.append('file', file);
+        var r = await fetch(API + '/api/script/upload', { method: 'POST', body: fd2 });
+        var d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        lastUploadData = d;
+        msg.textContent = '分析完成：' + (d.stages_count || 0) + ' 个阶段';
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify({ stages_count: d.stages_count, stages: d.stages }, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+      scriptFileInput.value = '';
+    }
+    scriptFileInput.onchange = function() { handleScriptFile(this.files[0]); };
+    scriptDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
+    scriptDZ.ondragleave = function() { this.classList.remove('dragover'); };
+    scriptDZ.ondrop = async function(e) {
+      e.preventDefault();
+      this.classList.remove('dragover');
+      if (window._eduflowDraggedFileHandle) {
+        try {
+          var file = await window._eduflowDraggedFileHandle.getFile();
+          if (file) handleScriptFile(file);
+        } catch (err) {}
+        window._eduflowDraggedFileHandle = null;
+        return;
+      }
+      var f = e.dataTransfer.files[0];
+      if (f) handleScriptFile(f);
+    };
+
+    document.getElementById('btnGenCards').onclick = async () => {
+      const msg = document.getElementById('genMsg');
+      const pre = document.getElementById('genResult');
+      if (!lastUploadData) { msg.innerHTML = '<span class="err">请先上传并分析剧本</span>'; return; }
+      msg.textContent = '生成中（可能较久）...';
+      try {
+        const r = await fetch(API + '/api/cards/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_content: lastUploadData.full_content,
+            stages: lastUploadData.stages,
+            framework_id: document.getElementById('frameworkId').value || null,
+            source_filename: lastUploadData.filename || null,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '已生成：' + (d.output_filename || '') + '，共 ' + (d.cards_count || 0) + ' 张卡片';
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+    };
+
+    document.getElementById('btnSimulate').onclick = async () => {
+      const path = document.getElementById('cardsPath').value.trim();
+      const msg = document.getElementById('simMsg');
+      const pre = document.getElementById('simResult');
+      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      msg.textContent = '模拟运行中（可能较久）...';
+      try {
+        const r = await fetch(API + '/api/simulate/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cards_path: path,
+            persona_id: document.getElementById('personaId').value || 'excellent',
+            mode: 'auto',
+            run_evaluation: true,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+    };
+
+    document.getElementById('btnEvaluate').onclick = async () => {
+      const path = document.getElementById('logPath').value.trim();
+      const msg = document.getElementById('evalMsg');
+      const pre = document.getElementById('evalResult');
+      if (!path) { msg.innerHTML = '<span class="err">请输入日志文件路径</span>'; return; }
+      msg.textContent = '评估中...';
+      try {
+        const r = await fetch(API + '/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ log_path: path }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '总分：' + (d.total_score ?? '') + ' / ' + (d.max_score ?? 100) + '，' + (d.rating || '');
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+    };
+
+    document.getElementById('btnInjectPreview').onclick = async () => {
+      const path = document.getElementById('injectCardsPath').value.trim();
+      const msg = document.getElementById('injectMsg');
+      const pre = document.getElementById('injectResult');
+      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      msg.textContent = '预览中...';
+      try {
+        const r = await fetch(API + '/api/inject/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards_path: path }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = d.summary || ('A类 ' + d.total_a + '，B类 ' + d.total_b);
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+    };
+
+    document.getElementById('btnInjectRun').onclick = async () => {
+      const path = document.getElementById('injectCardsPath').value.trim();
+      const taskName = document.getElementById('injectTaskName').value.trim() || null;
+      const description = document.getElementById('injectDescription').value.trim() || null;
+      const msg = document.getElementById('injectMsg');
+      const pre = document.getElementById('injectResult');
+      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      msg.textContent = '注入中...';
+      try {
+        const r = await fetch(API + '/api/inject/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cards_path: path, task_name: taskName, description: description }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = d.message || (d.success ? '注入成功' : '注入完成，请查看详情');
+        if (!d.success) msg.innerHTML = '<span class="err">' + (msg.textContent) + '</span>';
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      }
+    };
+  </script>
+</body>
+</html>
