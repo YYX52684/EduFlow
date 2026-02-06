@@ -2,8 +2,11 @@
 内容分割器
 调用DeepSeek API分析剧本，将其划分为多个场景/幕
 适用于沉浸式角色扮演教学平台（类似"课程版剧本杀"）
+支持按内容哈希缓存分析结果（内存 + 可选磁盘），避免重复请求。
 """
+import hashlib
 import json
+import os
 import re
 from typing import Optional
 
@@ -15,8 +18,23 @@ except ImportError:
 
 from config import (
     DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL,
-    MAX_TOKENS, TEMPERATURE
+    DOUBAO_API_KEY, DOUBAO_BASE_URL, DOUBAO_MODEL,
+    DEFAULT_MODEL_TYPE, MAX_TOKENS, TEMPERATURE
 )
+
+# 分析结果缓存：同一剧本内容只请求一次 API，最多保留条目数
+_ANALYZE_CACHE: dict[str, dict] = {}
+_ANALYZE_CACHE_MAX = 32
+
+# 磁盘缓存目录（项目根下 .cache/content_splitter），重启后仍可命中
+def _disk_cache_dir() -> Optional[str]:
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    d = os.path.join(root, ".cache", "content_splitter")
+    try:
+        os.makedirs(d, exist_ok=True)
+        return d
+    except OSError:
+        return None
 
 
 class ContentSplitter:
@@ -75,40 +93,68 @@ class ContentSplitter:
 
 请直接返回JSON格式的分析结果（不要使用```json标记）："""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         """
-        初始化内容分割器
-        
-        Args:
-            api_key: DeepSeek API密钥，如果不提供则使用配置文件中的密钥
+        初始化内容分割器。可与工作区 LLM 配置统一（api_key / base_url / model）。
         """
         if not OPENAI_AVAILABLE:
             raise ImportError("请先安装openai库: pip install openai")
-        
-        self.api_key = api_key or DEEPSEEK_API_KEY
+        self.api_key = api_key or (DOUBAO_API_KEY if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_API_KEY)
         if not self.api_key:
-            raise ValueError("未提供API密钥，请在.env文件中设置DEEPSEEK_API_KEY")
-        
+            raise ValueError("未提供API密钥，请在 Web 设置中填写或设置 .env 中的 DEEPSEEK_API_KEY / LLM_API_KEY")
+        self.base_url = (base_url or "").strip() or (DOUBAO_BASE_URL if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_BASE_URL)
+        self.model = (model or "").strip() or (DOUBAO_MODEL if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_MODEL)
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url=DEEPSEEK_BASE_URL
+            base_url=self.base_url,
         )
     
-    def analyze(self, content: str) -> dict:
+    def analyze(self, content: str, use_cache: bool = True) -> dict:
         """
-        分析剧本内容，返回场景分割方案
-        
+        分析剧本内容，返回场景分割方案。
+        相同内容会使用缓存结果，避免重复 API 调用。
+
         Args:
             content: 剧本的文本内容
-            
+            use_cache: 是否使用内存缓存（默认 True）
+
         Returns:
             包含stages列表的字典，每个stage包含id, title, role, student_role, task, key_points, content_excerpt等
         """
+        key = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        if use_cache:
+            if key in _ANALYZE_CACHE:
+                return _ANALYZE_CACHE[key]
+            # 磁盘缓存：重启后相同剧本不再请求 API
+            cache_dir = _disk_cache_dir()
+            if cache_dir:
+                cache_file = os.path.join(cache_dir, f"{key}.json")
+                try:
+                    if os.path.isfile(cache_file):
+                        with open(cache_file, "r", encoding="utf-8") as f:
+                            result = json.load(f)
+                        if "stages" in result:
+                            if len(_ANALYZE_CACHE) >= _ANALYZE_CACHE_MAX:
+                                first = next(iter(_ANALYZE_CACHE))
+                                del _ANALYZE_CACHE[first]
+                            _ANALYZE_CACHE[key] = result
+                            return result
+                except (OSError, json.JSONDecodeError):
+                    pass
+            if len(_ANALYZE_CACHE) >= _ANALYZE_CACHE_MAX:
+                first = next(iter(_ANALYZE_CACHE))
+                del _ANALYZE_CACHE[first]
+
         prompt = self.SPLIT_PROMPT.format(content=content)
-        
+
         try:
             response = self.client.chat.completions.create(
-                model=DEEPSEEK_MODEL,
+                model=self.model,
                 max_tokens=MAX_TOKENS,
                 temperature=TEMPERATURE,
                 messages=[
@@ -124,9 +170,19 @@ class ContentSplitter:
             # 验证结果格式
             if "stages" not in result:
                 raise ValueError("API返回的结果缺少stages字段")
-            
+
+            if use_cache:
+                _ANALYZE_CACHE[key] = result
+                cache_dir = _disk_cache_dir()
+                if cache_dir:
+                    cache_file = os.path.join(cache_dir, f"{key}.json")
+                    try:
+                        with open(cache_file, "w", encoding="utf-8") as f:
+                            json.dump(result, f, ensure_ascii=False, indent=2)
+                    except OSError:
+                        pass
             return result
-            
+
         except Exception as e:
             if "api" in str(e).lower() or "request" in str(e).lower():
                 raise RuntimeError(f"API调用失败: {e}")

@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routes import health, frameworks, personas, script, cards, simulate, evaluate, inject, platform_config, input_files
+from .routes import health, frameworks, personas, script, cards, simulate, evaluate, inject, platform_config, input_files, output_files, trainset, optimizer, projects, llm_config
 
 app = FastAPI(
     title="EduFlow API",
@@ -41,16 +41,31 @@ app.include_router(evaluate.router, prefix="/api", tags=["evaluate"])
 app.include_router(inject.router, prefix="/api/inject", tags=["inject"])
 app.include_router(platform_config.router, prefix="/api/platform", tags=["platform"])
 app.include_router(input_files.router, prefix="/api/input", tags=["input"])
+app.include_router(output_files.router, prefix="/api/output", tags=["output"])
+app.include_router(trainset.router, prefix="/api/trainset", tags=["trainset"])
+app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"])
+app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+app.include_router(llm_config.router, prefix="/api/llm", tags=["llm"])
 
 web_dir = os.path.join(_ROOT, "web", "static")
 index_path = os.path.join(web_dir, "index.html")
 
 
-@app.get("/")
-def index():
+def _serve_index():
     if os.path.isfile(index_path):
         return FileResponse(index_path)
     return {"message": "EduFlow API", "docs": "/docs"}
+
+
+@app.get("/")
+def index():
+    return _serve_index()
+
+
+@app.get("/w/{rest:path}")
+def workspace_page(rest: str):
+    """SPA 工作区路由，始终返回首页由前端解析 /w/<workspace_id>。"""
+    return _serve_index()
 
 
 if os.path.isdir(web_dir):

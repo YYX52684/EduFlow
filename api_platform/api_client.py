@@ -38,7 +38,8 @@ class PlatformAPIClient:
         Args:
             config: 平台配置字典
         """
-        self.base_url = config.get("base_url", "https://cloudapi.polymas.com").rstrip("/")
+        raw = (config.get("base_url") or "https://cloudapi.polymas.com").strip()
+        self.base_url = (raw or "https://cloudapi.polymas.com").rstrip("/")
         self.course_id = config.get("course_id", "")
         self.train_task_id = config.get("train_task_id", "")
         self.start_node_id = config.get("start_node_id", "")  # 训练开始节点
@@ -83,6 +84,45 @@ class PlatformAPIClient:
         # 卡片位置跟踪
         self._next_position = {"x": 200, "y": 100}
         self._position_step = {"x": 0, "y": 200}  # 纵向排列
+
+    # ========== 查询现有脚本节点/连线 ==========
+
+    def list_existing_steps(self) -> Dict[str, Any]:
+        """
+        查询当前训练任务下是否已有脚本节点。
+        返回结构：{"status": "...", "count": int, "steps": list, "raw": any}
+        若接口未配置或调用失败，会返回 status=error 并包含错误信息。
+        """
+        endpoint = self.endpoints.get("list_steps")
+        if not endpoint:
+            return {"status": "skipped", "reason": "list_steps endpoint not configured", "count": 0, "steps": []}
+
+        payload = {
+            "trainTaskId": self.train_task_id,
+            "courseId": self.course_id,
+        }
+
+        try:
+            result = self._make_request("POST", endpoint, data=payload)
+        except Exception as e:
+            return {"status": "error", "error": str(e), "count": 0, "steps": []}
+
+        steps = []
+        if isinstance(result, dict):
+            # 常见字段兜底提取
+            for key in ("data", "result", "steps", "list", "rows"):
+                if isinstance(result.get(key), list):
+                    steps = result[key]
+                    break
+            if not steps and isinstance(result.get("data"), dict):
+                inner = result["data"]
+                for key in ("steps", "list", "rows"):
+                    if isinstance(inner.get(key), list):
+                        steps = inner[key]
+                        break
+
+        count = len(steps) if isinstance(steps, list) else 0
+        return {"status": "ok", "count": count, "steps": steps, "raw": result}
     
     def _get_next_position(self) -> dict:
         """获取下一个卡片的位置"""

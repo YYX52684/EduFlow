@@ -1,12 +1,9 @@
 """
 LLM学生模拟器
-使用Claude Sonnet 4.5扮演学生角色
-
-模型配置：
-- 默认使用Claude Sonnet 4.5
-- 通过公司LLM服务网关调用
+使用 LLM 扮演学生角色。默认使用 DeepSeek，与卡片生成一致；可通过 SIMULATOR_* 环境变量覆盖。
 """
 
+import os
 import requests
 import json
 from typing import List, Dict, Any, Optional
@@ -22,13 +19,20 @@ class StudentMessage:
     metadata: dict = field(default_factory=dict)
 
 
+def _default_student_config():
+    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    return {
+        "api_url": DEEPSEEK_CHAT_URL,
+        "api_key": DEEPSEEK_API_KEY or "",
+        "model": DEEPSEEK_MODEL,
+    }
+
+
 class LLMStudent:
     """LLM学生模拟器"""
     
-    # 默认配置
-    DEFAULT_API_URL = "http://llm-service.polymas.com/api/openai/v1/chat/completions"
-    DEFAULT_MODEL = "claude-sonnet-4-5-20250514"
-    DEFAULT_SERVICE_CODE = "SI_Ability"
+    # 默认配置（DeepSeek）；可通过环境变量 SIMULATOR_* 覆盖
+    DEFAULT_SERVICE_CODE = ""
     
     def __init__(self, persona: StudentPersona, config: dict = None):
         """
@@ -45,13 +49,12 @@ class LLMStudent:
                 - temperature: 温度参数
         """
         config = config or {}
-        
+        defaults = _default_student_config()
         self.persona = persona
         self.system_prompt = persona.to_system_prompt()
-        
-        self.api_url = config.get("api_url", self.DEFAULT_API_URL)
-        self.api_key = config.get("api_key", "")
-        self.model = config.get("model", self.DEFAULT_MODEL)
+        self.api_url = config.get("api_url", defaults["api_url"])
+        self.api_key = config.get("api_key", defaults["api_key"])
+        self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
         self.max_tokens = config.get("max_tokens", 300)
         self.temperature = config.get("temperature", 0.8)
@@ -211,14 +214,13 @@ class StudentFactory:
         from dotenv import load_dotenv
         
         load_dotenv()
-        
+        defaults = _default_student_config()
         config = {
-            "api_url": os.getenv("SIMULATOR_API_URL", LLMStudent.DEFAULT_API_URL),
-            "api_key": os.getenv("SIMULATOR_API_KEY", ""),
-            "model": os.getenv("SIMULATOR_MODEL", LLMStudent.DEFAULT_MODEL),
+            "api_url": os.getenv("SIMULATOR_API_URL", defaults["api_url"]),
+            "api_key": os.getenv("SIMULATOR_API_KEY", defaults["api_key"]),
+            "model": os.getenv("SIMULATOR_MODEL", defaults["model"]),
             "service_code": os.getenv("SIMULATOR_SERVICE_CODE", LLMStudent.DEFAULT_SERVICE_CODE),
         }
-        
         return LLMStudent(persona, config)
     
     @staticmethod

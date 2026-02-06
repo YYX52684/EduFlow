@@ -21,10 +21,10 @@ FRAMEWORK_DESCRIPTION = "基于 DSPy 的结构化生成，可减少括号等违�
 class DSPyFramework(BaseCardGenerator):
     """DSPy 生成器框架封装"""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model_type: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None, **kwargs):
         if not _AVAILABLE:
             raise ImportError("请先安装 dspy-ai: pip install dspy-ai")
-        self._gen = DSPyCardGenerator(api_key=api_key)
+        self._gen = DSPyCardGenerator(api_key=api_key, model_type=model_type, base_url=base_url, model=model)
 
     def generate_all_cards(
         self,

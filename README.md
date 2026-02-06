@@ -10,6 +10,7 @@
   - **A类卡片**：NPC角色卡片，与学生进行沉浸式对话
   - **B类卡片**：场景过渡卡片，连接不同场景
 - **平台注入**：一键将生成的卡片注入到智慧树教学平台
+- **多用户工作区**：部署为正式网站时，每人一个工作区（URL 含 `/w/工作区ID`），上传、生成、平台配置互不影响
 
 ## 项目结构
 
@@ -25,8 +26,9 @@ EduFlow/
 ├── parsers/             # 文件解析器
 ├── platform/            # 平台对接模块
 ├── templates/           # 模板文件
-├── input/               # 输入目录（放置剧本）
-└── output/              # 输出目录（生成的卡片）
+├── input/               # 命令行用输入目录
+├── output/              # 命令行用输出目录
+└── workspaces/          # Web 多用户工作区（每人一个子目录，含 input、output、platform_config.json）
 ```
 
 ## 安装
@@ -167,11 +169,12 @@ python main.py --inject-only "output/cards_output_xxx.md"
 python run_web.py
 ```
 
-- 本机访问：`http://localhost:8000/`，API 文档：`http://localhost:8000/docs`。
+- 打开浏览器会跳转到 **工作区地址**（如 `http://localhost:8000/w/abc123`），每人一个工作区，上传与生成的文件、平台配置均隔离在 `workspaces/<工作区ID>/` 下，互不影响。
+- 本机访问：`http://localhost:8000/` 或 `http://127.0.0.1:8000/`，API 文档：`http://localhost:8000/docs`。
 
 **分享给同事（同一局域网）：**
 
-- 启动后终端会打印 **同事访问地址**（如 `http://192.168.x.x:8000`），同事用该地址打开即可。
+- 启动后终端会打印 **同事访问地址**（如 `http://192.168.x.x:8000`），同事用该地址打开即可（会得到自己的 `/w/xxx` 工作区）。
 - 若同事需要用到 **「选择目录」** 上传（浏览器安全策略要求 HTTPS 或 localhost），请用 HTTPS 启动：
   ```bash
   pip install cryptography   # 首次使用 --https 时需安装
@@ -180,11 +183,29 @@ python run_web.py
   同事访问 `https://你的IP:8000`，浏览器提示证书不受信任时点「高级」→「继续访问」即可。
 - 若本机有防火墙，需放行 8000 端口或允许 Python 访问网络。
 
-**同事各自本地跑一份（互不影响）：**
+**正式网站部署（大家共用一个站点、工作互不影响）：**
 
-- 你把项目推到 Git，同事 `git clone` 后在本机执行上述安装与配置（含 `.env`），再运行 `python run_web.py`。这样她的上传与生成只在她本机的 `input/`、`output/`，不会影响你这边。
+- 将服务部署到一台服务器（公司内网或云主机），所有人访问同一网址（如 `https://eduflow.公司.com`）。
+- 每人首次打开会得到唯一的工作区 URL（如 `https://eduflow.公司.com/w/abc123`），收藏该地址即可；上传、生成、平台配置均只在该工作区内，互不干扰。
+- **详细步骤**（直接运行、Docker、Nginx + HTTPS）见 **[DEPLOY.md](DEPLOY.md)**。
+
+**同事各自本地跑一份：**
+
+- 你把项目推到 Git，同事 `git clone` 后在本机执行上述安装与配置（含 `.env`），再运行 `python run_web.py`。数据在本机，与服务器或你本机完全独立。
 
 更多说明见 [Operations.md](Operations.md) 第十一节。
+
+### 5. Docker 部署（可选）
+
+```bash
+# 构建镜像（项目根目录）
+docker build -t eduflow .
+
+# 运行：需提供 .env 或环境变量（至少 DEEPSEEK_API_KEY）
+docker run -p 8000:8000 --env-file .env -v "$(pwd)/workspaces:/app/workspaces" eduflow
+```
+
+- 访问 `http://localhost:8000/` 或 `http://<服务器IP>:8000/`。挂载 `workspaces` 可将工作区数据持久化到宿主机。
 
 ## 注意事项
 

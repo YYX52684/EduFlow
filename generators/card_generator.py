@@ -21,26 +21,26 @@ from config import (
 class CardGenerator:
     """
     卡片生成器类
-    基于"沉浸式角色扮演教学平台"理念生成卡片
+    基于"沉浸式角色扮演教学平台"理念生成卡片。
+    支持统一 LLM 配置（api_key / base_url / model）。
     """
-    
-    def __init__(self, api_key: Optional[str] = None):
-        """
-        初始化卡片生成器
-        
-        Args:
-            api_key: DeepSeek API密钥，如果不提供则使用配置文件中的密钥
-        """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+    ):
         if not OPENAI_AVAILABLE:
             raise ImportError("请先安装openai库: pip install openai")
-        
         self.api_key = api_key or DEEPSEEK_API_KEY
         if not self.api_key:
-            raise ValueError("未提供API密钥，请在.env文件中设置DEEPSEEK_API_KEY")
-        
+            raise ValueError("未提供API密钥，请在 Web 设置中填写或设置 .env 中的 DEEPSEEK_API_KEY")
+        self.base_url = (base_url or "").strip() or DEEPSEEK_BASE_URL
+        self.model = (model or "").strip() or DEEPSEEK_MODEL
         self.client = OpenAI(
             api_key=self.api_key,
-            base_url=DEEPSEEK_BASE_URL
+            base_url=self.base_url,
         )
         
         # 加载系统上下文（平台理解文档）
@@ -67,7 +67,7 @@ class CardGenerator:
             API返回的文本内容
         """
         response = self.client.chat.completions.create(
-            model=DEEPSEEK_MODEL,
+            model=self.model,
             max_tokens=MAX_TOKENS,
             temperature=TEMPERATURE,
             messages=[

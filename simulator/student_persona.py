@@ -389,16 +389,22 @@ class PersonaManager:
                 yaml.dump(persona.to_dict(), f, allow_unicode=True, default_flow_style=False)
 
 
+def _default_persona_generator_config():
+    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    return {
+        "api_url": DEEPSEEK_CHAT_URL,
+        "api_key": DEEPSEEK_API_KEY or "",
+        "model": DEEPSEEK_MODEL,
+    }
+
+
 class PersonaGenerator:
     """
-    角色人设生成器
-    使用Claude Sonnet根据原始教学材料自动生成推荐的学生角色配置
+    角色人设生成器。默认使用 DeepSeek 根据原始教学材料生成推荐的学生角色配置；
+    可通过 SIMULATOR_* 环境变量覆盖。
     """
     
-    # 默认配置
-    DEFAULT_API_URL = "http://llm-service.polymas.com/api/openai/v1/chat/completions"
-    DEFAULT_MODEL = "claude-sonnet-4-5-20250514"
-    DEFAULT_SERVICE_CODE = "SI_Ability"
+    DEFAULT_SERVICE_CODE = ""
     
     def __init__(self, config: dict = None):
         """
@@ -408,10 +414,10 @@ class PersonaGenerator:
             config: 配置字典
         """
         config = config or {}
-        
-        self.api_url = config.get("api_url", self.DEFAULT_API_URL)
-        self.api_key = config.get("api_key", "")
-        self.model = config.get("model", self.DEFAULT_MODEL)
+        defaults = _default_persona_generator_config()
+        self.api_url = config.get("api_url", defaults["api_url"])
+        self.api_key = config.get("api_key", defaults["api_key"])
+        self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
     
     def generate_from_material(
@@ -712,12 +718,11 @@ class PersonaGeneratorFactory:
         """从环境变量创建角色生成器"""
         from dotenv import load_dotenv
         load_dotenv()
-        
+        defaults = _default_persona_generator_config()
         config = {
-            "api_url": os.getenv("SIMULATOR_API_URL", PersonaGenerator.DEFAULT_API_URL),
-            "api_key": os.getenv("SIMULATOR_API_KEY", ""),
-            "model": os.getenv("SIMULATOR_MODEL", PersonaGenerator.DEFAULT_MODEL),
+            "api_url": os.getenv("SIMULATOR_API_URL", defaults["api_url"]),
+            "api_key": os.getenv("SIMULATOR_API_KEY", defaults["api_key"]),
+            "model": os.getenv("SIMULATOR_MODEL", defaults["model"]),
             "service_code": os.getenv("SIMULATOR_SERVICE_CODE", PersonaGenerator.DEFAULT_SERVICE_CODE),
         }
-        
         return PersonaGenerator(config)

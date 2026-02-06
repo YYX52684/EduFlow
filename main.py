@@ -23,14 +23,19 @@ from config import (
     PLATFORM_ENDPOINTS,
     CARD_GENERATOR_TYPE,
     DEEPSEEK_API_KEY,
+    DOUBAO_API_KEY,
+    DEFAULT_MODEL_TYPE,
     EVALUATION_CONFIG,
     DSPY_OPTIMIZER_CONFIG,
 )
+from api.workspace import get_workspace_dirs
 from parsers import (
     parse_markdown,
     parse_docx,
+    parse_docx_with_structure,
     parse_pdf,
     extract_task_meta_from_doc,
+    extract_task_meta_from_content_structure,
 )
 from generators import ContentSplitter, CardGenerator, DSPyCardGenerator, DSPY_AVAILABLE, list_frameworks, get_framework
 from generators.evaluation_section import build_evaluation_markdown
@@ -703,7 +708,12 @@ def main():
         default=None,
         help='输出文件路径（默认为 output/cards_output_{timestamp}.md）'
     )
-    
+    parser.add_argument(
+        '--workspace', '-w',
+        metavar='NAME',
+        default=None,
+        help='项目名，与 Web 统一：使用 workspaces/<NAME>/input 与 output；不指定则用根目录 input/output'
+    )
     parser.add_argument(
         '--preview', '-p',
         action='store_true',
@@ -956,8 +966,9 @@ def main():
             parser.error("--optimize-dspy 需要提供 --trainset（trainset JSON 路径）")
         from generators.dspy_optimizer import run_optimize_dspy
         cfg = DSPY_OPTIMIZER_CONFIG
-        output_cards = args.cards_output or cfg.get("cards_output_path", os.path.join(OUTPUT_DIR, "optimizer", "cards_for_eval.md"))
-        export_path = args.export_file or cfg.get("export_file_path", os.path.join(OUTPUT_DIR, "optimizer", "export_score.json"))
+        _opt_out = get_workspace_dirs(args.workspace.strip())[1] if args.workspace else OUTPUT_DIR
+        output_cards = args.cards_output or cfg.get("cards_output_path", os.path.join(_opt_out, "optimizer", "cards_for_eval.md"))
+        export_path = args.export_file or cfg.get("export_file_path", os.path.join(_opt_out, "optimizer", "export_score.json"))
         # 根据导出文件扩展名自动选择解析器：.md -> md，否则用配置
         _ext = os.path.splitext(export_path)[1].lower()
         _parser = "md" if _ext in (".md", ".markdown") else cfg.get("parser", "json")
@@ -972,6 +983,8 @@ def main():
         print(f"  trainset: {args.trainset}")
         print(f"  卡片输出: {output_cards}")
         print(f"  导出文件（读取分数）: {export_path}\n")
+        model_type = DEFAULT_MODEL_TYPE
+        api_key = DOUBAO_API_KEY if model_type == "doubao" else DEEPSEEK_API_KEY
         try:
             compiled = run_optimize_dspy(
                 trainset_path=os.path.abspath(args.trainset),
@@ -980,7 +993,8 @@ def main():
                 export_path=os.path.abspath(export_path),
                 export_config=export_config,
                 optimizer_type=args.optimizer,
-                api_key=DEEPSEEK_API_KEY,
+                api_key=api_key,
+                model_type=model_type,
                 max_rounds=args.max_rounds or cfg.get("max_rounds", 1),
                 max_bootstrapped_demos=cfg.get("max_bootstrapped_demos", 4),
             )
@@ -1043,37 +1057,64 @@ def main():
     if not args.input:
         parser.error("需要提供 --input 参数，或使用 --simulate/--inject-only/--evaluate 等模式")
     
-    # 检查输入文件
-    input_path = os.path.abspath(args.input)
+    # 统一目录：--workspace 时用 workspaces/<项目名>/，否则用根目录 input/output
+    if args.workspace:
+        _input_dir, _output_dir, _ = get_workspace_dirs(args.workspace.strip())
+    else:
+        _input_dir, _output_dir = INPUT_DIR, OUTPUT_DIR
+    
+    # 检查输入文件并解析路径
+    if os.path.isabs(args.input) and os.path.exists(args.input):
+        input_path = args.input
+    elif args.workspace:
+        rel = args.input.replace("input/", "").lstrip("/").replace("\\", "/") or os.path.basename(args.input)
+        input_path = os.path.normpath(os.path.join(_input_dir, rel))
+    else:
+        input_path = os.path.abspath(args.input)
     if not os.path.exists(input_path):
-        print(f"错误: 输入文件不存在: {input_path}")
+        try:
+            print(f"错误: 输入文件不存在: {input_path}")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            try:
+                print("错误: 输入文件不存在:", os.path.basename(input_path))
+            except Exception:
+                print("错误: 输入文件不存在，请检查 --input 与 --workspace")
         sys.exit(1)
     
     # 确定输出路径
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f"cards_output_{timestamp}.md"
     if args.output:
         output_path = os.path.abspath(args.output)
     else:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_filename = f"cards_output_{timestamp}.md"
-        output_path = os.path.join(OUTPUT_DIR, output_filename)
+        output_path = os.path.join(_output_dir, output_filename)
     
     # 确保输出目录存在
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
+    def _safe_print(s):
+        try:
+            print(s)
+        except UnicodeEncodeError:
+            print(s.encode(sys.getdefaultencoding(), errors="replace").decode())
     print("=" * 60)
     print("教学卡片自动生成脚本")
     print("=" * 60)
-    print(f"\n输入文件: {input_path}")
+    _safe_print(f"\n输入文件: {input_path}")
     if not args.preview:
-        print(f"输出文件: {output_path}")
+        _safe_print(f"输出文件: {output_path}")
     print()
     
     try:
-        # 步骤1: 解析文件
+        # 步骤1: 解析文件（docx 一次打开同时得到正文与结构，避免后续再打开）
         print("[1] 步骤1: 解析输入文件...")
-        file_parser = get_parser_for_file(input_path)
-        content = file_parser(input_path)
-        
+        doc_structure = None
+        if input_path.lower().endswith(".docx"):
+            content, raw_structure = parse_docx_with_structure(input_path)
+            doc_structure = [{"title": s["title"], "level": s.get("level", 1), "content": s.get("content", "")} for s in raw_structure]
+        else:
+            file_parser = get_parser_for_file(input_path)
+            content = file_parser(input_path)
         if args.verbose:
             print(f"   - 成功解析，内容长度: {len(content)} 字符")
         print("   [OK] 文件解析完成\n")
@@ -1085,6 +1126,18 @@ def main():
         stages = analysis_result['stages']
         
         print(f"   [OK] 识别出 {len(stages)} 个教学阶段\n")
+
+        # 解析时同步写入 trainset.json（供 DSPy 优化器使用）
+        try:
+            from generators.trainset_builder import append_trainset_example
+            trainset_path = os.path.join(_output_dir, "optimizer", "trainset.json")
+            os.makedirs(os.path.dirname(trainset_path), exist_ok=True)
+            count = append_trainset_example(content, stages, trainset_path, source_file=input_path)
+            if args.verbose:
+                print(f"   [trainset] 已写入 {trainset_path}，当前共 {count} 条\n")
+        except Exception as e:
+            if args.verbose:
+                print(f"   [trainset] 写入跳过: {e}\n")
         
         # 预览模式：显示分析结果后退出
         if args.preview:
@@ -1171,9 +1224,14 @@ def main():
         # 步骤4: 保存输出（含评价项章节）
         print("[4] 步骤4: 保存输出文件...")
         
-        # 从输入文档提取任务元数据（用于评价项章节，注入时再用任务名/描述）
+        # 从输入文档提取任务元数据（复用步骤1已解析的 content/structure，避免 docx 二次打开）
         try:
-            task_meta = extract_task_meta_from_doc(input_path)
+            if doc_structure is not None:
+                task_meta = extract_task_meta_from_content_structure(
+                    content, doc_structure, os.path.splitext(os.path.basename(input_path))[0]
+                )
+            else:
+                task_meta = extract_task_meta_from_doc(input_path)
         except (ValueError, FileNotFoundError):
             task_meta = {
                 "task_name": os.path.basename(input_path),
@@ -1206,13 +1264,13 @@ def main():
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(header + cards_content)
         
-        print(f"   [OK] 已保存到: {output_path}\n")
+        _safe_print(f"   [OK] 已保存到: {output_path}\n")
         
         # 完成
         print("=" * 60)
         print("[完成] 生成完成！")
         print(f"   共生成 {len(stages) * 2} 张卡片（{len(stages)} 个阶段 × 2）")
-        print(f"   输出文件: {output_path}")
+        _safe_print(f"   输出文件: {output_path}")
         print("=" * 60)
         
         # 如果指定了注入参数，执行注入（传入从输入文档提取的任务名与描述）
@@ -1245,7 +1303,7 @@ def main():
         print(f"\n[错误] 未知错误: {e}")
         import traceback
         traceback.print_exc()
-        print("\n提示: 如果问题与API返回内容相关，请检查您的ANTHROPIC_API_KEY是否正确")
+        print("\n提示: 如果问题与API返回内容相关，请检查您的 DEEPSEEK_API_KEY 是否正确")
         sys.exit(1)
 
 

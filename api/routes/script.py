@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
 import os
 import tempfile
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Header
 from pydantic import BaseModel
-from parsers import parse_markdown, parse_docx, parse_pdf
+from parsers import parse_markdown, parse_docx, parse_docx_with_structure, parse_pdf
 from generators import ContentSplitter
+from generators.trainset_builder import append_trainset_example
+from api.workspace import get_workspace_id, get_project_dirs, resolve_workspace_path, _decode_workspace_id_header
+from api.routes.llm_config import get_llm_config
 
 router = APIRouter()
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+def _optional_workspace_id(x_workspace_id: str | None = Header(None, alias="X-Workspace-Id")) -> str | None:
+    """可选工作区 ID，用于上传时写入 trainset。支持 Base64 编码（前端传中文时）。"""
+    if not x_workspace_id or not x_workspace_id.strip():
+        return None
+    return _decode_workspace_id_header(x_workspace_id).strip() or None
 
 
 def _get_parser_for_ext(ext: str):
@@ -20,8 +28,8 @@ def _get_parser_for_ext(ext: str):
 
 
 @router.post("/upload")
-async def upload_and_analyze(file: UploadFile = File(...)):
-    """上传剧本文件，解析内容并分析结构。返回 full_content 与 stages。"""
+async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str | None = Depends(_optional_workspace_id)):
+    """上传剧本文件，解析内容并分析结构。若请求头带 X-Workspace-Id，会同步写入该工作区当前项目的 trainset.json。"""
     suffix = os.path.splitext(file.filename or "")[1].lower()
     if not suffix:
         suffix = ".md"
@@ -30,29 +38,51 @@ async def upload_and_analyze(file: UploadFile = File(...)):
         tmp.write(content)
         path = tmp.name
     try:
-        parser = _get_parser_for_ext(suffix)
-        full_content = parser(path)
-        splitter = ContentSplitter()
+        if suffix == ".docx":
+            full_content, _ = parse_docx_with_structure(path)
+        else:
+            parser = _get_parser_for_ext(suffix)
+            full_content = parser(path)
+        llm = get_llm_config(workspace_id) if workspace_id else {}
+        splitter = ContentSplitter(
+            api_key=llm.get("api_key") or None,
+            base_url=llm.get("base_url") or None,
+            model=llm.get("model") or None,
+        )
         result = splitter.analyze(full_content)
         stages = result.get("stages", [])
-        return {
+        stages_for_trainset = [
+            {
+                "id": s.get("id"),
+                "title": s.get("title"),
+                "description": s.get("description"),
+                "role": s.get("role"),
+                "task": s.get("task"),
+                "key_points": s.get("key_points", []),
+                "content_excerpt": s.get("content_excerpt") or "",
+            }
+            for s in stages
+        ]
+        out = {
             "filename": file.filename,
             "full_content_length": len(full_content),
             "stages_count": len(stages),
-            "stages": [
-                {
-                    "id": s.get("id"),
-                    "title": s.get("title"),
-                    "description": s.get("description"),
-                    "role": s.get("role"),
-                    "task": s.get("task"),
-                    "key_points": s.get("key_points", []),
-                    "content_excerpt": s.get("content_excerpt") or "",
-                }
-                for s in stages
-            ],
+            "stages": stages_for_trainset,
             "full_content": full_content,
         }
+        if workspace_id and stages_for_trainset:
+            try:
+                _, output_dir, _ = get_project_dirs(workspace_id)
+                trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
+                count = append_trainset_example(
+                    full_content, stages_for_trainset, trainset_path,
+                    source_file=file.filename or "",
+                )
+                out["trainset_path"] = "output/optimizer/trainset.json"
+                out["trainset_count"] = count
+            except Exception:
+                pass
+        return out
     finally:
         try:
             os.unlink(path)
@@ -61,45 +91,64 @@ async def upload_and_analyze(file: UploadFile = File(...)):
 
 
 class AnalyzePathRequest(BaseModel):
-    path: str  # 相对项目根，如 input/示例剧本.md
+    path: str  # 相对工作区，如 input/示例剧本.md
 
 
 @router.post("/analyze-path")
-def analyze_by_path(req: AnalyzePathRequest):
-    """根据项目内文件路径解析并分析结构（用于选择 input 中已有文件）。"""
+def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(get_workspace_id)):
+    """根据当前工作区 input 内文件路径解析并分析结构。"""
     path = req.path.strip().replace("\\", "/")
-    if path.startswith("/") or ".." in path:
-        raise HTTPException(status_code=400, detail="路径不合法")
-    full = os.path.join(_ROOT, path)
+    if path.startswith("/") or ".." in path or not path.startswith("input/"):
+        raise HTTPException(status_code=400, detail="路径不合法，应为 input/ 下路径")
+    full = resolve_workspace_path(workspace_id, path, kind="input")
     if not os.path.isfile(full):
         raise HTTPException(status_code=404, detail=f"文件不存在: {req.path}")
     suffix = os.path.splitext(full)[1].lower()
     if suffix not in (".md", ".docx", ".pdf"):
         raise HTTPException(status_code=400, detail="仅支持 .md / .docx / .pdf")
     try:
-        parser = _get_parser_for_ext(suffix)
-        full_content = parser(full)
-        splitter = ContentSplitter()
+        if suffix == ".docx":
+            full_content, _ = parse_docx_with_structure(full)
+        else:
+            parser = _get_parser_for_ext(suffix)
+            full_content = parser(full)
+        llm = get_llm_config(workspace_id)
+        splitter = ContentSplitter(
+            api_key=llm.get("api_key") or None,
+            base_url=llm.get("base_url") or None,
+            model=llm.get("model") or None,
+        )
         result = splitter.analyze(full_content)
         stages = result.get("stages", [])
-        return {
+        stages_for_trainset = [
+            {
+                "id": s.get("id"),
+                "title": s.get("title"),
+                "description": s.get("description"),
+                "role": s.get("role"),
+                "task": s.get("task"),
+                "key_points": s.get("key_points", []),
+                "content_excerpt": s.get("content_excerpt") or "",
+            }
+            for s in stages
+        ]
+        out = {
             "filename": os.path.basename(full),
             "path": path,
             "full_content_length": len(full_content),
             "stages_count": len(stages),
-            "stages": [
-                {
-                    "id": s.get("id"),
-                    "title": s.get("title"),
-                    "description": s.get("description"),
-                    "role": s.get("role"),
-                    "task": s.get("task"),
-                    "key_points": s.get("key_points", []),
-                    "content_excerpt": s.get("content_excerpt") or "",
-                }
-                for s in stages
-            ],
+            "stages": stages_for_trainset,
             "full_content": full_content,
         }
+        if stages_for_trainset:
+            _, output_dir, _ = get_project_dirs(workspace_id)
+            trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
+            count = append_trainset_example(
+                full_content, stages_for_trainset, trainset_path,
+                source_file=full,
+            )
+            out["trainset_path"] = "output/optimizer/trainset.json"
+            out["trainset_count"] = count
+        return out
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
 router = APIRouter()
 
-from config import OUTPUT_DIR, DEEPSEEK_API_KEY, CARD_GENERATOR_TYPE, EVALUATION_CONFIG
+from config import CARD_GENERATOR_TYPE, EVALUATION_CONFIG
+from api.workspace import get_workspace_id, get_workspace_dirs
+from api.routes.llm_config import get_llm_config
 from generators import list_frameworks, get_framework
 from generators.evaluation_section import build_evaluation_markdown
 
@@ -24,10 +26,11 @@ def _progress_callback(current: int, total: int, message: str):
 
 
 @router.post("/generate")
-def generate_cards(req: GenerateRequest):
-    """根据已分析的剧本内容生成教学卡片。"""
-    if not DEEPSEEK_API_KEY:
-        raise HTTPException(status_code=500, detail="未配置 DEEPSEEK_API_KEY")
+def generate_cards(req: GenerateRequest, workspace_id: str = Depends(get_workspace_id)):
+    """根据已分析的剧本内容生成教学卡片，保存到当前工作区 output。使用工作区 LLM 配置（设置中的 API Key + 模型）。"""
+    cfg = get_llm_config(workspace_id)
+    if not cfg.get("api_key"):
+        raise HTTPException(status_code=500, detail="未配置 API Key，请在「设置」中填写并保存")
     stages = req.stages
     if not stages:
         raise HTTPException(status_code=400, detail="stages 不能为空")
@@ -44,7 +47,19 @@ def generate_cards(req: GenerateRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     try:
-        generator = GeneratorClass(api_key=DEEPSEEK_API_KEY)
+        if framework_id == "dspy":
+            generator = GeneratorClass(
+                api_key=cfg["api_key"],
+                model_type=cfg.get("model_type"),
+                base_url=cfg.get("base_url") or None,
+                model=cfg.get("model") or None,
+            )
+        else:
+            generator = GeneratorClass(
+                api_key=cfg["api_key"],
+                base_url=cfg.get("base_url") or None,
+                model=cfg.get("model") or None,
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"初始化生成器失败: {e}")
     cards_content = generator.generate_all_cards(
@@ -66,9 +81,10 @@ def generate_cards(req: GenerateRequest):
         )
         if evaluation_md:
             cards_content = cards_content + "\n\n---\n\n" + evaluation_md
+    _, output_dir, _ = get_workspace_dirs(workspace_id)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_filename = f"cards_output_{timestamp}.md"
-    output_path = os.path.join(OUTPUT_DIR, output_filename)
+    output_path = os.path.join(output_dir, output_filename)
     header = f"""# 教学卡片
 
 > 生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -80,9 +96,14 @@ def generate_cards(req: GenerateRequest):
 """
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(header + cards_content)
+    rel_path = "output/" + output_filename
+    # 便于用户定位：返回相对项目根的完整路径（workspaces/<id>/output/xxx.md）
+    full_rel_path = f"workspaces/{workspace_id}/output/{output_filename}"
     return {
-        "output_path": output_path,
+        "output_path": rel_path,
         "output_filename": output_filename,
+        "full_path": full_rel_path,
+        "workspace_id": workspace_id,
         "stages_count": len(stages),
         "cards_count": len(stages) * 2,
         "content_preview": (header + cards_content)[:2000],

@@ -12,9 +12,11 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
-# 可选：Anthropic API配置（备用）
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+# 模拟器/评估器默认使用 DeepSeek（与卡片生成一致）；可通过 SIMULATOR_* / EVALUATOR_* / NPC_* 覆盖
+def _deepseek_chat_url():
+    base = DEEPSEEK_BASE_URL.rstrip("/")
+    return f"{base}/v1/chat/completions"
+DEEPSEEK_CHAT_URL = os.getenv("DEEPSEEK_CHAT_URL", _deepseek_chat_url())
 
 # 文件路径配置
 INPUT_DIR = os.path.join(os.path.dirname(__file__), "input")
@@ -55,6 +57,8 @@ PLATFORM_ENDPOINTS = {
     "edit_flow": "/teacher-course/abilityTrain/editScriptStepFlow",
     "edit_configuration": "/teacher-course/abilityTrain/editConfiguration",
     "create_score_item": "/teacher-course/abilityTrain/createScoreItem",
+    # 查询现有脚本节点/连线，用于注入前检测。若平台接口不同，可在 .env / 工作区配置中覆盖。
+    "list_steps": "/teacher-course/abilityTrain/getScriptStepList",
 }
 
 # 卡片默认配置（字段名已通过抓包确认）
@@ -80,6 +84,16 @@ EVALUATION_CONFIG = {
     "auto_generate": os.getenv("AUTO_GENERATE_EVALUATION", "true").lower() in ("true", "1", "yes"),
     "target_total_score": int(os.getenv("EVALUATION_TARGET_SCORE", "100")),
 }
+
+# 豆包API配置（公司内网）
+DOUBAO_API_KEY = os.getenv("LLM_API_KEY")
+DOUBAO_BASE_URL = "http://llm-service.polymas.com/api/openai/v1"
+DOUBAO_MODEL = os.getenv("LLM_MODEL", "Doubao-1.5-pro-32k")
+DOUBAO_SERVICE_CODE = os.getenv("LLM_SERVICE_CODE", "SI_Ability")
+
+# 模型选择配置
+# 可选值: "deepseek" (DeepSeek API), "doubao" (豆包API)
+DEFAULT_MODEL_TYPE = os.getenv("MODEL_TYPE", "deepseek")
 
 # DSPy 优化 + 外部评估指标配置
 OPTIMIZER_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output", "optimizer")
