@@ -1,0 +1,22 @@
+# 不打包进镜像
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+__pycache__
+*.pyc
+venv
+.venv
+.env
+*.md
+!README.md
+output/
+input/
+workspaces/
+.certs/
+.cursor/
+*.egg-info
+.pytest_cache
+.coverage
+htmlcov/
