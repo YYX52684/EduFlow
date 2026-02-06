@@ -228,13 +228,19 @@ EVALUATION_FRAMEWORK = {
 }
 
 
+def _default_evaluator_config():
+    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    return {
+        "api_url": DEEPSEEK_CHAT_URL,
+        "api_key": DEEPSEEK_API_KEY or "",
+        "model": DEEPSEEK_MODEL,
+    }
+
+
 class Evaluator:
-    """评估器"""
+    """评估器。默认使用 DeepSeek；可通过 EVALUATOR_* / SIMULATOR_* 环境变量覆盖。"""
     
-    # 默认配置
-    DEFAULT_API_URL = "http://llm-service.polymas.com/api/openai/v1/chat/completions"
-    DEFAULT_MODEL = "claude-sonnet-4-5-20250514"
-    DEFAULT_SERVICE_CODE = "SI_Ability"
+    DEFAULT_SERVICE_CODE = ""
     
     def __init__(self, config: dict = None):
         """
@@ -244,10 +250,10 @@ class Evaluator:
             config: 配置字典
         """
         config = config or {}
-        
-        self.api_url = config.get("api_url", self.DEFAULT_API_URL)
-        self.api_key = config.get("api_key", "")
-        self.model = config.get("model", self.DEFAULT_MODEL)
+        defaults = _default_evaluator_config()
+        self.api_url = config.get("api_url", defaults["api_url"])
+        self.api_key = config.get("api_key", defaults["api_key"])
+        self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
         
         self.output_dir = Path(config.get("output_dir", "simulator_output/reports"))
@@ -582,14 +588,13 @@ class EvaluatorFactory:
         """从环境变量创建评估器"""
         from dotenv import load_dotenv
         load_dotenv()
-        
+        defaults = _default_evaluator_config()
         config = {
-            "api_url": os.getenv("EVALUATOR_API_URL", os.getenv("SIMULATOR_API_URL", Evaluator.DEFAULT_API_URL)),
-            "api_key": os.getenv("EVALUATOR_API_KEY", os.getenv("SIMULATOR_API_KEY", "")),
-            "model": os.getenv("EVALUATOR_MODEL", Evaluator.DEFAULT_MODEL),
+            "api_url": os.getenv("EVALUATOR_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),
+            "api_key": os.getenv("EVALUATOR_API_KEY", os.getenv("SIMULATOR_API_KEY", defaults["api_key"])),
+            "model": os.getenv("EVALUATOR_MODEL", os.getenv("SIMULATOR_MODEL", defaults["model"])),
             "service_code": os.getenv("EVALUATOR_SERVICE_CODE", os.getenv("SIMULATOR_SERVICE_CODE", Evaluator.DEFAULT_SERVICE_CODE)),
         }
-        
         return Evaluator(config)
 
 

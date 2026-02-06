@@ -1,38 +1,62 @@
 # -*- coding: utf-8 -*-
 """
-平台注入 API：预览解析结果、执行注入到智慧树平台。
+平台注入 API：预览解析结果、执行注入到智慧树平台。使用当前工作区平台配置与卡片路径。
 """
 import os
-from fastapi import APIRouter, HTTPException
+import json
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict, Any
 
 router = APIRouter()
 
 from config import PLATFORM_CONFIG, PLATFORM_ENDPOINTS
 from api_platform import PlatformAPIClient, CardInjector
+from api.workspace import get_workspace_id, get_workspace_dirs, resolve_workspace_path
 
 
-def _check_platform_config() -> Tuple[bool, List[str]]:
+def _get_workspace_platform_config(workspace_id: str) -> Dict[str, Any]:
+    """
+    读取平台配置：工作区 JSON 与 .env 合并，工作区非空值优先，空值用 .env 补全。
+    这样编辑 .env 后，工作区未填的字段会自动生效。
+    """
+    merged = dict(PLATFORM_CONFIG)
+    _, _, workspace_root = get_workspace_dirs(workspace_id)
+    cfg_path = os.path.join(workspace_root, "platform_config.json")
+    if os.path.isfile(cfg_path):
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                ws = json.load(f)
+            for k in ("base_url", "cookie", "authorization", "course_id", "train_task_id", "start_node_id", "end_node_id"):
+                v = ws.get(k)
+                if v is not None and str(v).strip():
+                    merged[k] = str(v).strip()
+        except Exception:
+            pass
+    return merged
+
+
+def _check_platform_config(cfg: Dict[str, Any]) -> Tuple[bool, List[str]]:
     """返回 (是否完整, 缺失项列表)"""
     missing = []
-    if not PLATFORM_CONFIG.get("cookie"):
+    if not cfg.get("cookie"):
         missing.append("PLATFORM_COOKIE")
-    if not PLATFORM_CONFIG.get("authorization"):
+    if not cfg.get("authorization"):
         missing.append("PLATFORM_AUTHORIZATION")
-    if not PLATFORM_CONFIG.get("course_id"):
+    if not cfg.get("course_id"):
         missing.append("PLATFORM_COURSE_ID")
-    if not PLATFORM_CONFIG.get("train_task_id"):
+    if not cfg.get("train_task_id"):
         missing.append("PLATFORM_TRAIN_TASK_ID")
-    if not PLATFORM_CONFIG.get("start_node_id"):
+    if not cfg.get("start_node_id"):
         missing.append("PLATFORM_START_NODE_ID")
-    if not PLATFORM_CONFIG.get("end_node_id"):
+    if not cfg.get("end_node_id"):
         missing.append("PLATFORM_END_NODE_ID")
     return (len(missing) == 0, missing)
 
 
-def _create_client() -> PlatformAPIClient:
-    client = PlatformAPIClient(PLATFORM_CONFIG)
+def _create_client(cfg: Dict[str, Any]) -> PlatformAPIClient:
+    client = PlatformAPIClient(cfg)
     client.set_endpoints(PLATFORM_ENDPOINTS)
     return client
 
@@ -45,21 +69,18 @@ class InjectRunRequest(BaseModel):
     cards_path: str
     task_name: Optional[str] = None
     description: Optional[str] = None
-
-
-def _resolve_path(path: str) -> str:
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    return path if os.path.isabs(path) else os.path.join(root, path)
+    overwrite: Optional[bool] = False
 
 
 @router.post("/preview")
-def inject_preview(req: InjectPreviewRequest):
+def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(get_workspace_id)):
     """预览卡片解析结果，不实际调用平台 API。"""
-    md_path = _resolve_path(req.cards_path)
+    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output")
     if not os.path.exists(md_path):
         raise HTTPException(status_code=404, detail=f"卡片文件不存在: {req.cards_path}")
+    cfg = _get_workspace_platform_config(workspace_id)
     try:
-        client = _create_client()
+        client = _create_client(cfg)
         injector = CardInjector(client)
         all_cards = injector.parse_markdown(md_path)
         a_cards, b_cards = injector.separate_cards(all_cards)
@@ -94,20 +115,40 @@ def inject_preview(req: InjectPreviewRequest):
 
 
 @router.post("/run")
-def inject_run(req: InjectRunRequest):
-    """执行注入：将卡片推送到智慧树平台。需在 .env 中配置平台相关项。"""
-    md_path = _resolve_path(req.cards_path)
+def inject_run(req: InjectRunRequest, workspace_id: str = Depends(get_workspace_id)):
+    """执行注入：将卡片推送到智慧树平台。使用当前工作区平台配置。"""
+    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output")
     if not os.path.exists(md_path):
         raise HTTPException(status_code=404, detail=f"卡片文件不存在: {req.cards_path}")
-    ok, missing = _check_platform_config()
+    cfg = _get_workspace_platform_config(workspace_id)
+    ok, missing = _check_platform_config(cfg)
     if not ok:
         raise HTTPException(
             status_code=400,
-            detail=f"平台配置不完整，缺少: {', '.join(missing)}。请在 .env 中配置后重试。",
+            detail=f"平台配置不完整，缺少: {', '.join(missing)}。请在本页「平台配置」中填写并保存。",
         )
     try:
-        client = _create_client()
+        client = _create_client(cfg)
         injector = CardInjector(client)
+
+        # 注入前检测平台是否已有卡片配置
+        detection = {}
+        try:
+            detection = client.list_existing_steps()
+        except Exception as e:  # 极端兜底
+            detection = {"status": "error", "error": str(e)}
+
+        existing_count = int(detection.get("count") or 0)
+        has_existing = detection.get("status") == "ok" and existing_count > 0
+
+        if has_existing and not req.overwrite:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"检测到该训练任务已有 {existing_count} 个脚本节点，默认不覆写。请确认后勾选“覆写已有卡片”再执行。",
+                    "existing": detection,
+                },
+            )
 
         def _progress(current: int, total: int, message: str):
             pass
@@ -131,6 +172,7 @@ def inject_run(req: InjectRunRequest):
             "evaluation_items_count": result.get("evaluation_items_count"),
             "total_score": result.get("total_score"),
             "message": "注入成功" if success else "部分注入失败，请查看上述数量",
+            "existing": detection,
         }
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

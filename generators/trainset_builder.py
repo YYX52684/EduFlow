@@ -13,6 +13,21 @@ from parsers import parse_markdown, parse_docx, parse_pdf
 from .content_splitter import ContentSplitter
 
 from config import DEEPSEEK_API_KEY
+import json
+from pathlib import Path
+
+# 卡片/输出目录（与 workspaces 或根目录 output 一致，不再使用 train/）
+CARDS_ROOT = Path("output")
+
+# 项目映射表（可选）：样本ID -> 项目名；无则留空
+PROJECT_MAP: Dict[str, str] = {}
+_projects_json = Path("output/project_map.json")
+if _projects_json.exists():
+    try:
+        with open(_projects_json, "r", encoding="utf-8") as f:
+            PROJECT_MAP = json.load(f)
+    except Exception:
+        pass
 
 
 # ---------- 结构约定（与 ContentSplitter 输出及 DSPy 输入一致） ----------
@@ -52,6 +67,8 @@ def _parse_content(file_path: str) -> str:
 def build_trainset_from_path(
     path: str,
     api_key: Optional[str] = None,
+    base_url: Optional[str] = None,
+    model: Optional[str] = None,
     verbose: bool = False,
 ) -> List[Dict[str, Any]]:
     """
@@ -86,7 +103,7 @@ def build_trainset_from_path(
     if not files:
         raise ValueError(f"未在目录下找到 .md / .docx / .pdf 文件: {path}")
 
-    splitter = ContentSplitter(api_key=api_key)
+    splitter = ContentSplitter(api_key=api_key, base_url=base_url, model=model)
     examples: List[Dict[str, Any]] = []
 
     for i, fp in enumerate(files):
@@ -128,6 +145,32 @@ def load_trainset(json_path: str) -> List[Dict[str, Any]]:
         raise FileNotFoundError(f"trainset 文件不存在: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def append_trainset_example(
+    full_script: str,
+    stages: List[Dict[str, Any]],
+    json_path: str,
+    source_file: str = "",
+) -> int:
+    """
+    将一条样本追加到 trainset.json；若已存在同 source_file 则替换。
+    返回当前 trainset 条数。
+    """
+    path = os.path.abspath(json_path)
+    try:
+        examples = load_trainset(path)
+    except FileNotFoundError:
+        examples = []
+    key = (source_file or "").strip()
+    new_item = {"full_script": full_script, "stages": stages}
+    if key:
+        new_item["source_file"] = key
+    if key:
+        examples = [e for e in examples if (e.get("source_file") or "").strip() != key]
+    examples.append(new_item)
+    save_trainset(examples, path)
+    return len(examples)
 
 
 def validate_trainset(
@@ -232,3 +275,376 @@ def check_trainset_file(json_path: str, strict: bool = False, check_eval_alignme
     """
     examples = load_trainset(json_path)
     return validate_trainset(examples, strict=strict, check_eval_alignment=check_eval_alignment)
+
+
+# ==================== 与评估报告集成的扩展功能 ====================
+
+from .evaluation_parser import EvaluationParser, EvaluationReport
+from dataclasses import dataclass, asdict
+
+
+@dataclass
+class TrainExampleWithEval:
+    """带评估信息的训练样本"""
+    example_id: str
+    project_name: str
+    full_script: str
+    stages: List[Dict[str, Any]]
+    generated_cards: str
+    evaluation_score: float
+    dimension_scores: Dict[str, float]
+    problems: List[Dict[str, Any]]
+    is_golden: bool = False  # 90+分
+    is_pass: bool = False    # 85+分
+    length_budget: Optional[int] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return asdict(self)
+    
+    def to_dspy_format(self) -> Dict[str, Any]:
+        """转换为DSPy训练格式"""
+        return {
+            "full_script": self.full_script,
+            "stages": self.stages,
+            "cards": self.generated_cards,
+            "score": self.evaluation_score
+        }
+
+
+class EvaluationAwareBuilder:
+    """支持评估报告的训练集构建器"""
+    
+    def __init__(self, 
+                 train_dir: str = "train",
+                 golden_threshold: float = 90.0,
+                 pass_threshold: float = 85.0):
+        self.train_dir = Path(train_dir)
+        self.golden_threshold = golden_threshold
+        self.pass_threshold = pass_threshold
+        self.parser = EvaluationParser()
+        self._ensure_directories()
+        
+    def _default_length_budget(self, project_name: str) -> int:
+        """简单预算推断：为不同项目返回一个默认长度预算（字数）"""
+        # 基本统一预算，必要时可扩展到基于项目的映射
+        budget = 340
+        if project_name:
+            if '自动' in project_name:
+                budget = 320
+            if '现代' in project_name:
+                budget = 360
+            if '路演' in project_name:
+                budget = 330
+        return budget
+    
+    def _ensure_directories(self):
+        """确保目录结构存在，支持新的训练数据分区"""
+        dirs = [
+            self.train_dir / "raw" / "scripts",
+            self.train_dir / "raw" / "evaluations",
+            self.train_dir / "raw" / "cards",
+            self.train_dir / "external" / "evaluations",
+            self.train_dir / "generated",
+            self.train_dir / "processed",
+            self.train_dir / "optimizer" / "bootstrap" / "logs",
+            self.train_dir / "optimizer" / "bootstrap" / "examples",
+            self.train_dir / "logs",
+            self.train_dir / "output"
+        ]
+        for d in dirs:
+            d.mkdir(parents=True, exist_ok=True)
+    
+    def build_from_evaluations(self, 
+                               eval_dir: str,
+                               cards_dir: str,
+                               scripts_dir: str) -> List[TrainExampleWithEval]:
+        """
+        从评估报告构建带评估信息的训练集
+        
+        Args:
+            eval_dir: 评估报告目录
+            cards_dir: 生成的卡片目录
+            scripts_dir: 原材料剧本目录
+            
+        Returns:
+            带评估信息的训练样本列表
+        """
+        examples = []
+        
+        # 解析所有评估报告
+        reports = self.parser.parse_directory(eval_dir)
+        print(f"从 {eval_dir} 解析了 {len(reports)} 个评估报告")
+        
+        for report in reports:
+            # 查找对应的卡片文件
+            cards_content = self._find_matching_file(
+                report.project_name, 
+                report.report_id, 
+                str(CARDS_ROOT), 
+                ['.md', '.txt']
+            )
+            
+            if not cards_content:
+                print(f"警告: 未找到 {report.report_id} 对应的卡片文件")
+                continue
+            
+            # 查找对应的原材料
+            script_content = self._find_matching_file(
+                report.project_name,
+                report.report_id,
+                scripts_dir,
+                ['.md', '.docx', '.pdf', '.txt']
+            ) or ""
+            
+            # 从卡片中提取stages
+            stages = self._extract_stages_from_cards(cards_content)
+            
+            # 构建训练样本
+            # determine budget: use report budget if present, else default per project
+            budget = report.length_budget if getattr(report, 'length_budget', None) is not None else self._default_length_budget(report.project_name)
+            example = TrainExampleWithEval(
+                example_id=report.report_id,
+                project_name=report.project_name,
+                full_script=script_content,
+                stages=stages,
+                generated_cards=cards_content,
+                evaluation_score=report.total_score,
+                dimension_scores={d.name: d.score for d in report.dimensions},
+                problems=[
+                    {
+                        "description": p.description,
+                        "severity": p.severity,
+                        "location": p.location
+                    }
+                    for p in report.problems
+                ],
+                is_golden=report.total_score >= self.golden_threshold,
+                is_pass=report.total_score >= self.pass_threshold,
+                length_budget=budget
+            )
+            
+            examples.append(example)
+        
+        return examples
+    
+    def _find_matching_file(self, project_name: str, report_id: str, 
+                           search_dir: str, extensions: List[str]) -> Optional[str]:
+        """查找匹配的文件"""
+        search_path = Path(search_dir)
+        # 使用 project_map 的映射（如果有）来覆盖项目名
+        mapped = PROJECT_MAP.get(report_id)
+        if mapped:
+            project_name = mapped
+        if not search_path.exists():
+            return None
+        
+        # 策略1: 项目名匹配
+        for ext in extensions:
+            for file in search_path.rglob(f"*{ext}"):
+                if project_name.lower() in file.name.lower():
+                    return file.read_text(encoding='utf-8')
+        
+        # 策略2: report_id前缀匹配
+        report_prefix = report_id.split('_')[0] if '_' in report_id else report_id
+        for ext in extensions:
+            for file in search_path.rglob(f"*{ext}"):
+                if report_prefix.lower() in file.name.lower():
+                    return file.read_text(encoding='utf-8')
+        
+        return None
+    
+    def _extract_stages_from_cards(self, cards_content: str) -> List[Dict[str, Any]]:
+        """从卡片内容中提取stages"""
+        import re
+        stages = []
+        
+        # 按卡片分割
+        card_sections = re.split(r'# 卡片[\dA-Za-z]+\n\n', cards_content)
+        
+        for i, section in enumerate(card_sections[1:], 1):
+            # 提取Role、Context、Interaction等部分
+            stage = {
+                "id": i,
+                "title": f"第{i}幕",
+                "description": "",
+                "role": "",
+                "task": "",
+                "key_points": [],
+                "content_excerpt": section[:500] if len(section) > 500 else section
+            }
+            
+            # 简单提取role
+            role_match = re.search(r'# Role\n(.+?)(?=\n#|$)', section, re.DOTALL)
+            if role_match:
+                stage["role"] = role_match.group(1).strip()[:200]
+            
+            # 简单提取task（从Context或Interaction中推断）
+            task_match = re.search(r'# Context\n(.+?)(?=\n#|$)', section, re.DOTALL)
+            if task_match:
+                stage["task"] = task_match.group(1).strip()[:200]
+            
+            stages.append(stage)
+        
+        return stages
+    
+    def save_eval_trainset(self, examples: List[TrainExampleWithEval], 
+                          filename: str = "trainset_with_eval.json") -> str:
+        """保存带评估信息的训练集"""
+        output_path = self.train_dir / "processed" / filename
+        
+        trainset_data = {
+            "metadata": {
+                "total_examples": len(examples),
+                "golden_examples": len([e for e in examples if e.is_golden]),
+                "pass_examples": len([e for e in examples if e.is_pass]),
+                "fail_examples": len([e for e in examples if not e.is_pass]),
+                "avg_score": sum(e.evaluation_score for e in examples) / len(examples) if examples else 0,
+                "score_distribution": self._calc_score_distribution(examples)
+            },
+            "examples": [e.to_dict() for e in examples]
+        }
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(trainset_data, f, ensure_ascii=False, indent=2)
+        
+        print(f"\n训练集已保存: {output_path}")
+        meta = trainset_data['metadata']
+        print(f"  总样本: {meta['total_examples']}")
+        print(f"  黄金标准(≥90): {meta['golden_examples']}")
+        print(f"  及格(≥85): {meta['pass_examples']}")
+        print(f"  不及格(<85): {meta['fail_examples']}")
+        print(f"  平均分: {meta['avg_score']:.1f}")
+        
+        return str(output_path)
+    
+    def _calc_score_distribution(self, examples: List[TrainExampleWithEval]) -> Dict[str, int]:
+        """计算分数分布"""
+        distribution = {"90-100": 0, "85-89": 0, "80-84": 0, "70-79": 0, "60-69": 0, "<60": 0}
+        
+        for e in examples:
+            score = e.evaluation_score
+            if score >= 90:
+                distribution["90-100"] += 1
+            elif score >= 85:
+                distribution["85-89"] += 1
+            elif score >= 80:
+                distribution["80-84"] += 1
+            elif score >= 70:
+                distribution["70-79"] += 1
+            elif score >= 60:
+                distribution["60-69"] += 1
+            else:
+                distribution["<60"] += 1
+        
+        return distribution
+    
+    def select_best_examples(self, examples: List[TrainExampleWithEval], 
+                            n: int = 4) -> List[TrainExampleWithEval]:
+        """选择最好的n个样本作为few-shot示例"""
+        sorted_examples = sorted(
+            examples,
+            key=lambda e: (e.is_golden, e.evaluation_score),
+            reverse=True
+        )
+        return sorted_examples[:n]
+    
+    def get_problem_analysis(self, examples: List[TrainExampleWithEval]) -> Dict[str, Any]:
+        """分析问题分布，找出高频扣分点"""
+        all_problems = []
+        for e in examples:
+            all_problems.extend(e.problems)
+        
+        # 按严重程度分类
+        severe_problems = [p for p in all_problems if p.get('severity') == '严重']
+        general_problems = [p for p in all_problems if p.get('severity') == '一般']
+        
+        # 关键词统计
+        keywords = {}
+        for p in all_problems:
+            desc = p.get('description', '')
+            # 提取关键词
+            for kw in ['知识点', '机械', '句式', '重复', '长度', '字', '激励', '表扬', 
+                      '环节', '跳转', '流程', '角色', '人设', '数据', '事实']:
+                if kw in desc:
+                    keywords[kw] = keywords.get(kw, 0) + 1
+        
+        return {
+            "total_problems": len(all_problems),
+            "severe_count": len(severe_problems),
+            "general_count": len(general_problems),
+            "top_keywords": sorted(keywords.items(), key=lambda x: x[1], reverse=True)[:10],
+            "sample_severe": severe_problems[:3] if severe_problems else [],
+            "sample_general": general_problems[:3] if general_problems else []
+        }
+
+
+# 便捷函数：快速构建带评估的训练集
+def quick_build_eval_trainset(
+    eval_dirs: Optional[List[str]] = None,
+    cards_dirs: Optional[List[str]] = None,
+    scripts_dirs: Optional[List[str]] = None,
+    train_dir: str = "train"
+) -> str:
+    """
+    快速构建带评估信息的训练集
+    
+    自动查找常见目录并构建训练集
+    """
+    if eval_dirs is None:
+        eval_dirs = [
+            "input/现代农业创业项目路演_安康学院",
+            "input/自动控制原理_山西大学",
+            "外部评估报告",
+        ]
+    if cards_dirs is None:
+        cards_dirs = [str(CARDS_ROOT)]
+    if scripts_dirs is None:
+        scripts_dirs = ["input"]
+    
+    builder = EvaluationAwareBuilder(train_dir=train_dir)
+    all_examples = []
+    
+    # 尝试所有目录组合
+    for eval_dir in eval_dirs:
+        if not os.path.exists(eval_dir):
+            continue
+            
+        for cards_dir in cards_dirs:
+            if not os.path.exists(cards_dir):
+                continue
+                
+            for scripts_dir in scripts_dirs:
+                if not os.path.exists(scripts_dir):
+                    continue
+                
+                try:
+                    examples = builder.build_from_evaluations(
+                        eval_dir, cards_dir, scripts_dir
+                    )
+                    all_examples.extend(examples)
+                    print(f"  从 {eval_dir} 构建了 {len(examples)} 个样本")
+                except Exception as e:
+                    print(f"  构建失败 {eval_dir}: {e}")
+    
+    if all_examples:
+        # 去重
+        unique_examples = {}
+        for e in all_examples:
+            unique_examples[e.example_id] = e
+        all_examples = list(unique_examples.values())
+        
+        # 保存
+        output_path = builder.save_eval_trainset(all_examples)
+        
+        # 问题分析
+        analysis = builder.get_problem_analysis(all_examples)
+        print(f"\n问题分析:")
+        print(f"  总问题数: {analysis['total_problems']}")
+        print(f"  严重问题: {analysis['severe_count']}")
+        print(f"  高频关键词: {[kw for kw, _ in analysis['top_keywords'][:5]]}")
+        
+        return output_path
+    else:
+        print("未找到训练数据")
+        return ""

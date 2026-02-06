@@ -21,10 +21,10 @@ FRAMEWORK_DESCRIPTION = "基于 OpenAI API 的卡片生成，兼容 DeepSeek 等
 class DefaultFramework(BaseCardGenerator):
     """传统生成器框架封装"""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None, model: Optional[str] = None, **kwargs):
         if not _AVAILABLE:
             raise ImportError("请先安装 openai 库: pip install openai")
-        self._gen = CardGenerator(api_key=api_key)
+        self._gen = CardGenerator(api_key=api_key, base_url=base_url, model=model)
 
     def generate_all_cards(
         self,

@@ -7,7 +7,7 @@ import re
 from typing import List, Dict, Any, Optional
 
 from .md_parser import parse_markdown, extract_sections
-from .docx_parser import parse_docx, extract_structure
+from .docx_parser import parse_docx, extract_structure, parse_docx_with_structure
 try:
     from .pdf_parser import parse_pdf
     _PDF_AVAILABLE = True
@@ -98,8 +98,7 @@ def _get_content_and_structure(file_path: str) -> tuple:
         structure = _structure_from_md(content)
         return content, structure
     if ext == ".docx":
-        content = parse_docx(path)
-        raw = extract_structure(path)
+        content, raw = parse_docx_with_structure(path)
         structure = [
             {"title": s["title"], "level": s.get("level", 1), "content": s.get("content", "")}
             for s in raw
@@ -211,39 +210,31 @@ def _parse_evaluation_items_from_content(section_content: str) -> List[Dict[str,
     return items
 
 
-def extract_task_meta_from_doc(file_path: str) -> Dict[str, Any]:
+def extract_task_meta_from_content_structure(
+    content: str,
+    structure: List[Dict[str, Any]],
+    base_name: str = "",
+) -> Dict[str, Any]:
     """
-    从输入文档中提取任务名称、描述、评价项
-
-    Args:
-        file_path: 输入文件路径（.md / .docx / .txt）
+    从已解析的 content 与 structure 提取任务名称、描述、评价项。
+    用于避免对同一文档重复打开（如 main 流程中已用 parse_docx_with_structure 时）。
 
     Returns:
-        {
-            "task_name": str,
-            "description": str,
-            "evaluation_items": [ {"item_name", "score", "description", "require_detail"}, ... ]
-        }
+        同 extract_task_meta_from_doc
     """
-    content, structure = _get_content_and_structure(file_path)
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-
-    task_name = base_name
+    task_name = base_name or "未命名任务"
     description = ""
     evaluation_items: List[Dict[str, Any]] = []
 
-    # 任务名称：第一个一级标题或文件名
     for s in structure:
         if s.get("level", 1) == 1 and s.get("title"):
             task_name = s["title"].strip()
             break
 
-    # 描述：第一个章节的正文（前 1～2 段）
     for s in structure:
         text = (s.get("content") or "").strip()
         if not text:
             continue
-        # 取前两段或前 500 字
         paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
         if paras:
             description = "\n\n".join(paras[:2])
@@ -251,17 +242,14 @@ def extract_task_meta_from_doc(file_path: str) -> Dict[str, Any]:
                 description = description[:800].rstrip() + "…"
             break
 
-    # 评价项：找到包含“评价/评分/考核”的章节并解析
     for s in structure:
         if not _is_evaluation_section(s.get("title", "")):
             continue
         section_content = s.get("content") or ""
-        # 若该章节下还有子标题，合并整段内容再解析
         items = _parse_evaluation_items_from_content(section_content)
         if items:
             evaluation_items.extend(items)
             break
-    # 若未在单独章节找到，尝试全文搜索“评价标准”“考核要点”后的一整块
     if not evaluation_items and content:
         for kw in ("评价标准", "考核要点", "评分标准"):
             idx = content.find(kw)
@@ -278,6 +266,25 @@ def extract_task_meta_from_doc(file_path: str) -> Dict[str, Any]:
         "description": description,
         "evaluation_items": evaluation_items,
     }
+
+
+def extract_task_meta_from_doc(file_path: str) -> Dict[str, Any]:
+    """
+    从输入文档中提取任务名称、描述、评价项
+
+    Args:
+        file_path: 输入文件路径（.md / .docx / .txt）
+
+    Returns:
+        {
+            "task_name": str,
+            "description": str,
+            "evaluation_items": [ {"item_name", "score", "description", "require_detail"}, ... ]
+        }
+    """
+    content, structure = _get_content_and_structure(file_path)
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    return extract_task_meta_from_content_structure(content, structure, base_name)
 
 
 def extract_task_name_from_doc(file_path: str) -> str:

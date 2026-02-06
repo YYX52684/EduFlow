@@ -2,11 +2,10 @@
 LLM NPC模拟器
 使用A类卡片的prompt作为系统指令，模拟NPC对话
 
-模型配置：
-- 默认使用卡片中配置的模型（如Doubao-Seed-1.6）
-- 支持通过配置切换到其他模型
+模型配置：默认使用 DeepSeek，与卡片生成一致；可通过 NPC_* / SIMULATOR_* 环境变量覆盖。
 """
 
+import os
 import requests
 import json
 import re
@@ -22,13 +21,22 @@ class NPCMessage:
     metadata: dict = field(default_factory=dict)  # 附加元数据
 
 
+def _default_npc_config():
+    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    return {
+        "api_url": DEEPSEEK_CHAT_URL,
+        "api_key": DEEPSEEK_API_KEY or "",
+        "model": DEEPSEEK_MODEL,
+    }
+
+
 class LLMNPC:
     """LLM NPC模拟器"""
     
-    # 默认配置
-    DEFAULT_API_URL = "http://llm-service.polymas.com/api/openai/v1/chat/completions"
-    DEFAULT_MODEL = "Doubao-Seed-1.6"
-    DEFAULT_SERVICE_CODE = "SI_Ability"
+    # 默认配置（DeepSeek）；可通过环境变量 NPC_* / SIMULATOR_* 覆盖
+    DEFAULT_API_URL = None  # 运行时从 config 取
+    DEFAULT_MODEL = None
+    DEFAULT_SERVICE_CODE = ""
     
     def __init__(self, card_prompt: str, config: dict = None):
         """
@@ -45,11 +53,11 @@ class LLMNPC:
                 - temperature: 温度参数
         """
         config = config or {}
-        
+        defaults = _default_npc_config()
         self.system_prompt = card_prompt
-        self.api_url = config.get("api_url", self.DEFAULT_API_URL)
-        self.api_key = config.get("api_key", "")
-        self.model = config.get("model", self.DEFAULT_MODEL)
+        self.api_url = config.get("api_url", defaults["api_url"])
+        self.api_key = config.get("api_key", defaults["api_key"])
+        self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
         self.max_tokens = config.get("max_tokens", 500)
         self.temperature = config.get("temperature", 0.7)
@@ -245,14 +253,13 @@ class NPCFactory:
         from dotenv import load_dotenv
         
         load_dotenv()
-        
+        defaults = _default_npc_config()
         config = {
-            "api_url": os.getenv("NPC_API_URL", LLMNPC.DEFAULT_API_URL),
-            "api_key": os.getenv("NPC_API_KEY", os.getenv("SIMULATOR_API_KEY", "")),
-            "model": os.getenv("NPC_MODEL", os.getenv("CARD_MODEL_ID", LLMNPC.DEFAULT_MODEL)),
+            "api_url": os.getenv("NPC_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),
+            "api_key": os.getenv("NPC_API_KEY", os.getenv("SIMULATOR_API_KEY", defaults["api_key"])),
+            "model": os.getenv("NPC_MODEL", os.getenv("CARD_MODEL_ID", defaults["model"])),
             "service_code": os.getenv("NPC_SERVICE_CODE", os.getenv("SIMULATOR_SERVICE_CODE", LLMNPC.DEFAULT_SERVICE_CODE)),
         }
-        
         return LLMNPC(card_prompt, config)
     
     @staticmethod
@@ -271,15 +278,12 @@ class NPCFactory:
         from dotenv import load_dotenv
         
         load_dotenv()
-        
-        # 优先使用卡片中的模型配置
-        model = card_model_id if card_model_id else os.getenv("CARD_MODEL_ID", LLMNPC.DEFAULT_MODEL)
-        
+        defaults = _default_npc_config()
+        model = card_model_id if card_model_id else os.getenv("CARD_MODEL_ID", defaults["model"])
         config = {
-            "api_url": os.getenv("NPC_API_URL", LLMNPC.DEFAULT_API_URL),
-            "api_key": os.getenv("SIMULATOR_API_KEY", ""),
+            "api_url": os.getenv("NPC_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),
+            "api_key": os.getenv("NPC_API_KEY", os.getenv("SIMULATOR_API_KEY", defaults["api_key"])),
             "model": model,
-            "service_code": os.getenv("SIMULATOR_SERVICE_CODE", LLMNPC.DEFAULT_SERVICE_CODE),
+            "service_code": os.getenv("NPC_SERVICE_CODE", os.getenv("SIMULATOR_SERVICE_CODE", LLMNPC.DEFAULT_SERVICE_CODE)),
         }
-        
         return LLMNPC(card_prompt, config)
