@@ -33,10 +33,12 @@ async def generate_personas(
     try:
         with open(tmp_path, "r", encoding="utf-8", errors="replace") as f:
             text = f.read()
-        if suffix in (".docx", ".pdf"):
-            from parsers import parse_docx, parse_pdf
+        if suffix in (".docx", ".doc", ".pdf"):
+            from parsers import parse_docx, parse_doc, parse_pdf
             if suffix == ".docx":
                 text = parse_docx(tmp_path)
+            elif suffix == ".doc":
+                text = parse_doc(tmp_path)
             else:
                 text = parse_pdf(tmp_path)
         generator = PersonaGeneratorFactory.create_from_env()

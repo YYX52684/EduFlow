@@ -58,6 +58,7 @@ logs/
 *.tmp
 *.temp
 .cache/
+**/output/_edit_preview/
 
 # Jupyter Notebook
 .ipynb_checkpoints/

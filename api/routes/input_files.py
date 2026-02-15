@@ -11,7 +11,7 @@ router = APIRouter()
 from api.workspace import get_workspace_id, get_workspace_dirs
 
 # 允许的剧本扩展名
-ALLOWED_EXT = {".md", ".docx", ".pdf"}
+ALLOWED_EXT = {".md", ".docx", ".doc", ".pdf"}
 
 
 def _safe_relative(path: str, base: str) -> Optional[str]:

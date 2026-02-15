@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
 import tempfile
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Header
+from fastapi import APIRouter, UploadFile, File, Depends, Header
 from pydantic import BaseModel
-from parsers import parse_markdown, parse_docx, parse_docx_with_structure, parse_pdf
+from parsers import parse_markdown, parse_docx, parse_docx_with_structure, parse_doc_with_structure, parse_pdf
 from generators import ContentSplitter
 from generators.trainset_builder import append_trainset_example
 from api.workspace import get_workspace_id, get_project_dirs, resolve_workspace_path, _decode_workspace_id_header
-from api.routes.llm_config import get_llm_config
+from api.routes.llm_config import get_llm_config, require_llm_config
+from api.exceptions import BadRequestError, LLMError
 
 router = APIRouter()
 
@@ -21,9 +22,9 @@ def _optional_workspace_id(x_workspace_id: str | None = Header(None, alias="X-Wo
 
 def _get_parser_for_ext(ext: str):
     ext = (ext or "").lower()
-    parsers = {".md": parse_markdown, ".docx": parse_docx, ".pdf": parse_pdf}
+    parsers = {".md": parse_markdown, ".docx": parse_docx, ".doc": None, ".pdf": parse_pdf}
     if ext not in parsers:
-        raise ValueError(f"不支持的文件格式: {ext}。支持: {', '.join(parsers.keys())}")
+        raise ValueError(f"不支持的文件格式: {ext}。支持: .md / .docx / .doc / .pdf")
     return parsers[ext]
 
 
@@ -40,8 +41,12 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str | N
     try:
         if suffix == ".docx":
             full_content, _ = parse_docx_with_structure(path)
+        elif suffix == ".doc":
+            full_content, _ = parse_doc_with_structure(path)
         else:
             parser = _get_parser_for_ext(suffix)
+            if parser is None:
+                raise ValueError("不支持的文件格式")
             full_content = parser(path)
         llm = get_llm_config(workspace_id) if workspace_id else {}
         splitter = ContentSplitter(
@@ -70,6 +75,8 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str | N
             "stages": stages_for_trainset,
             "full_content": full_content,
         }
+        if result.get("_truncated_note"):
+            out["truncated_note"] = result["_truncated_note"]
         if workspace_id and stages_for_trainset:
             try:
                 _, output_dir, _ = get_project_dirs(workspace_id)
@@ -83,6 +90,8 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str | N
             except Exception:
                 pass
         return out
+    except Exception as e:
+        raise LLMError("上传解析或分析失败", details={"reason": str(e)})
     finally:
         try:
             os.unlink(path)
@@ -99,20 +108,22 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(get_wor
     """根据当前工作区 input 内文件路径解析并分析结构。"""
     path = req.path.strip().replace("\\", "/")
     if path.startswith("/") or ".." in path or not path.startswith("input/"):
-        raise HTTPException(status_code=400, detail="路径不合法，应为 input/ 下路径")
-    full = resolve_workspace_path(workspace_id, path, kind="input")
-    if not os.path.isfile(full):
-        raise HTTPException(status_code=404, detail=f"文件不存在: {req.path}")
+        raise BadRequestError("路径不合法，应为 input/ 下路径", details={"path": path})
+    full = resolve_workspace_path(workspace_id, path, kind="input", must_exist=True)
     suffix = os.path.splitext(full)[1].lower()
-    if suffix not in (".md", ".docx", ".pdf"):
-        raise HTTPException(status_code=400, detail="仅支持 .md / .docx / .pdf")
+    if suffix not in (".md", ".docx", ".doc", ".pdf"):
+        raise BadRequestError("仅支持 .md / .docx / .doc / .pdf", details={"path": req.path})
     try:
         if suffix == ".docx":
             full_content, _ = parse_docx_with_structure(full)
+        elif suffix == ".doc":
+            full_content, _ = parse_doc_with_structure(full)
         else:
             parser = _get_parser_for_ext(suffix)
+            if parser is None:
+                raise BadRequestError("不支持的文件格式", details={"suffix": suffix})
             full_content = parser(full)
-        llm = get_llm_config(workspace_id)
+        llm = require_llm_config(workspace_id)
         splitter = ContentSplitter(
             api_key=llm.get("api_key") or None,
             base_url=llm.get("base_url") or None,
@@ -140,6 +151,8 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(get_wor
             "stages": stages_for_trainset,
             "full_content": full_content,
         }
+        if result.get("_truncated_note"):
+            out["truncated_note"] = result["_truncated_note"]
         if stages_for_trainset:
             _, output_dir, _ = get_project_dirs(workspace_id)
             trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
@@ -151,4 +164,4 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(get_wor
             out["trainset_count"] = count
         return out
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise LLMError("按路径分析失败", details={"reason": str(e)})

@@ -8,7 +8,9 @@ import os
 import re
 from typing import Optional
 
-from fastapi import Header, HTTPException
+from fastapi import Header
+
+from api.exceptions import BadRequestError, NotFoundError
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _WORKSPACES_DIR = os.path.join(_ROOT, "workspaces")
@@ -44,17 +46,15 @@ def _decode_workspace_id_header(value: Optional[str]) -> str:
 
 
 def get_workspace_id(x_workspace_id: str | None = Header(None, alias="X-Workspace-Id")) -> str:
-    """从请求头获取并校验项目名（工作区标识），缺失或非法则 400。"""
+    """从请求头获取并校验项目名（工作区标识），缺失或非法则 BadRequestError。"""
     if not x_workspace_id or not x_workspace_id.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="缺少请求头 X-Workspace-Id。请从带 /w/项目名 的地址进入（如 /w/编译原理）。",
+        raise BadRequestError(
+            "缺少请求头 X-Workspace-Id。请从带 /w/项目名 的地址进入（如 /w/编译原理）。"
         )
     wid = _decode_workspace_id_header(x_workspace_id)
     if not wid or not WORKSPACE_ID_PATTERN.match(wid):
-        raise HTTPException(
-            status_code=400,
-            detail="X-Workspace-Id 格式非法（允许中文、英文、数字、下划线、短横线，1~64 位，且不能含 / \\ 等路径字符）",
+        raise BadRequestError(
+            "X-Workspace-Id 格式非法（允许中文、英文、数字、下划线、短横线，1~64 位，且不能含 / \\ 等路径字符）"
         )
     return wid
 
@@ -104,7 +104,7 @@ def set_current_project(workspace_id: str, course: str, project: str = "") -> No
     course = (course or "").strip()
     project = (project or "").strip()
     if not _safe_relative_path(course) or (project and not _safe_relative_path(project)):
-        raise HTTPException(status_code=400, detail="course/project 含非法路径")
+        raise BadRequestError("course/project 含非法路径")
     get_workspace_dirs(workspace_id)
     dir_name = _sanitize_workspace_dir(workspace_id)
     workspace_root = os.path.join(_WORKSPACES_DIR, dir_name)
@@ -160,14 +160,22 @@ def get_project_dirs(workspace_id: str) -> tuple[str, str, str]:
     base_in = os.path.normpath(input_dir)
     base_out = os.path.normpath(output_dir)
     if not (pin == base_in or pin.startswith(base_in + os.sep)) or not (pout == base_out or pout.startswith(base_out + os.sep)):
-        raise HTTPException(status_code=400, detail="当前项目路径非法")
+        raise BadRequestError("当前项目路径非法")
     os.makedirs(pin, exist_ok=True)
     os.makedirs(pout, exist_ok=True)
     return pin, pout, workspace_root
 
 
-def resolve_workspace_path(workspace_id: str, relative_path: str, kind: str = "output") -> str:
-    """将相对路径（如 output/xxx.md 或 xxx.md）解析为工作区内的绝对路径。使用当前项目下的 output/input。"""
+def resolve_workspace_path(
+    workspace_id: str,
+    relative_path: str,
+    kind: str = "output",
+    must_exist: bool = False,
+) -> str:
+    """
+    将相对路径（如 output/xxx.md 或 xxx.md）解析为工作区内的绝对路径。
+    若 must_exist=True 且路径不存在，抛出 NotFoundError。
+    """
     project_input, project_output, _ = get_project_dirs(workspace_id)
     base = project_output if kind == "output" else project_input
     path = relative_path.strip().replace("\\", "/").lstrip("/")
@@ -180,5 +188,7 @@ def resolve_workspace_path(workspace_id: str, relative_path: str, kind: str = "o
     full = os.path.normpath(os.path.join(base, path))
     base_abs = os.path.normpath(base)
     if not (full == base_abs or full.startswith(base_abs + os.sep)):
-        raise HTTPException(status_code=400, detail="路径不能超出工作区")
+        raise BadRequestError("路径不能超出工作区", details={"path": relative_path})
+    if must_exist and not os.path.exists(full):
+        raise NotFoundError("文件或目录不存在", details={"path": relative_path, "kind": kind})
     return full

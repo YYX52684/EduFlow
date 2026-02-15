@@ -1,0 +1,16 @@
+{
+  "session_id": "demo",
+  "evaluation_time": "2026/02/15 10:05",
+  "total_score": 88,
+  "max_score": 100,
+  "rating": "良好",
+  "dimensions": [
+    {"name": "目标达成度", "score": 18, "max_score": 20, "rating": "优秀"},
+    {"name": "流程遵循度", "score": 17, "max_score": 20, "rating": "良好"},
+    {"name": "交互体验性", "score": 18, "max_score": 20, "rating": "优秀"},
+    {"name": "幻觉与边界", "score": 17, "max_score": 20, "rating": "良好"},
+    {"name": "教学策略", "score": 18, "max_score": 20, "rating": "优秀"}
+  ],
+  "summary": "示例工作区预置评估。本对话为演示用简化剧本，助教小明引导了自我介绍与课堂提问两个环节，流程完整、交互自然。",
+  "recommendations": ["实际使用时可增加更多追问环节", "可根据课程内容调整问题难度"]
+}

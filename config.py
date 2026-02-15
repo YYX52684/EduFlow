@@ -95,11 +95,21 @@ DOUBAO_SERVICE_CODE = os.getenv("LLM_SERVICE_CODE", "SI_Ability")
 # 可选值: "deepseek" (DeepSeek API), "doubao" (豆包API)
 DEFAULT_MODEL_TYPE = os.getenv("MODEL_TYPE", "deepseek")
 
+# 卡片类型可扩展：解析允许的类型字母、执行顺序、会话角色（dialogue=对话卡，transition=过渡卡）
+CARD_TYPES = os.getenv("CARD_TYPES", "AB")  # 允许的卡片类型字母，如 "AB" 或 "ABC"
+CARD_TYPE_ROLE = {
+    "A": "dialogue",
+    "B": "transition",
+}  # 可从环境变量扩展，如 CARD_TYPE_ROLE_C=dialogue；首期仅 A/B 生效
+CARD_SEQUENCE_ORDER = os.getenv("CARD_SEQUENCE_ORDER", "AB").strip() or "AB"  # 每阶段内卡片类型顺序
+
 # DSPy 优化 + 外部评估指标配置
 OPTIMIZER_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output", "optimizer")
 os.makedirs(OPTIMIZER_OUTPUT_DIR, exist_ok=True)
 
 DSPY_OPTIMIZER_CONFIG = {
+    # 闭环模式（默认）：True 时以仿真+评估替代外部平台人工评估
+    "use_auto_eval": os.getenv("DSPY_USE_AUTO_EVAL", "true").lower() in ("true", "1", "yes"),
     # 导出文件路径（外部平台评估结果）
     "export_file_path": os.getenv("DSPY_EXPORT_FILE", os.path.join(OPTIMIZER_OUTPUT_DIR, "export_score.json")),
     # 解析器: json | csv | custom

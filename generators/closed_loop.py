@@ -1,0 +1,217 @@
+"""
+闭环优化：生成 → 仿真 → 评估 → 反哺优化器
+
+将内部仿真与评估作为 DSPy 优化器的自动 metric，替代外部平台人工评估，
+实现「生成 → 仿真 → 评估」闭环，使卡片质量随迭代提升。
+"""
+
+import os
+import json
+from pathlib import Path
+from typing import Dict, Any, Optional, Callable, List, Tuple
+
+from .external_metric import load_config_from_dict
+
+
+def _build_llm_config(api_key: str, model_type: str) -> Tuple[dict, dict]:
+    """根据 model_type 构建仿真器与评估器的 LL跑-M 配置。"""
+    model_type = (model_type or "deepseek").lower()
+    if model_type == "doubao":
+        from config import DOUBAO_BASE_URL, DOUBAO_MODEL, DOUBAO_SERVICE_CODE
+        base_url = (DOUBAO_BASE_URL or "").rstrip("/")
+        api_url = f"{base_url}/chat/completions" if base_url else ""
+        sim_config = {
+            "api_url": api_url,
+            "api_key": api_key,
+            "model": DOUBAO_MODEL or "Doubao-1.5-pro-32k",
+            "service_code": DOUBAO_SERVICE_CODE or "",
+        }
+        eval_config = {
+            "api_url": api_url,
+            "api_key": api_key,
+            "model": DOUBAO_MODEL or "Doubao-1.5-pro-32k",
+            "service_code": DOUBAO_SERVICE_CODE or "",
+        }
+    else:
+        from config import DEEPSEEK_CHAT_URL, DEEPSEEK_MODEL
+        sim_config = {
+            "api_url": DEEPSEEK_CHAT_URL or "https://api.deepseek.com/v1/chat/completions",
+            "api_key": api_key,
+            "model": DEEPSEEK_MODEL or "deepseek-chat",
+        }
+        eval_config = {
+            "api_url": DEEPSEEK_CHAT_URL or "https://api.deepseek.com/v1/chat/completions",
+            "api_key": api_key,
+            "model": DEEPSEEK_MODEL or "deepseek-chat",
+        }
+    return sim_config, eval_config
+
+
+def run_simulate_and_evaluate(
+    cards_path: str,
+    output_dir: str,
+    api_key: str,
+    model_type: str = "deepseek",
+    persona_id: str = "excellent",
+    max_rounds_per_card: int = 10,
+    total_max_rounds: int = 100,
+    save_logs: bool = True,
+    verbose: bool = False,
+    api_url: Optional[str] = None,
+    model_name: Optional[str] = None,
+) -> Tuple[Any, Any]:
+    """
+    运行仿真并评估，返回 (SessionLog, EvaluationReport)。
+
+    Args:
+        cards_path: 卡片 Markdown 文件路径
+        output_dir: 仿真输出目录
+        api_key: LLM API 密钥
+        model_type: "doubao" | "deepseek"
+        persona_id: 学生人设
+        max_rounds_per_card: 单卡片最大轮次
+        total_max_rounds: 总会话最大轮次
+        save_logs: 是否保存会话日志
+        verbose: 详细输出
+
+    Returns:
+        (session_log, evaluation_report)
+    """
+    from simulator.session_runner import SessionRunner, SessionConfig, SessionMode
+    from simulator.evaluator import Evaluator
+
+    sim_config, eval_config = _build_llm_config(api_key, model_type)
+    if api_url:
+        sim_config["api_url"] = api_url
+        eval_config["api_url"] = api_url
+    if model_name:
+        sim_config["model"] = model_name
+        eval_config["model"] = model_name
+    if not sim_config.get("api_url") or not sim_config.get("api_key"):
+        raise ValueError("未配置 LLM API，请检查 api_key 与 model_type")
+
+    config = SessionConfig(
+        mode=SessionMode.AUTO,
+        persona_id=persona_id,
+        output_dir=output_dir,
+        verbose=verbose,
+        save_logs=save_logs,
+        npc_config=sim_config,
+        student_config=sim_config,
+        max_rounds_per_card=max_rounds_per_card,
+        total_max_rounds=total_max_rounds,
+    )
+    runner = SessionRunner(config)
+    runner.load_cards(cards_path)
+    runner.setup()
+    log = runner.run()
+
+    # 仅当会话正常完成时才评估
+    status = (log.summary or {}).get("status", "")
+    if status != "completed":
+        # 未完成时返回一个低分报告，避免优化器误用
+        from simulator.evaluator import EvaluationReport, DimensionScore
+        dummy_report = EvaluationReport(
+            session_id=log.session_id,
+            evaluation_time="",
+            total_score=0.0,
+            dimensions=[],
+            summary=f"会话未完成 (status={status})",
+            recommendations=["请检查卡片逻辑或轮次限制"],
+        )
+        return log, dummy_report
+
+    dialogue = runner.get_dialogue_for_evaluation()
+    evaluator = Evaluator(eval_config)
+    report = evaluator.evaluate(dialogue, session_id=log.session_id)
+    return log, report
+
+
+def make_auto_metric(
+    output_cards_path: str,
+    export_path: str,
+    export_config: Optional[Dict[str, Any]] = None,
+    api_key: Optional[str] = None,
+    model_type: str = "deepseek",
+    persona_id: str = "excellent",
+    output_dir: Optional[str] = None,
+    prompt_user: bool = False,
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    total_estimate: int = 1,
+) -> Callable:
+    """
+    返回 DSPy 所需的 metric(example, pred, trace=None) -> score。
+
+    行为：将 pred.cards 写入 output_cards_path，运行仿真 + 评估，
+    将报告写入 export_path，并返回 total_score。
+    替代外部平台人工评估，实现闭环。
+
+    Args:
+        output_cards_path: 生成卡片写入路径
+        export_path: 评估报告导出路径（JSON，含 total_score）
+        export_config: 传给 external_metric 的配置（可选）
+        api_key: LLM API 密钥（不传则从 config 取）
+        model_type: "doubao" | "deepseek"
+        persona_id: 学生人设
+        output_dir: 仿真输出目录（默认在 optimizer 下创建 closed_loop_sim）
+        prompt_user: 是否打印提示（闭环模式下通常为 False）
+    """
+    from config import DOUBAO_API_KEY, DEEPSEEK_API_KEY, DEFAULT_MODEL_TYPE
+    model_type = model_type or DEFAULT_MODEL_TYPE
+    if api_key is None:
+        api_key = DOUBAO_API_KEY if model_type == "doubao" else DEEPSEEK_API_KEY
+    if not api_key:
+        raise ValueError("未配置 API Key，请设置 DEEPSEEK_API_KEY 或 LLM_API_KEY（豆包）")
+
+    base_dir = os.path.dirname(os.path.abspath(output_cards_path))
+    sim_output = output_dir or os.path.join(base_dir, "closed_loop_sim")
+    os.makedirs(sim_output, exist_ok=True)
+    _progress_count = [0]  # mutable for closure
+
+    def metric(example, pred, trace=None):
+        cards = getattr(pred, "cards", None)
+        if cards is None:
+            return 0.0
+        path = os.path.abspath(output_cards_path)
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(cards)
+
+        n = _progress_count[0] + 1
+        _progress_count[0] = n
+        if progress_callback:
+            progress_callback(n, total_estimate, f"第 {n} 次评估：仿真+评估中…")
+        if prompt_user:
+            print(f"\n  [metric] 已写入卡片到: {path}")
+            print("  [metric] 运行仿真+评估（闭环模式）...")
+
+        try:
+            _, report = run_simulate_and_evaluate(
+                cards_path=path,
+                output_dir=sim_output,
+                api_key=api_key,
+                model_type=model_type,
+                persona_id=persona_id,
+                save_logs=True,
+                verbose=False,
+            )
+        except Exception as e:
+            if prompt_user:
+                print(f"  [metric] 仿真/评估失败: {e}")
+            # 失败时写入占位报告，返回 0
+            os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
+            with open(export_path, "w", encoding="utf-8") as f:
+                json.dump({"total_score": 0.0, "error": str(e)}, f, ensure_ascii=False, indent=2)
+            return 0.0
+
+        # 写入导出文件供 external_metric 解析（与 evaluate API 的 export 格式一致）
+        os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
+        with open(export_path, "w", encoding="utf-8") as f:
+            json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+
+        if prompt_user:
+            print(f"  [metric] 评估完成，总分: {report.total_score}，已写入: {export_path}")
+
+        return float(report.total_score)
+
+    return metric

@@ -199,11 +199,11 @@ EVALUATION_FRAMEWORK = {
     "交互体验性": {
         "weight": 20,
         "sub_dimensions": {
-            "人设语言风格": {"weight": 4, "description": "NPC是否保持设定的角色风格"},
+            "人设语言风格": {"weight": 4, "description": "NPC 应以提问/点评/引导为主；玩家（对方角色）的身份由剧本设定，应以该身份回答/陈述为主。若角色颠倒（如 NPC 替对方说答案或思路、对方以考官口吻夸奖或点评 NPC）应扣分。"},
             "表达自然度": {"weight": 4, "description": "对话是否流畅自然"},
             "上下文衔接": {"weight": 4, "description": "对话是否保持连贯"},
             "循环僵局": {"weight": 4, "description": "是否能避免/跳出重复循环"},
-            "回复长度控制": {"weight": 4, "description": "回复长度是否适当"},
+            "回复长度控制": {"weight": 4, "description": "单轮回复长度是否适当：NPC 建议 250 字以内，对方角色建议约 50–100 字（可随情境略增）；过长或过短应扣分。"},
         }
     },
     "幻觉与边界": {

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -10,6 +10,7 @@ router = APIRouter()
 from simulator import evaluate_session
 from simulator.evaluator import EvaluatorFactory
 from api.workspace import get_workspace_id, get_project_dirs, get_workspace_dirs, resolve_workspace_path
+from api.exceptions import BadRequestError, LLMError
 
 
 class EvaluateByPathRequest(BaseModel):
@@ -39,9 +40,7 @@ def _write_export_files(report, output_dir: str) -> str:
 @router.post("/evaluate")
 def evaluate(req: EvaluateByPathRequest, workspace_id: str = Depends(get_workspace_id)):
     """根据当前工作区内会话日志路径评估，返回报告。可选保存为导出文件供优化器使用。"""
-    path = resolve_workspace_path(workspace_id, req.log_path, kind="output")
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail=f"日志文件不存在: {req.log_path}")
+    path = resolve_workspace_path(workspace_id, req.log_path, kind="output", must_exist=True)
     out_dir = None
     if req.output_dir:
         _, output_dir, _ = get_workspace_dirs(workspace_id)
@@ -55,7 +54,7 @@ def evaluate(req: EvaluateByPathRequest, workspace_id: str = Depends(get_workspa
             result["saved_export_path"] = export_rel
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise LLMError("评估失败", details={"reason": str(e)})
 
 
 @router.post("/evaluate/from-file")
@@ -66,12 +65,12 @@ async def evaluate_from_file(
 ):
     """上传会话日志 JSON 文件，直接评估并返回报告。可选保存为导出文件。"""
     if not file.filename or not file.filename.lower().endswith(".json"):
-        raise HTTPException(status_code=400, detail="请上传 .json 格式的会话日志")
+        raise BadRequestError("请上传 .json 格式的会话日志")
     try:
         content = await file.read()
         log_data = json.loads(content.decode("utf-8"))
     except json.JSONDecodeError as e:
-        raise HTTPException(status_code=400, detail=f"JSON 解析失败: {e}")
+        raise BadRequestError("JSON 解析失败", details={"reason": str(e)})
     dialogue = log_data.get("dialogue", [])
     session_id = log_data.get("session_id", "unknown")
     try:
@@ -84,7 +83,7 @@ async def evaluate_from_file(
             result["saved_export_path"] = export_rel
         return result
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise LLMError("评估失败", details={"reason": str(e)})
 
 
 @router.post("/evaluate/from-dialogue")
@@ -95,4 +94,4 @@ def evaluate_from_dialogue(req: EvaluateByBodyRequest):
         report = evaluator.evaluate(req.dialogue, session_id=req.session_id)
         return report.to_dict()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise LLMError("评估失败", details={"reason": str(e)})

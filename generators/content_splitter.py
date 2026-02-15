@@ -26,6 +26,9 @@ from config import (
 _ANALYZE_CACHE: dict[str, dict] = {}
 _ANALYZE_CACHE_MAX = 32
 
+# 单次分析送入模型的剧本最大字符数，避免超出上下文或超时（约 5 万字符）
+ANALYZE_CONTENT_MAX_CHARS = 50000
+
 # 磁盘缓存目录（项目根下 .cache/content_splitter），重启后仍可命中
 def _disk_cache_dir() -> Optional[str]:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -126,6 +129,12 @@ class ContentSplitter:
         Returns:
             包含stages列表的字典，每个stage包含id, title, role, student_role, task, key_points, content_excerpt等
         """
+        # 超长内容截断，避免 API 超时或超出上下文
+        truncated_note = ""
+        if len(content) > ANALYZE_CONTENT_MAX_CHARS:
+            content = content[:ANALYZE_CONTENT_MAX_CHARS] + "\n\n[以下内容因篇幅过长已省略，仅对以上部分进行分幕分析。建议将文档拆成多个较小文件或只分析前半部分。]"
+            truncated_note = f"（已截断，原长超过 {ANALYZE_CONTENT_MAX_CHARS} 字）"
+
         key = hashlib.sha256(content.encode("utf-8")).hexdigest()
         if use_cache:
             if key in _ANALYZE_CACHE:
@@ -170,6 +179,8 @@ class ContentSplitter:
             # 验证结果格式
             if "stages" not in result:
                 raise ValueError("API返回的结果缺少stages字段")
+            if truncated_note:
+                result["_truncated_note"] = truncated_note
 
             if use_cache:
                 _ANALYZE_CACHE[key] = result

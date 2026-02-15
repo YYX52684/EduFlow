@@ -4,7 +4,7 @@
 """
 import os
 import json
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, Tuple, List, Dict, Any
@@ -14,6 +14,7 @@ router = APIRouter()
 from config import PLATFORM_CONFIG, PLATFORM_ENDPOINTS
 from api_platform import PlatformAPIClient, CardInjector
 from api.workspace import get_workspace_id, get_workspace_dirs, resolve_workspace_path
+from api.exceptions import ConfigError, NotFoundError, PlatformAPIError
 
 
 def _get_workspace_platform_config(workspace_id: str) -> Dict[str, Any]:
@@ -75,9 +76,7 @@ class InjectRunRequest(BaseModel):
 @router.post("/preview")
 def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(get_workspace_id)):
     """预览卡片解析结果，不实际调用平台 API。"""
-    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output")
-    if not os.path.exists(md_path):
-        raise HTTPException(status_code=404, detail=f"卡片文件不存在: {req.cards_path}")
+    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output", must_exist=True)
     cfg = _get_workspace_platform_config(workspace_id)
     try:
         client = _create_client(cfg)
@@ -109,23 +108,21 @@ def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(get_wo
             "summary": f"将创建 {len(a_cards)} 个节点、{max(0, len(a_cards)-1)} 条连线并设置 {len(b_cards)} 个过渡提示词",
         }
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise NotFoundError("卡片文件不存在", details={"path": req.cards_path, "reason": str(e)})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise PlatformAPIError("预览解析失败", details={"reason": str(e)})
 
 
 @router.post("/run")
 def inject_run(req: InjectRunRequest, workspace_id: str = Depends(get_workspace_id)):
     """执行注入：将卡片推送到智慧树平台。使用当前工作区平台配置。"""
-    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output")
-    if not os.path.exists(md_path):
-        raise HTTPException(status_code=404, detail=f"卡片文件不存在: {req.cards_path}")
+    md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output", must_exist=True)
     cfg = _get_workspace_platform_config(workspace_id)
     ok, missing = _check_platform_config(cfg)
     if not ok:
-        raise HTTPException(
-            status_code=400,
-            detail=f"平台配置不完整，缺少: {', '.join(missing)}。请在本页「平台配置」中填写并保存。",
+        raise ConfigError(
+            f"平台配置不完整，缺少: {', '.join(missing)}。请在本页「平台配置」中填写并保存。",
+            details={"missing": missing},
         )
     try:
         client = _create_client(cfg)
@@ -175,6 +172,6 @@ def inject_run(req: InjectRunRequest, workspace_id: str = Depends(get_workspace_
             "existing": detection,
         }
     except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise NotFoundError("卡片文件不存在", details={"path": req.cards_path, "reason": str(e)})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise PlatformAPIError("注入失败", details={"reason": str(e)})

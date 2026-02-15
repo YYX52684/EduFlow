@@ -5,7 +5,7 @@
 import os
 import re
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 
@@ -13,6 +13,7 @@ router = APIRouter()
 
 from config import PLATFORM_CONFIG
 from api.workspace import get_workspace_id, get_workspace_dirs
+from api.exceptions import BadRequestError
 
 
 def _load_env_config() -> dict:
@@ -104,20 +105,20 @@ def set_project_from_url(body: SetProjectRequest, workspace_id: str = Depends(ge
     """从智慧树页面 URL 提取课程 ID、训练任务 ID，并可选写入当前工作区配置。"""
     url = (body.url or "").strip()
     if not url:
-        raise HTTPException(status_code=400, detail="请提供 URL")
+        raise BadRequestError("请提供 URL")
     course_match = re.search(r"agent-course-full/([^/]+)", url)
     task_match = re.search(r"trainTaskId=([^&]+)", url)
     course_id = course_match.group(1) if course_match else None
     train_task_id = task_match.group(1) if task_match else None
     if not course_id:
-        raise HTTPException(
-            status_code=400,
-            detail="无法从 URL 提取课程 ID，请确保包含 agent-course-full/<课程ID>",
+        raise BadRequestError(
+            "无法从 URL 提取课程 ID，请确保包含 agent-course-full/<课程ID>",
+            details={"url": url[:80]},
         )
     if not train_task_id:
-        raise HTTPException(
-            status_code=400,
-            detail="无法从 URL 提取训练任务 ID，请确保 URL 包含 trainTaskId= 参数",
+        raise BadRequestError(
+            "无法从 URL 提取训练任务 ID，请确保 URL 包含 trainTaskId= 参数",
+            details={"url": url[:80]},
         )
     result = {"course_id": course_id, "train_task_id": train_task_id}
     if body.save:

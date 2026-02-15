@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from parsers import parse_markdown, parse_docx, parse_pdf
+from parsers import parse_markdown, parse_docx, parse_doc, parse_pdf
 from .content_splitter import ContentSplitter
 
 from config import DEEPSEEK_API_KEY
@@ -50,10 +50,11 @@ def _get_parser_for_path(file_path: str):
     parsers = {
         ".md": parse_markdown,
         ".docx": parse_docx,
+        ".doc": parse_doc,
         ".pdf": parse_pdf,
     }
     if ext not in parsers:
-        raise ValueError(f"不支持的文件格式: {ext}。支持: {', '.join(parsers.keys())}")
+        raise ValueError(f"不支持的文件格式: {ext}。支持: .md / .docx / .doc / .pdf")
     return parsers[ext]
 
 
@@ -77,7 +78,7 @@ def build_trainset_from_path(
     每条样本为 {"full_script": str, "stages": list}，其中 stages 为 ContentSplitter.analyze 返回的格式。
 
     Args:
-        path: 文件路径或目录路径。目录时将递归查找 .md / .docx / .pdf。
+        path: 文件路径或目录路径。目录时将递归查找 .md / .docx / .doc / .pdf。
         api_key: DeepSeek API 密钥（用于 ContentSplitter.analyze）；不传则用 config。
         verbose: 是否打印进度。
 
@@ -93,7 +94,7 @@ def build_trainset_from_path(
     if os.path.isfile(path):
         files = [path]
     elif os.path.isdir(path):
-        for ext in (".md", ".docx", ".pdf"):
+        for ext in (".md", ".docx", ".doc", ".pdf"):
             for f in Path(path).rglob(f"*{ext}"):
                 files.append(str(f))
         files.sort()
@@ -101,7 +102,7 @@ def build_trainset_from_path(
         raise FileNotFoundError(f"路径不存在: {path}")
 
     if not files:
-        raise ValueError(f"未在目录下找到 .md / .docx / .pdf 文件: {path}")
+        raise ValueError(f"未在目录下找到 .md / .docx / .doc / .pdf 文件: {path}")
 
     splitter = ContentSplitter(api_key=api_key, base_url=base_url, model=model)
     examples: List[Dict[str, Any]] = []
@@ -394,7 +395,7 @@ class EvaluationAwareBuilder:
                 report.project_name,
                 report.report_id,
                 scripts_dir,
-                ['.md', '.docx', '.pdf', '.txt']
+                ['.md', '.docx', '.doc', '.pdf', '.txt']
             ) or ""
             
             # 从卡片中提取stages

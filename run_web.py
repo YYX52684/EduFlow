@@ -5,6 +5,7 @@ Web 服务启动脚本。在项目根目录执行: python run_web.py
 同事通过 IP 访问时，若需使用「选择目录」上传，请用 HTTPS: python run_web.py --https
 """
 import argparse
+import io
 import os
 import sys
 
@@ -12,6 +13,11 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _ROOT)
 os.environ["PYTHONPATH"] = _ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")
 os.chdir(_ROOT)
+
+# Windows 下强制 stdout/stderr 使用 UTF-8，避免中文乱码
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 _CERTS_DIR = os.path.join(_ROOT, ".certs")
 _KEY_FILE = os.path.join(_CERTS_DIR, "key.pem")
