@@ -1,6 +1,8 @@
 """
 DSPy 优化封装
 使用外部评估导出文件作为 metric，对卡片生成程序进行 BootstrapFewShot / MIPRO 优化。
+
+支持闭环模式（use_auto_eval=True）：以仿真+评估替代外部平台人工评估。
 """
 
 import os
@@ -92,6 +94,9 @@ def run_bootstrap_optimizer(
     max_labeled_demos: int = 16,
     max_rounds: int = 1,
     metric_threshold: Optional[float] = None,
+    use_auto_eval: bool = False,
+    persona_id: str = "excellent",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> dspy.Module:
     """
     使用 BootstrapFewShot 优化卡片生成程序。
@@ -114,7 +119,22 @@ def run_bootstrap_optimizer(
     program = make_card_generator_program(api_key=api_key, model_type=model_type)
     dspy.configure(lm=program._generator.lm)
 
-    metric_fn = make_metric(output_cards_path, export_path, export_config, prompt_user=True)
+    if use_auto_eval:
+        from .closed_loop import make_auto_metric
+        total_est = max(1, len(trainset) * max_rounds * 2)  # 粗略估计评估次数
+        metric_fn = make_auto_metric(
+            output_cards_path,
+            export_path,
+            export_config=export_config,
+            api_key=api_key,
+            model_type=model_type,
+            persona_id=persona_id,
+            prompt_user=True,
+            progress_callback=progress_callback,
+            total_estimate=total_est,
+        )
+    else:
+        metric_fn = make_metric(output_cards_path, export_path, export_config, prompt_user=True)
 
     # 将 dict 转为 dspy.Example 以便优化器使用
     examples = []
@@ -147,6 +167,10 @@ def run_mipro_optimizer(
     init_temperature: float = 1.0,
     verbose: bool = False,
     num_threads: int = 1,
+    use_auto_eval: bool = False,
+    persona_id: str = "excellent",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
+    **mipro_kwargs
 ) -> dspy.Module:
     """
     使用 MIPROv2 优化卡片生成程序。
@@ -178,7 +202,22 @@ def run_mipro_optimizer(
     program = make_card_generator_program(api_key=api_key, model_type=model_type)
     dspy.configure(lm=program._generator.lm)
 
-    metric_fn = make_metric(output_cards_path, export_path, export_config, prompt_user=True)
+    if use_auto_eval:
+        from .closed_loop import make_auto_metric
+        total_est = max(1, len(trainset) * 4)  # MIPRO 迭代次数难以精确预估
+        metric_fn = make_auto_metric(
+            output_cards_path,
+            export_path,
+            export_config=export_config,
+            api_key=api_key,
+            model_type=model_type,
+            persona_id=persona_id,
+            prompt_user=True,
+            progress_callback=progress_callback,
+            total_estimate=total_est,
+        )
+    else:
+        metric_fn = make_metric(output_cards_path, export_path, export_config, prompt_user=True)
 
     # 转换数据集
     train_examples = []
@@ -231,6 +270,9 @@ def run_optimize_dspy(
     model_type: Optional[str] = None,
     max_rounds: int = 1,
     max_bootstrapped_demos: int = 4,
+    use_auto_eval: bool = False,
+    persona_id: str = "excellent",
+    progress_callback: Optional[Callable[[int, int, str], None]] = None,
     **mipro_kwargs
 ) -> dspy.Module:
     """
@@ -259,6 +301,9 @@ def run_optimize_dspy(
             model_type=model_type,
             max_bootstrapped_demos=max_bootstrapped_demos,
             max_rounds=max_rounds,
+            use_auto_eval=use_auto_eval,
+            persona_id=persona_id,
+            progress_callback=progress_callback,
         )
     elif optimizer_type == "mipro":
         return run_mipro_optimizer(
@@ -269,6 +314,9 @@ def run_optimize_dspy(
             export_config=export_config,
             api_key=api_key,
             model_type=model_type,
+            use_auto_eval=use_auto_eval,
+            persona_id=persona_id,
+            progress_callback=progress_callback,
             **mipro_kwargs
         )
     else:

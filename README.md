@@ -20,11 +20,14 @@ EduFlow/
 ├── run_web.py           # Web 服务启动脚本（推荐）
 ├── config.py            # 配置文件
 ├── requirements.txt     # 依赖项
-├── api/                 # Web API（FastAPI）
+├── requirements-dev.txt # 开发/测试依赖（pytest 等）
+├── api/                 # Web API（FastAPI）+ 统一异常与 request_id 中间件
 ├── web/static/          # 前端静态页（index.html）
 ├── generators/          # 生成器模块
 ├── parsers/             # 文件解析器
-├── platform/            # 平台对接模块
+├── api_platform/        # 智慧树平台 API 与卡片注入
+├── docs/                # 文档（如 architecture.md 架构与数据流）
+├── tests/               # pytest 测试
 ├── templates/           # 模板文件
 ├── input/               # 命令行用输入目录
 ├── output/              # 命令行用输出目录
@@ -53,7 +56,14 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. **配置环境变量**
+4. **运行测试（可选）**
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+5. **配置环境变量**
 
 复制 `.env.example` 为 `.env`，并填写配置（`.env` 含 API Key，**不要提交到 Git**；给同事时可私下发一份或让她按说明自建）：
 
@@ -71,6 +81,8 @@ PLATFORM_END_NODE_ID=end_node_id
 ```
 
 ## 使用方法
+
+**Windows 用户**：若命令行或输出中出现中文乱码，请先在终端执行 `chcp 65001` 切换到 UTF-8 编码，或使用 Windows Terminal / VS Code 内置终端（通常已默认 UTF-8）。程序已自动将输出设为 UTF-8。
 
 ### 1. 生成卡片
 
@@ -206,6 +218,22 @@ docker run -p 8000:8000 --env-file .env -v "$(pwd)/workspaces:/app/workspaces" e
 ```
 
 - 访问 `http://localhost:8000/` 或 `http://<服务器IP>:8000/`。挂载 `workspaces` 可将工作区数据持久化到宿主机。
+
+## 卡片编辑与试玩
+
+在 Web 内直接编辑卡片 Markdown，无需导出到平台即可试玩：加载 output 下卡片 → 在编辑器中修改 → 保存或**一键试玩**（用当前内容直接跑仿真）。减少「导出→平台→体验→再改」的往返。
+
+## 闭环优化
+
+闭环优化实现「生成 → 仿真 → 评估」自动迭代，无需外部平台人工评估：
+
+1. **单次闭环**：对已有卡片运行「仿真 + 评估」，并保存为优化器导出文件
+   - Web：第 3 步点击「闭环运行」
+   - API：`POST /api/closed-loop/run`，body: `{ "cards_path": "...", "save_to_export": true }`
+
+2. **优化器闭环模式**：DSPy 优化时每轮自动仿真+评估
+   - CLI：`python run_optimizer.py --auto-eval`
+   - Web：第 6 步勾选「闭环模式（仿真+评估替代外部评估）」
 
 ## 注意事项
 

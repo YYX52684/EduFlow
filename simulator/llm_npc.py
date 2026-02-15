@@ -59,7 +59,7 @@ class LLMNPC:
         self.api_key = config.get("api_key", defaults["api_key"])
         self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
-        self.max_tokens = config.get("max_tokens", 500)
+        self.max_tokens = config.get("max_tokens", 400)  # 约 250 字内
         self.temperature = config.get("temperature", 0.7)
         
         # 对话历史
@@ -79,9 +79,15 @@ class LLMNPC:
         Returns:
             NPC的回复
         """
-        # 构建消息列表
+        # 角色约束：NPC 只做提问与点评，对方角色由剧本（卡片 Context）设定；控制单轮长度
+        role_fix = (
+            "\n\n【角色约束】你是 NPC，对方是剧情中的角色（由当前卡片的 Context 设定，可能是学生、见习人员、家属等）。"
+            "你的每条回复必须是提问、点评或引导，不要替对方陈述思路、答案或设计方案。"
+            "单条回复控制在 250 字以内。"
+        )
+        system_content = (self.system_prompt or "").strip() + role_fix
         messages = [
-            {"role": "system", "content": self.system_prompt}
+            {"role": "system", "content": system_content}
         ]
         
         # 添加历史对话

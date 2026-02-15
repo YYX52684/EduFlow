@@ -177,7 +177,7 @@ class SessionRunner:
         if not self.a_cards:
             raise ValueError(f"未能从文件中解析出A类卡片: {md_path}")
         
-        print(f"[加载] 共加载 {len(self.a_cards)} 个A类卡片, {len(self.b_cards)} 个B类卡片")
+        print(f"[加载] 共加载 {len(self.a_cards)} 个对话卡, {len(self.b_cards)} 个过渡卡")
     
     def setup(self):
         """设置会话组件"""

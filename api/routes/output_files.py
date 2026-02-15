@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 output 目录：列出当前工作区 output 下的文件、上传外部评估报告等。
+支持读取/写入文件内容，供卡片可视化编辑使用。
 """
 import os
 from fastapi import APIRouter, UploadFile, File, Form, Depends
+from pydantic import BaseModel
 from typing import Optional
 
 router = APIRouter()
 
-from api.workspace import get_workspace_id, get_project_dirs
+from api.workspace import get_workspace_id, get_project_dirs, resolve_workspace_path
+from api.exceptions import NotFoundError, LLMError
 
 # 评估报告允许的扩展名
 EXPORT_ALLOWED_EXT = {".md", ".json", ".txt"}
@@ -22,6 +25,48 @@ def _safe_relative(path: str, base: str) -> Optional[str]:
         return r.replace("\\", "/")
     except Exception:
         return None
+
+
+class WriteBody(BaseModel):
+    path: str  # 相对 output，如 output/cards_xxx.md 或 cards_xxx.md
+    content: str
+
+
+@router.get("/read")
+def read_output_file(
+    path: str,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """读取 output 下指定文件的文本内容，用于卡片编辑。path 如 output/cards_xxx.md。"""
+    full_path = resolve_workspace_path(workspace_id, path, kind="output", must_exist=True)
+    try:
+        with open(full_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except Exception as e:
+        raise LLMError("读取失败", details={"path": path, "reason": str(e)})
+    rel = path.strip().replace("\\", "/").lstrip("/")
+    if not rel.startswith("output/"):
+        rel = "output/" + rel
+    return {"path": rel, "content": content}
+
+
+@router.post("/write")
+def write_output_file(
+    body: WriteBody,
+    workspace_id: str = Depends(get_workspace_id),
+):
+    """将文本内容写入 output 下指定路径，用于保存编辑后的卡片。路径不存在则创建。"""
+    full_path = resolve_workspace_path(workspace_id, body.path, kind="output")
+    try:
+        os.makedirs(os.path.dirname(full_path) or ".", exist_ok=True)
+        with open(full_path, "w", encoding="utf-8") as f:
+            f.write(body.content)
+    except Exception as e:
+        raise LLMError("写入失败", details={"path": body.path, "reason": str(e)})
+    rel = body.path.strip().replace("\\", "/").lstrip("/")
+    if not rel.startswith("output/"):
+        rel = "output/" + rel
+    return {"path": rel, "saved": True}
 
 
 @router.get("/files")

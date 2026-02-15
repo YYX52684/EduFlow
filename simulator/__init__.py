@@ -18,8 +18,8 @@ from .card_loader import LocalCardLoader, PlatformCardLoader, CardData
 from .llm_npc import LLMNPC
 from .student_persona import StudentPersona, PersonaManager, PersonaGenerator, PersonaGeneratorFactory
 from .llm_student import LLMStudent
-from .session_runner import SessionRunner, SessionConfig
-from .evaluator import Evaluator, evaluate_session
+from .session_runner import SessionRunner, SessionConfig, SessionMode
+from .evaluator import Evaluator, EvaluatorFactory, evaluate_session
 
 __all__ = [
     "LocalCardLoader",
@@ -33,6 +33,8 @@ __all__ = [
     "LLMStudent",
     "SessionRunner",
     "SessionConfig",
+    "SessionMode",
     "Evaluator",
+    "EvaluatorFactory",
     "evaluate_session",
 ]

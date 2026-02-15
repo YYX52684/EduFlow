@@ -1,0 +1,44 @@
+Date : 2026-02-06 15:03:03
+Directory : c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators
+Total : 15 files,  2842 codes, 221 comments, 653 blanks, all 3716 lines
+
+Languages
++----------+------------+------------+------------+------------+------------+
+| language | files      | code       | comment    | blank      | total      |
++----------+------------+------------+------------+------------+------------+
+| Python   |         15 |      2,842 |        221 |        653 |      3,716 |
++----------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                       | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                          |         15 |      2,842 |        221 |        653 |      3,716 |
+| . (Files)                                                                  |         11 |      2,664 |        218 |        600 |      3,482 |
+| frameworks                                                                 |          4 |        178 |          3 |         53 |        234 |
+| frameworks (Files)                                                         |          2 |        116 |          1 |         31 |        148 |
+| frameworks\default                                                         |          1 |         31 |          1 |         11 |         43 |
+| frameworks\dspy                                                            |          1 |         31 |          1 |         11 |         43 |
++----------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| filename                                                                   | language | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------+----------+------------+------------+------------+------------+
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\__init__.py                    | Python   |         24 |          2 |          5 |         31 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\card_generator.py              | Python   |        247 |         35 |         81 |        363 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\content_splitter.py            | Python   |        214 |          8 |         40 |        262 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\dspy_card_generator.py         | Python   |        456 |         38 |         88 |        582 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\dspy_optimizer.py              | Python   |        235 |          4 |         37 |        276 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\dspy_utils.py                  | Python   |        156 |          9 |         39 |        204 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\evaluation_parser.py           | Python   |        294 |         34 |         69 |        397 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\evaluation_section.py          | Python   |         63 |          1 |         10 |         74 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\external_metric.py             | Python   |        142 |          4 |         19 |        165 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\frameworks\__init__.py         | Python   |         89 |          1 |         25 |        115 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\frameworks\base.py             | Python   |         27 |          0 |          6 |         33 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\frameworks\default\__init__.py | Python   |         31 |          1 |         11 |         43 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\frameworks\dspy\__init__.py    | Python   |         31 |          1 |         11 |         43 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\input_quality.py               | Python   |        319 |         52 |        106 |        477 |
+| c:\Users\俞宇星\OneDrive\桌面\EduFlow\generators\trainset_builder.py            | Python   |        514 |         31 |        106 |        651 |
+| Total                                                                      |          |      2,842 |        221 |        653 |      3,716 |
++----------------------------------------------------------------------------+----------+------------+------------+------------+------------+

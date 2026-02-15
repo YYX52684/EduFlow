@@ -67,6 +67,22 @@ def get_llm_config(workspace_id: Optional[str] = None) -> dict:
     }
 
 
+def require_llm_config(workspace_id: Optional[str] = None) -> dict:
+    """
+    获取 LLM 配置，若未配置完整（api_key / base_url / model 任一缺失）则抛出 ConfigError。
+    用于需要强依赖 LLM 的接口（生成卡片、仿真、评估、优化器等）。
+    """
+    from api.exceptions import ConfigError
+
+    llm = get_llm_config(workspace_id)
+    api_key = (llm.get("api_key") or "").strip()
+    base_url = (llm.get("base_url") or "").rstrip("/")
+    model = (llm.get("model") or "").strip()
+    if not api_key or not base_url or not model:
+        raise ConfigError("未配置完整的 LLM 信息，请在「设置」中填写 API Key 与模型。")
+    return llm
+
+
 @router.get("/config")
 def get_config(workspace_id: str = Depends(get_workspace_id)):
     """返回当前工作区 LLM 配置（用于设置页展示）。api_key 脱敏返回。"""

@@ -1,6 +1,6 @@
 """
 从输入文档中提取任务元数据：任务名称、描述、评价项
-支持 .md、.docx、.txt 格式
+支持 .md、.docx、.doc、.txt 格式
 """
 import os
 import re
@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 
 from .md_parser import parse_markdown, extract_sections
 from .docx_parser import parse_docx, extract_structure, parse_docx_with_structure
+from .doc_parser import parse_doc_with_structure
 try:
     from .pdf_parser import parse_pdf
     _PDF_AVAILABLE = True
@@ -104,6 +105,13 @@ def _get_content_and_structure(file_path: str) -> tuple:
             for s in raw
         ]
         return content, structure
+    if ext == ".doc":
+        content, raw = parse_doc_with_structure(path)
+        structure = [
+            {"title": s["title"], "level": s.get("level", 1), "content": s.get("content", "")}
+            for s in raw
+        ]
+        return content, structure
     if ext == ".txt":
         content = _read_txt(path)
         structure = _structure_from_txt(content)
@@ -113,7 +121,7 @@ def _get_content_and_structure(file_path: str) -> tuple:
         structure = _structure_from_txt(content)
         return content, structure
 
-    raise ValueError(f"不支持的任务元数据提取格式: {ext}，支持 .md / .docx / .txt / .pdf")
+    raise ValueError(f"不支持的任务元数据提取格式: {ext}，支持 .md / .docx / .doc / .txt / .pdf")
 
 
 def _is_evaluation_section(title: str) -> bool:

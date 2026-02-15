@@ -76,6 +76,23 @@ def main():
         default=None,
         help="Bootstrap 最大示例数（默认从 config）",
     )
+    parser.add_argument(
+        "--auto-eval",
+        action="store_true",
+        default=True,
+        help="闭环模式（默认开启）：以仿真+评估替代外部平台人工评估",
+    )
+    parser.add_argument(
+        "--no-auto-eval",
+        dest="auto_eval",
+        action="store_false",
+        help="禁用闭环模式，使用外部评估",
+    )
+    parser.add_argument(
+        "--persona",
+        default="excellent",
+        help="闭环模式下的学生人设（默认: excellent）",
+    )
     args = parser.parse_args()
 
     model_type = args.model or DEFAULT_MODEL_TYPE
@@ -119,9 +136,19 @@ def main():
     print(f"  trainset: {trainset_path} ({len(trainset)} 条)")
     print(f"  模型: {model_type}")
     print(f"  优化器: {args.optimizer}")
+    if args.auto_eval:
+        print(f"  闭环模式: 是 (persona={args.persona})")
     print(f"  卡片输出: {cards_path}")
     print(f"  评估导出: {export_path}")
+    print("  预计耗时: 闭环模式约 15–60 分钟（取决于 trainset 与轮数）")
     print()
+
+    def _progress_cb(current: int, total: int, message: str):
+        pct = min(100, int(100 * current / max(1, total)))
+        bar_len = 30
+        filled = int(bar_len * current / max(1, total))
+        bar = "█" * filled + "░" * (bar_len - filled)
+        print(f"\r[{bar}] {pct}% - {message}", end="", flush=True)
 
     export_config = {
         "parser": cfg.get("parser", "json"),
@@ -140,8 +167,16 @@ def main():
             model_type=model_type,
             max_rounds=args.max_rounds or cfg.get("max_rounds", 1),
             max_bootstrapped_demos=args.max_demos or cfg.get("max_bootstrapped_demos", 4),
+            use_auto_eval=args.auto_eval,
+            persona_id=args.persona,
+            progress_callback=_progress_cb if args.auto_eval else None,
         )
-        print("[OK] 优化完成。请使用外部平台对生成的卡片进行评估，并将结果导出到上述 export 路径后继续迭代。")
+        if args.auto_eval:
+            print()
+        if args.auto_eval:
+            print("[OK] 闭环优化完成。每轮已自动运行仿真+评估。")
+        else:
+            print("[OK] 优化完成。请使用外部平台对生成的卡片进行评估，并将结果导出到上述 export 路径后继续迭代。")
     except Exception as e:
         import traceback
         traceback.print_exc()

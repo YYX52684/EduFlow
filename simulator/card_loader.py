@@ -1,17 +1,15 @@
 """
 卡片加载器
-支持从本地Markdown文件或平台API加载卡片数据
-
-加载来源：
-1. 本地文件: output/cards_output_*.md
-2. 平台API: 通过教师端API拉取已配置项目的卡片
+支持从本地Markdown文件或平台API加载卡片数据。
+卡片类型可扩展：通过 config.CARD_TYPES / CARD_TYPE_ROLE / CARD_SEQUENCE_ORDER 支持更多类型（如 C、D）。
 """
 
 import re
 import json
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
+from collections import defaultdict
 
 
 @dataclass
@@ -19,7 +17,7 @@ class CardData:
     """卡片数据结构"""
     card_id: str              # 如 "1A", "1B", "2A" 等
     stage_num: int            # 阶段编号
-    card_type: str            # "A" 或 "B"
+    card_type: str            # "A"、"B" 或扩展类型（如 "C"）
     title: str                # 卡片标题
     
     # 核心内容
@@ -43,23 +41,36 @@ class CardData:
     model_id: str = ""             # 使用的模型
     
     def get_system_prompt(self) -> str:
-        """获取用于NPC的系统提示词（仅A类卡片）"""
-        if self.card_type == "A":
+        """获取用于NPC的系统提示词（对话类卡片）"""
+        from config import CARD_TYPE_ROLE
+        if CARD_TYPE_ROLE.get(self.card_type) == "dialogue":
             return self.llm_prompt or self.full_content
         return ""
-    
+
     def get_transition_output(self) -> str:
-        """获取B类卡片的过渡输出（仅B类卡片）"""
-        if self.card_type == "B":
+        """获取过渡类卡片的输出"""
+        from config import CARD_TYPE_ROLE
+        if CARD_TYPE_ROLE.get(self.card_type) == "transition":
             return self.output or self.transition_prompt
         return ""
 
 
+def _card_type_regex():
+    """从 config.CARD_TYPES 生成卡片类型正则（如 AB -> [AB]，ABC -> [ABC]），向后兼容默认 AB。"""
+    try:
+        from config import CARD_TYPES
+        types = (CARD_TYPES or "AB").strip() or "AB"
+    except Exception:
+        types = "AB"
+    # 字符集，支持多字母类型
+    return re.compile(r'^#\s*卡片(\d+)([' + re.escape(types) + r']+)\s*$', re.MULTILINE)
+
+
 class LocalCardLoader:
     """从本地Markdown文件加载卡片"""
-    
+
     def __init__(self):
-        self._card_pattern = re.compile(r'^#\s*卡片(\d+)([AB])\s*$', re.MULTILINE)
+        self._card_pattern = _card_type_regex()
     
     def load_from_markdown(self, md_path: str) -> List[CardData]:
         """
@@ -74,8 +85,11 @@ class LocalCardLoader:
         path = Path(md_path)
         if not path.exists():
             raise FileNotFoundError(f"文件不存在: {md_path}")
-        
-        content = path.read_text(encoding='utf-8')
+
+        # 使用更宽容的读取方式：主要是我们自己生成的 cards_output_*.md 都是 UTF-8，
+        # 但若用户用其他工具以非 UTF-8 保存，避免因单个非法字节导致整个模拟崩溃。
+        with path.open("r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
         return self.parse_markdown_content(content)
     
     def parse_markdown_content(self, content: str) -> List[CardData]:
@@ -127,19 +141,23 @@ class LocalCardLoader:
         card.prologue = sections.get("Prologue", "")
         card.output = sections.get("Output", "")
         
-        # 构建LLM提示词（A类卡片）
-        if card_type == "A":
+        # 构建LLM提示词（对话类）或过渡提示（过渡类）
+        try:
+            from config import CARD_TYPE_ROLE
+            role = CARD_TYPE_ROLE.get(card_type, "dialogue")
+        except Exception:
+            role = "dialogue" if card_type == "A" else "transition"
+        if role == "dialogue":
             card.llm_prompt = self._build_a_card_prompt(content, card)
         else:
             card.transition_prompt = card.output
-        
+
         return card
     
     def _build_a_card_prompt(self, content: str, card: CardData) -> str:
-        """构建A类卡片的LLM提示词"""
-        # 清理内容：移除markdown标题行和元数据注释
+        """构建对话类卡片的LLM提示词"""
         prompt = content
-        prompt = re.sub(r'^#\s*卡片\d+[AB]\s*\n', '', prompt.strip())
+        prompt = re.sub(r'^#\s*卡片\d+[A-Z]+\s*\n', '', prompt.strip())
         prompt = re.sub(r'<!--\s*STAGE_META:\s*\{.*?\}\s*-->\s*\n?', '', prompt)
         # 移除开场白部分（开场白单独使用，不加入系统提示）
         prompt = re.sub(r'#\s*Prologue\s*\n.*?(?=\n#\s|\Z)', '', prompt, flags=re.DOTALL)
@@ -179,40 +197,46 @@ class LocalCardLoader:
         
         return sections
     
-    def separate_cards(self, cards: List[CardData]) -> tuple:
+    def separate_cards(self, cards: List[CardData]) -> Tuple[List[CardData], List[CardData]]:
         """
-        将卡片分离为A类和B类
+        按 CARD_TYPE_ROLE 将卡片分为「对话类」与「过渡类」，兼容现有 a_cards / b_cards 语义。
         
         Returns:
-            (a_cards, b_cards) - A类卡片列表和B类卡片列表
+            (a_cards, b_cards) - 对话类列表、过渡类列表（按 stage_num 排序）
         """
-        a_cards = [c for c in cards if c.card_type == "A"]
-        b_cards = [c for c in cards if c.card_type == "B"]
-        
-        # 按阶段号排序
-        a_cards.sort(key=lambda x: x.stage_num)
-        b_cards.sort(key=lambda x: x.stage_num)
-        
+        try:
+            from config import CARD_TYPE_ROLE
+        except Exception:
+            CARD_TYPE_ROLE = {"A": "dialogue", "B": "transition"}
+        by_role = defaultdict(list)
+        for c in cards:
+            role = CARD_TYPE_ROLE.get(c.card_type, "dialogue")
+            by_role[role].append(c)
+        a_cards = by_role.get("dialogue", [])
+        b_cards = by_role.get("transition", [])
+        a_cards.sort(key=lambda x: (x.stage_num, x.card_type))
+        b_cards.sort(key=lambda x: (x.stage_num, x.card_type))
         return a_cards, b_cards
-    
-    def get_card_sequence(self, cards: List[CardData]) -> List[CardData]:
+
+    def get_card_sequence(self, cards: List[CardData], type_order: Optional[str] = None) -> List[CardData]:
         """
-        获取按执行顺序排列的卡片序列
-        顺序: 1A -> 1B -> 2A -> 2B -> ...
-        
-        Returns:
-            按执行顺序排列的卡片列表
+        获取按执行顺序排列的卡片序列。
+        默认顺序由 CARD_SEQUENCE_ORDER 控制（如 "AB" 表示 1A->1B->2A->2B->...），可为更多类型扩展。
         """
-        a_cards, b_cards = self.separate_cards(cards)
+        try:
+            from config import CARD_SEQUENCE_ORDER
+            order = (type_order or CARD_SEQUENCE_ORDER or "AB").strip() or "AB"
+        except Exception:
+            order = "AB"
+        by_key = {}
+        for c in cards:
+            by_key[(c.stage_num, c.card_type)] = c
+        stage_nums = sorted({c.stage_num for c in cards})
         sequence = []
-        
-        for i, a_card in enumerate(a_cards):
-            sequence.append(a_card)
-            # 找到对应的B类卡片
-            matching_b = next((b for b in b_cards if b.stage_num == a_card.stage_num), None)
-            if matching_b:
-                sequence.append(matching_b)
-        
+        for sn in stage_nums:
+            for t in order:
+                if (sn, t) in by_key:
+                    sequence.append(by_key[(sn, t)])
         return sequence
 
 

@@ -22,8 +22,22 @@
       --natsume-shadow: rgba(74, 64, 53, 0.08);
       --natsume-err: #a65d4a;
       --sidebar-width: 280px;
+      --sim-sidebar-width: 380px;
+      /* Mac-style motion */
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+      --ease-in-out-smooth: cubic-bezier(0.65, 0, 0.35, 1);
+      --transition-fast: 0.2s var(--ease-out-quart);
+      --transition-normal: 0.3s var(--ease-out-expo);
+      --transition-slow: 0.4s var(--ease-out-expo);
     }
-    html { scrollbar-gutter: stable; overflow-x: hidden; }
+    html {
+      scrollbar-gutter: stable;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
     * { box-sizing: border-box; }
     body {
       font-family: "Noto Serif SC", "Songti SC", serif;
@@ -37,11 +51,13 @@
       background-size: cover;
       background-position: center;
       background-attachment: fixed;
+      background-repeat: no-repeat;
       background-image:
         radial-gradient(ellipse at 20% 10%, rgba(139, 157, 143, 0.06) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 90%, rgba(125, 139, 111, 0.05) 0%, transparent 50%);
       display: flex;
     }
+    /* 壁纸与主界面关联：整页背景在 body 上且 fixed，不随侧边栏收起/展开移动；侧边栏半透明以透出背景 */
     body.sidebar-collapsed { --sidebar-width: 0; }
     .local-sidebar {
       position: fixed;
@@ -52,78 +68,75 @@
       display: flex;
       flex-direction: column;
       padding: 0;
-      background: var(--natsume-cream);
+      background: rgba(235, 228, 216, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border-right: 1px solid var(--natsume-border);
-      border-radius: 0 12px 12px 0;
-      box-shadow: 2px 0 12px var(--natsume-shadow);
       z-index: 20;
-      transition: width 0.2s ease;
+      transition: width var(--transition-normal);
       overflow-x: hidden;
     }
     .sidebar-resize-handle {
       position: fixed;
-      left: calc(var(--sidebar-width) - 3px);
+      left: calc(var(--sidebar-width) - 2px);
       top: 0;
       bottom: 0;
-      width: 6px;
+      width: 4px;
       cursor: col-resize;
       z-index: 21;
       background: transparent;
-      transition: left 0.2s ease, background 0.15s;
+      transition: left var(--transition-normal);
     }
-    .sidebar-resize-handle:hover { background: rgba(107, 123, 107, 0.2); }
+    .sidebar-resize-handle:hover { background: rgba(143, 157, 143, 0.2); }
+    .sidebar-resize-handle:active { background: rgba(125, 139, 111, 0.3); }
     body.sidebar-collapsed .sidebar-resize-handle { display: none; }
     .sidebar-collapse-btn {
+      /* Claude 风格：侧边栏内右上角，无背景无边框，悬停轻高亮 */
       position: absolute;
-      right: 0;
-      top: 50%;
-      transform: translate(100%, -50%);
-      width: 18px;
-      height: 48px;
+      top: 0.75rem;
+      right: 10px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       margin: 0;
-      font-size: 0.75rem;
-      color: var(--natsume-ink-light);
-      background: var(--natsume-cream);
-      border: 1px solid var(--natsume-border);
-      border-left: none;
-      border-radius: 0 6px 6px 0;
-      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 2px 0 6px var(--natsume-shadow);
-      z-index: 22;
+      color: var(--natsume-ink-light);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color var(--transition-fast), background var(--transition-fast);
     }
-    .sidebar-collapse-btn:hover { background: var(--natsume-border); color: var(--natsume-ink); }
+    .sidebar-collapse-btn:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
+    .sidebar-collapse-btn:active { background: rgba(143, 157, 143, 0.2); }
     body.sidebar-collapsed .sidebar-collapse-btn { display: none; }
     .sidebar-expand-tab {
       display: none;
       position: fixed;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 22px;
-      height: 56px;
+      left: 8px;
+      top: 16px;
+      width: 28px;
+      height: 28px;
       padding: 0;
       margin: 0;
-      font-size: 0.8rem;
       color: var(--natsume-ink-light);
-      background: var(--natsume-cream);
-      border: 1px solid var(--natsume-border);
-      border-left: none;
-      border-radius: 0 8px 8px 0;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
       cursor: pointer;
       align-items: center;
       justify-content: center;
-      box-shadow: 2px 0 8px var(--natsume-shadow);
       z-index: 22;
+      transition: color var(--transition-fast), background var(--transition-fast);
     }
-    .sidebar-expand-tab:hover { background: var(--natsume-border); color: var(--natsume-ink); }
+    .sidebar-expand-tab:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
+    .sidebar-expand-tab:active { background: rgba(143, 157, 143, 0.2); }
     body.sidebar-collapsed .sidebar-expand-tab { display: flex; }
     .main-content {
       margin-left: var(--sidebar-width);
-      transition: margin-left 0.2s ease;
+      transition: margin-left var(--transition-normal);
       min-width: 0;
       flex: 1;
       display: flex;
@@ -136,12 +149,34 @@
     }
     .local-sidebar .sidebar-head {
       flex-shrink: 0;
-      padding: 0.85rem 0.75rem 0.6rem;
-      margin: 0.5rem 0.5rem 0 0.5rem;
-      background: rgba(255, 255, 255, 0.4);
-      border-radius: 10px;
-      border: 1px solid var(--natsume-border);
+      position: relative;
+      padding: 1rem 36px 0.75rem 14px;
+      margin: 1.25rem 10px 0 10px;
+      background: transparent;
+      transition: transform var(--transition-fast);
     }
+    .local-sidebar .sidebar-workspace-row,
+    .local-sidebar .sidebar-folder-row {
+      font-size: 11px;
+      line-height: 1.4;
+      letter-spacing: 0.01em;
+    }
+    .local-sidebar .sidebar-workspace-row { color: var(--natsume-ink-light); margin-bottom: 4px; }
+    .local-sidebar .sidebar-folder-row { color: var(--natsume-ink); margin-bottom: 10px; }
+    .local-sidebar .sidebar-head .sidebar-workspace-name { font-weight: 600; color: var(--natsume-ink); }
+    .local-sidebar .sidebar-head #btnPickLocalDir {
+      width: 100%;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--natsume-ink);
+      background: rgba(143, 157, 143, 0.12);
+      border: 1px solid var(--natsume-border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .local-sidebar .sidebar-head #btnPickLocalDir:hover { background: rgba(143, 157, 143, 0.2); }
     .local-sidebar .sidebar-title {
       font-size: 0.9rem;
       font-weight: 600;
@@ -150,11 +185,11 @@
     }
     .local-sidebar .sidebar-foot {
       flex-shrink: 0;
-      padding: 0.6rem 0.75rem 0.85rem;
-      margin: 0 0.5rem 0.5rem 0.5rem;
-      background: rgba(255, 255, 255, 0.4);
-      border-radius: 10px;
-      border: 1px solid var(--natsume-border);
+      padding: 0.5rem 14px 0.75rem;
+      margin: 0 10px 10px 10px;
+      background: transparent;
+      font-size: 11px;
+      color: var(--natsume-ink-light);
     }
     .header {
       margin-bottom: 2rem;
@@ -176,7 +211,7 @@
       color: var(--natsume-green);
       text-decoration: none;
       border-bottom: 1px solid transparent;
-      transition: border-color 0.2s, color 0.2s;
+      transition: border-color var(--transition-fast), color var(--transition-fast);
     }
     .nav a:hover {
       color: var(--natsume-leaf);
@@ -185,10 +220,16 @@
     section {
       margin: 1.75rem 0;
       padding: 1.35rem 1.5rem;
-      background: var(--natsume-cream);
-      border: 1px solid var(--natsume-border);
-      border-radius: 12px;
-      box-shadow: 0 2px 12px var(--natsume-shadow);
+      background: rgba(235, 228, 216, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(212, 201, 184, 0.5);
+      border-radius: 14px;
+      box-shadow: 0 2px 16px rgba(74, 64, 53, 0.05);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+    }
+    section:hover {
+      box-shadow: 0 4px 24px rgba(74, 64, 53, 0.08);
     }
     section h2 {
       font-size: 1.15rem;
@@ -227,16 +268,21 @@
       font-family: inherit;
       font-size: 0.95rem;
       color: var(--natsume-ink);
-      background: var(--natsume-paper);
+      background: rgba(255, 255, 255, 0.8);
       border: 1px solid var(--natsume-border);
-      border-radius: 8px;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      border-radius: 10px;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+    }
+    input:hover,
+    select:hover {
+      background: rgba(255, 255, 255, 0.95);
     }
     input:focus,
     select:focus {
       outline: none;
       border-color: var(--natsume-green-soft);
-      box-shadow: 0 0 0 2px rgba(111, 125, 111, 0.15);
+      box-shadow: 0 0 0 3px rgba(111, 125, 111, 0.12);
+      background: rgba(255, 255, 255, 1);
     }
     input::placeholder {
       color: var(--natsume-border);
@@ -250,16 +296,37 @@
       color: var(--natsume-paper);
       background: var(--natsume-green);
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
-      box-shadow: 0 2px 6px var(--natsume-shadow);
+      transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+      box-shadow: 0 2px 8px rgba(74, 64, 53, 0.1);
     }
     button:hover {
       background: var(--natsume-leaf);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(74, 64, 53, 0.12);
     }
     button:active {
-      transform: translateY(1px);
+      transform: translateY(0) scale(0.98);
+      transition-duration: 0.1s;
+    }
+    button.btn-primary {
+      padding: 0.6rem 1.3rem;
+      font-weight: 600;
+      background: var(--natsume-leaf);
+      box-shadow: 0 2px 12px rgba(125, 139, 111, 0.3);
+    }
+    button.btn-primary:hover {
+      background: #6b7b5f;
+      box-shadow: 0 4px 16px rgba(125, 139, 111, 0.35);
+    }
+    button.btn-secondary {
+      background: var(--natsume-border);
+      color: var(--natsume-ink);
+    }
+    button.btn-secondary:hover {
+      background: var(--natsume-ink-light);
+      color: var(--natsume-paper);
     }
     pre {
       margin-top: 0.75rem;
@@ -272,6 +339,54 @@
       line-height: 1.5;
       color: var(--natsume-ink-light);
     }
+    .gen-cards-row, .btn-row-right { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; }
+    .gen-cards-row { margin-top: 0.9rem; }
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .quick-actions .qabtn {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.85rem;
+      background: var(--natsume-leaf);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform var(--transition-fast), filter var(--transition-fast);
+    }
+    .quick-actions .qabtn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .quick-actions .qabtn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .quick-actions .hint { color: var(--natsume-ink-light); font-size: 0.85rem; margin-left: 0.25rem; }
+    .card-editor {
+      width: 100%;
+      max-width: 100%;
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      padding: 0.6rem;
+      border: 1px solid var(--natsume-border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.6);
+      resize: vertical;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .card-editor:focus {
+      outline: none;
+      border-color: var(--natsume-green-soft);
+      box-shadow: 0 0 0 2px rgba(111, 125, 111, 0.1);
+    }
+    .sim-cards-container { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
+    .sim-card-block {
+      border: 1px solid rgba(212, 201, 184, 0.6);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.5);
+      padding: 0.75rem 1rem;
+      transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+    }
+    .sim-card-block:hover { box-shadow: 0 2px 12px rgba(74, 64, 53, 0.06); }
+    .sim-card-block .sim-card-head { font-weight: 600; color: var(--natsume-ink); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .sim-card-block .sim-card-head .sim-card-id { background: var(--natsume-leaf); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+    .sim-card-block .sim-card-section { margin-top: 0.5rem; }
+    .sim-card-block .sim-card-section-title { font-size: 0.8rem; color: var(--natsume-ink-light); margin-bottom: 0.2rem; }
+    .sim-card-block .sim-card-section-body { font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
     .msg {
       margin-top: 0.5rem;
       font-size: 0.9rem;
@@ -288,26 +403,38 @@
       background: transparent;
       color: var(--natsume-ink-light);
       box-shadow: none;
+      transition: background var(--transition-fast), color var(--transition-fast);
     }
-    .btn-icon:hover { background: var(--natsume-cream); color: var(--natsume-ink); }
+    .btn-icon:hover { background: rgba(143, 157, 143, 0.12); color: var(--natsume-ink); }
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(74, 64, 53, 0.35);
+      background: rgba(74, 64, 53, 0.25);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       z-index: 100;
       align-items: center;
       justify-content: center;
+      animation: fadeIn 0.25s var(--ease-out-quart);
     }
     .modal-overlay.show { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     .modal-panel {
-      background: var(--natsume-cream);
-      border: 1px solid var(--natsume-border);
-      border-radius: 12px;
-      box-shadow: 0 8px 32px var(--natsume-shadow);
+      background: rgba(235, 228, 216, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(212, 201, 184, 0.6);
+      border-radius: 16px;
+      box-shadow: 0 16px 48px rgba(74, 64, 53, 0.12);
       padding: 0;
       max-width: 420px;
       width: 90%;
+      animation: modalSlideIn 0.35s var(--ease-out-expo);
+    }
+    @keyframes modalSlideIn {
+      from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
     .modal-panel.settings-panel-large {
       max-width: min(90vw, 800px);
@@ -334,10 +461,10 @@
       background: none;
       border: none;
       cursor: pointer;
-      border-radius: 0;
+      border-radius: 8px;
       box-shadow: none;
-      margin: 0;
-      transition: background 0.15s, color 0.15s;
+      margin: 0 0.25rem;
+      transition: background var(--transition-fast), color var(--transition-fast);
     }
     .settings-nav-item:hover { background: rgba(143, 157, 143, 0.12); color: var(--natsume-ink); }
     .settings-nav-item.active { background: rgba(125, 139, 111, 0.2); color: var(--natsume-leaf); font-weight: 600; }
@@ -355,15 +482,21 @@
     .modal-panel .modal-close { float: right; margin: -0.25rem 0 0 0; }
     .drop-zone {
       border: 2px dashed var(--natsume-border);
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 1.25rem;
       text-align: center;
       color: var(--natsume-ink-light);
       font-size: 0.9rem;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
     }
-    .drop-zone:hover, .drop-zone.dragover { border-color: var(--natsume-green-soft); background: rgba(143, 157, 143, 0.08); }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--natsume-green-soft);
+      background: rgba(143, 157, 143, 0.08);
+    }
+    .path-drop-target {
+      transition: border-color var(--transition-fast), background var(--transition-fast);
+    }
     .path-drop-target.drag-over { border-color: var(--natsume-green-soft); background: rgba(143, 157, 143, 0.06); }
     .drop-zone input[type="file"] { display: none; }
     #scriptFile, #wallpaperFile { display: none !important; }
@@ -393,21 +526,32 @@
       max-height: none;
       overflow-x: auto;
       overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
       border: none;
       border-radius: 0;
-      margin: 0.5rem 0.5rem 0;
-      padding: 0.25rem 0;
+      margin: 0 10px;
+      padding: 4px 0;
       background: transparent;
+      font-size: 12px;
     }
+    .local-sidebar .file-list-item {
+      padding: 4px 10px 4px 8px;
+      margin: 0 4px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--natsume-ink);
+    }
+    .local-sidebar .file-list-item:hover { background: rgba(143, 157, 143, 0.14); }
+    .local-sidebar .file-list-item.selected { background: rgba(125, 139, 111, 0.22); }
     .file-list-item {
       padding: 0.35rem 0.5rem 0.35rem 0.75rem;
       font-size: 0.875rem;
       color: var(--natsume-ink);
       cursor: pointer;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       margin: 0 0.25rem 1px 0.25rem;
-      transition: background 0.15s;
+      transition: background var(--transition-fast);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -418,7 +562,16 @@
     .save-to-input { margin-top: 0.75rem; }
     .save-to-input label { display: inline; margin-left: 0.35rem; }
     .save-to-input input[type="text"] { margin-top: 0.35rem; }
-    .sidebar-tab { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; background: transparent; border: 1px solid var(--natsume-border); color: var(--natsume-ink); border-radius: 3px; }
+    .sidebar-tab {
+      padding: 0.2rem 0.5rem;
+      font-size: 0.8rem;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--natsume-border);
+      color: var(--natsume-ink);
+      border-radius: 6px;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
     .sidebar-tab:hover { background: rgba(143,157,143,0.15); }
     .sidebar-tab.active { background: var(--natsume-green-soft); color: var(--natsume-ink); }
     .local-sidebar .sidebar-head .breadcrumb {
@@ -461,10 +614,12 @@
     .ctx-menu {
       position: fixed;
       z-index: 200;
-      background: var(--natsume-cream);
-      border: 1px solid var(--natsume-border);
-      border-radius: 8px;
-      box-shadow: 0 4px 16px var(--natsume-shadow);
+      background: rgba(235, 228, 216, 0.95);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(212, 201, 184, 0.6);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(74, 64, 53, 0.12);
       padding: 0.25rem 0;
       min-width: 140px;
     }
@@ -473,6 +628,7 @@
       font-size: 0.9rem;
       cursor: pointer;
       color: var(--natsume-ink);
+      transition: background var(--transition-fast);
     }
     .ctx-menu-item:hover { background: rgba(143, 157, 143, 0.15); }
     #previewModal .modal-panel { max-width: min(95vw, 900px); width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; }
@@ -482,7 +638,7 @@
     #previewModal .preview-body pre { padding: 0.75rem; border-radius: 6px; overflow-x: auto; }
     .header, .local-sidebar, section, .main-content,
     .sidebar-resize-handle, .sidebar-collapse-btn, .sidebar-expand-tab {
-      transition: opacity 0.22s ease;
+      transition: opacity var(--transition-normal);
     }
     body.ui-fade-out .header,
     body.ui-fade-out .local-sidebar,
@@ -505,49 +661,191 @@
     body.ui-restoring .sidebar-resize-handle,
     body.ui-restoring .sidebar-collapse-btn,
     body.ui-restoring .sidebar-expand-tab { opacity: 0; }
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
-    ::-webkit-scrollbar-track { background: var(--natsume-cream); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb { background: var(--natsume-border); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--natsume-green-soft); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(212, 201, 184, 0.6);
+      border-radius: 10px;
+      border: 3px solid transparent;
+      background-clip: padding-box;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(143, 157, 143, 0.5); }
+    ::-webkit-scrollbar-thumb:active { background: var(--natsume-green-soft); }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+    .sim-sidebar {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: var(--sim-sidebar-width);
+      min-width: 280px;
+      max-width: 95vw;
+      height: 100vh;
+      background: rgba(235, 228, 216, 0.97);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-left: 1px solid rgba(212, 201, 184, 0.6);
+      box-shadow: -4px 0 24px rgba(74, 64, 53, 0.06);
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateX(100%);
+      transition: transform var(--transition-normal), box-shadow var(--transition-fast);
+    }
+    .sim-sidebar.open {
+      transform: translateX(0);
+    }
+    .sim-sidebar-head {
+      flex-shrink: 0;
+      position: relative;
+      padding: 0.75rem 36px 0.75rem 1rem;
+      border-bottom: 1px solid var(--natsume-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sim-sidebar-head h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--natsume-ink); }
+    .sim-sidebar-collapse-btn {
+      position: absolute;
+      top: 0.75rem;
+      right: 10px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--natsume-ink-light);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: color var(--transition-fast), background var(--transition-fast);
+    }
+    .sim-sidebar-collapse-btn:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
+    .sim-sidebar-collapse-btn:active { background: rgba(143, 157, 143, 0.2); }
+    .sim-sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 1rem;
+    }
+    .sim-progress {
+      font-size: 0.85rem;
+      color: var(--natsume-ink-light);
+      margin-bottom: 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed var(--natsume-border);
+    }
+    .sim-progress-title { font-weight: 600; color: var(--natsume-ink); margin-bottom: 0.4rem; }
+    .sim-progress-item { display: flex; align-items: center; gap: 0.4rem; margin: 0.2rem 0; }
+    .sim-progress-item.done { color: var(--natsume-green); }
+    .sim-sidebar-tab {
+      display: flex;
+      position: fixed;
+      right: 8px;
+      top: 16px;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      margin: 0;
+      align-items: center;
+      justify-content: center;
+      color: var(--natsume-ink-light);
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      z-index: 24;
+      transition: color var(--transition-fast), background var(--transition-fast);
+    }
+    .sim-sidebar-tab:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
+    .sim-sidebar-tab:active { background: rgba(143, 157, 143, 0.2); }
+    body.sim-sidebar-open .main-content { margin-right: var(--sim-sidebar-width); transition: margin-right var(--transition-normal); }
+    body.sim-sidebar-open .sim-sidebar-tab { display: none !important; }
+    .sim-sidebar-resize-handle {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 6px;
+      cursor: col-resize;
+      z-index: 26;
+      background: transparent;
+    }
+    .sim-sidebar-resize-handle:hover { background: rgba(107, 123, 107, 0.2); }
+    /* 可收起区块 */
+    .collapsible-section .section-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      margin: 0 0 0.6rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--natsume-border);
+      transition: color var(--transition-fast);
+    }
+    .collapsible-section .section-header:hover { color: var(--natsume-leaf); }
+    .collapsible-section .section-chevron {
+      font-size: 0.75rem;
+      color: var(--natsume-ink-light);
+      transition: transform var(--transition-fast);
+      flex-shrink: 0;
+    }
+    .collapsible-section.collapsed .section-chevron { transform: rotate(-90deg); }
+    .collapsible-section .section-header h2 {
+      margin: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+      flex: 1;
+    }
+    .collapsible-section .section-body {
+      transition: opacity var(--transition-fast);
+    }
+    .collapsible-section.collapsed .section-body {
+      display: none;
+    }
+    .collapsible-section.collapsed { padding-bottom: 0.75rem; }
+    .sidebar-workspace-name { font-weight: 600; color: var(--natsume-ink); }
+    #sidebarCurrentFolder { word-break: break-all; display: inline-block; max-width: 100%; }
   </style>
 </head>
 <body>
   <aside id="localSidebar" class="local-sidebar">
     <div class="sidebar-head">
-      <div class="sidebar-title">本地目录</div>
-      <div class="breadcrumb" style="margin-top:0.2rem;font-size:0.7rem">项目: <span id="currentWorkspaceLabel"></span></div>
-      <div style="display:flex;gap:0.25rem;margin-top:0.25rem;flex-wrap:wrap;">
-        <input type="text" id="projectNameInput" placeholder="输入项目名如 编译原理" style="flex:1;min-width:6rem;padding:0.2rem 0.4rem;font-size:0.8rem;" />
-        <button type="button" id="btnOpenProject">打开项目</button>
-      </div>
+      <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/></svg>
+      </button>
+      <div class="sidebar-workspace-row">工作区：<span id="currentWorkspaceLabel" class="sidebar-workspace-name"></span></div>
+      <div class="sidebar-folder-row">当前文件夹：<span id="sidebarCurrentFolder" class="breadcrumb">未择定</span></div>
       <button type="button" id="btnPickLocalDir">择定本地目录</button>
       <div id="dirPickerTip" class="file-list-item err" style="display:none; margin-top:0.35rem; font-size:0.85em;"></div>
-      <div id="localBreadcrumb" class="breadcrumb"></div>
-      <div style="display:flex;gap:0.25rem;margin-top:0.5rem;">
-        <button type="button" id="sidebarTabLocal" class="sidebar-tab active">本地目录</button>
-        <button type="button" id="sidebarTabWorkspace" class="sidebar-tab">工作区文件</button>
-      </div>
     </div>
     <div id="localPanel" class="sidebar-panel">
       <div id="localFileList" class="file-list">请先择定本地目录</div>
-    </div>
-    <div id="workspacePanel" class="sidebar-panel" style="display:none;">
-      <button type="button" id="btnRefreshWorkspaceFiles" style="margin-bottom:0.35rem;">刷新</button>
-      <div id="workspaceFileList" class="file-list">点击「刷新」加载工作区 input/output 文件</div>
     </div>
     <div class="sidebar-foot">
       <div id="localSelected" class="local-selected"></div>
     </div>
   </aside>
   <div id="sidebarResizeHandle" class="sidebar-resize-handle" title="拖拽调整宽度"></div>
-  <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="收起侧边栏">◀</button>
-  <button type="button" id="sidebarExpandTab" class="sidebar-expand-tab" title="展开侧边栏">▶</button>
+  <button type="button" id="sidebarExpandTab" class="sidebar-expand-tab" title="展开侧边栏" aria-label="展开侧边栏">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="4" x2="16" y2="20"/></svg>
+  </button>
   <div class="main-content">
   <div class="main-content-inner">
   <header class="header">
     <h1>EduFlow 交互控制台</h1>
     <p class="nav">
       <a href="/docs">API 文档 (OpenAPI)</a> · <a href="/api/health">健康检查</a>
+      <button type="button" id="btnSimNav" class="btn-icon" title="打开仿真侧边栏">仿真</button>
       <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
     </p>
   </header>
@@ -562,7 +860,7 @@
         <button type="button" id="btnCloseSettings" class="modal-close btn-icon">×</button>
         <div id="settingsPageLlm" class="settings-panel-page active">
           <h3>API 与模型</h3>
-          <p class="hint">解析剧本、生成卡片、Trainset 构建、DSPy 优化均使用此处配置。请填写您自己的 API Key。</p>
+          <p class="hint">解析剧本、生成卡片、Trainset 构建与迭代优化均使用此处配置。请填写您自己的 API Key。</p>
           <label>API Key</label>
           <input type="password" id="llmApiKey" placeholder="留空则保持已保存的值" autocomplete="off">
           <span id="llmApiKeyMasked" class="hint"></span>
@@ -593,6 +891,7 @@
     </div>
   </div>
 
+  <div id="mainConsoleView">
   <div id="previewModal" class="modal-overlay">
     <div class="modal-panel">
       <div class="preview-header">
@@ -603,52 +902,77 @@
     </div>
   </div>
 
-  <section>
-  <h2>1. 剧本、分析结构并生成教学卡片</h2>
-  <p>从左侧目录选取剧本，或将文件拖入下方区域；系统会解析结构。解析完成后点击「生成卡片」生成教学卡片。</p>
+  <section class="collapsible-section" data-section="1">
+  <div class="section-header" role="button" tabindex="0" aria-expanded="true">
+    <span class="section-chevron">▼</span>
+    <h2>1. 剧本与生成（含迭代优化）</h2>
+  </div>
+  <div class="section-body">
+  <p>从左侧目录选取剧本或拖入下方；解析完成后点击「生成卡片」。可选：对卡片做迭代优化（约 15–60 分钟）。<strong>推荐流程</strong>：上传剧本 → 生成卡片 →（可选）迭代优化 → 右侧栏闭环验证 → 智慧树注入。</p>
   <label>拖入或点选剧本</label>
-  <div id="scriptDropZone" class="drop-zone">将 .md / .docx / .pdf 拖至此处，或点击选取</div>
-  <input type="file" id="scriptFile" accept=".md,.docx,.pdf">
-  <label style="margin-top:0.9rem;">生成框架</label>
-  <select id="frameworkId"></select>
-  <button type="button" id="btnGenCards">生成卡片</button>
+  <div id="scriptDropZone" class="drop-zone">将 .md / .docx / .doc / .pdf 拖至此处，或点击选取</div>
+  <input type="file" id="scriptFile" accept=".md,.docx,.doc,.pdf">
+  <div class="gen-cards-row">
+    <button type="button" id="btnGenCards" disabled title="请先上传并解析剧本，再生成卡片">生成卡片</button>
+  </div>
   <div id="uploadMsg" class="msg"></div>
-  </section>
+  <div id="uploadQuickActions" class="quick-actions" style="display:none;margin-top:0.5rem;"></div>
 
-  <section>
-  <h2>2. 学生模拟测试（自动模式）</h2>
-    <label>卡片文件路径（相对项目根，可拖入左侧文件填入）</label>
-    <input type="text" id="cardsPath" class="path-drop-target" placeholder="output/cards_output_20260202_170046.md">
-    <label>人设</label>
-    <select id="personaId"></select>
-    <button id="btnSimulate">运行模拟</button>
-    <div id="simMsg" class="msg"></div>
-    <pre id="simResult" style="display:none;"></pre>
-  </section>
-
-  <section>
-  <h2>3. 内部评估（会话日志 → 评估报告）</h2>
-    <p>输入为模拟对话记录（JSON），输出为多维度评估报告。可保存为导出文件供第 6 步优化器使用。</p>
-    <label>会话日志路径（可拖入左侧工作区文件填入）</label>
-    <input type="text" id="logPath" class="path-drop-target" placeholder="simulator_output/logs/session_20260202_123456.json">
-    <button id="btnEvaluate">按路径评估</button>
-    <label style="margin-left:0.5rem;"><input type="checkbox" id="evalSaveToExport"> 保存为导出文件（output/optimizer/export_score.*）</label>
-    <div style="margin-top:0.5rem;">
-      <label>或拖入会话日志文件</label>
-      <div id="evalLogDropZone" class="drop-zone" style="max-width:28rem;">将 .json 会话日志拖至此处，或点击选取</div>
-      <input type="file" id="evalLogFile" accept=".json" style="display:none">
-      <label style="margin-top:0.35rem;"><input type="checkbox" id="evalFileSaveToExport"> 保存为导出文件</label>
+  <div class="closed-loop-subsection" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--natsume-border);">
+    <h3 style="font-size:1rem;margin:0 0 0.5rem 0;color:var(--natsume-ink);">迭代优化</h3>
+    <label>Trainset 路径</label>
+    <input type="text" id="trainsetPath" class="path-drop-target" placeholder="output/optimizer/trainset.json">
+    <label>Devset 路径（可选）</label>
+    <input type="text" id="optimizerDevsetPath" class="path-drop-target" placeholder="">
+    <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.6rem;">
+      <label style="margin:0;"><input type="checkbox" id="optimizerUseAutoEval" checked> 闭环模式（推荐）</label>
+      <label>优化器</label>
+      <select id="optimizerType" style="width:auto;"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
     </div>
-    <div id="evalMsg" class="msg"></div>
-    <pre id="evalResult" style="display:none;"></pre>
+    <div class="btn-row-right" style="margin-top:0.5rem;">
+      <button type="button" id="btnRunOptimizer" class="btn-primary">运行优化</button>
+    </div>
+    <div id="optimizerProgressWrap" style="display:none;margin-top:0.5rem;">
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--natsume-ink-light);">
+        <span id="optimizerProgressMsg">准备中…</span>
+        <span id="optimizerProgressPct">0%</span>
+      </div>
+      <div style="height:6px;background:var(--natsume-border);border-radius:3px;overflow:hidden;margin-top:0.25rem;">
+        <div id="optimizerProgressBar" style="height:100%;width:0%;background:var(--natsume-leaf);transition:width 0.3s;"></div>
+      </div>
+    </div>
+    <details id="optimizerAdvancedDetails" style="margin-top:0.6rem;border:1px solid var(--natsume-border);border-radius:8px;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.3);">
+      <summary style="cursor:pointer;font-size:0.9rem;color:var(--natsume-ink-light);">高级：外部评估（将废弃）</summary>
+      <div style="margin-top:0.6rem;">
+        <label>导出文件路径</label>
+        <input type="text" id="optimizerExportPath" class="path-drop-target" placeholder="output/optimizer/export_score.json">
+        <div class="upload-report-wrap" style="margin-top:0.5rem;">
+          <label>上传外部评估报告</label>
+          <div id="exportReportDropZone" class="drop-zone" style="max-width:28rem;">将 .md / .json / .txt 报告拖至此处，或点击选取</div>
+          <input type="file" id="exportReportFile" accept=".md,.json,.txt" style="display:none">
+          <div id="uploadExportReportMsg" class="msg"></div>
+        </div>
+      </div>
+    </details>
+    <div id="optimizerMsg" class="msg"></div>
+    <pre id="optimizerResult" style="display:none;"></pre>
+  </div>
+  </div>
   </section>
 
-  <section>
-  <h2>4. 平台配置（智慧树）</h2>
-    <p>填写或修改后点击「保存配置」会写入当前工作区，后续「执行注入」将使用此配置。若已在 .env 中配置，可点击「从 .env 恢复」覆盖工作区。</p>
+  <section class="collapsible-section" data-section="2">
+  <div class="section-header" role="button" tabindex="0" aria-expanded="true">
+    <span class="section-chevron">▼</span>
+    <h2>2. 智慧树平台（配置与注入）</h2>
+  </div>
+  <div class="section-body">
+    <p>配置写入当前工作区后，「执行注入」将使用此配置。若已在 .env 中配置，可点击「从 .env 恢复」。</p>
+    <h3 style="font-size:1rem;margin:0 0 0.5rem 0;color:var(--natsume-ink);">平台配置</h3>
     <label>从智慧树页面 URL 一键填充课程/任务 ID</label>
     <input type="text" id="setProjectUrl" placeholder="https://hike-teaching-center.polymas.com/.../ability-training/create?trainTaskId=xxx">
-    <button type="button" id="btnSetProject">从 URL 设置项目</button>
+    <div class="btn-row-right">
+      <button type="button" id="btnSetProject">从 URL 设置项目</button>
+    </div>
     <div id="setProjectMsg" class="msg"></div>
     <label>PLATFORM_BASE_URL</label>
     <input type="text" id="cfgBaseUrl" placeholder="https://cloudapi.polymas.com">
@@ -664,17 +988,17 @@
     <input type="text" id="cfgStartNodeId" placeholder="">
     <label>PLATFORM_END_NODE_ID（训练结束节点）</label>
     <input type="text" id="cfgEndNodeId" placeholder="">
-    <button type="button" id="btnLoadConfig">加载当前配置</button>
-    <button type="button" id="btnSaveConfig">保存配置</button>
-    <button type="button" id="btnResetToEnv">从 .env 恢复</button>
+    <div class="gen-cards-row" style="margin-top:0.5rem;">
+      <button type="button" id="btnLoadConfig">加载当前配置</button>
+      <button type="button" id="btnSaveConfig">保存配置</button>
+      <button type="button" id="btnResetToEnv">从 .env 恢复</button>
+    </div>
     <div id="configMsg" class="msg"></div>
-  </section>
 
-  <section>
-  <h2>5. 注入平台（智慧树）</h2>
-    <p>将已生成的卡片 Markdown 推送到智慧树平台；请先在「4. 平台配置」中填写并保存。</p>
-    <label>卡片文件路径（相对项目根，可拖入左侧文件填入）</label>
-    <input type="text" id="injectCardsPath" class="path-drop-target" placeholder="output/cards_output_20260202_170046.md">
+    <h3 style="font-size:1rem;margin:1.25rem 0 0.5rem 0;color:var(--natsume-ink);">注入平台</h3>
+    <p class="hint" style="margin-top:0;">将卡片 Markdown 推送到智慧树；请先保存上方配置。</p>
+    <label>卡片文件路径</label>
+    <input type="text" id="injectCardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_20260202_170046.md">
     <label>任务名称（可选，为空则不更新任务配置）</label>
     <input type="text" id="injectTaskName" placeholder="">
     <label>任务描述（可选）</label>
@@ -682,36 +1006,110 @@
     <label style="display:flex;align-items:center;gap:0.4rem;">
       <input type="checkbox" id="injectOverwrite"> 覆写平台现有卡片（若已存在则默认阻止）
     </label>
-    <button id="btnInjectPreview">预览注入</button>
-    <button id="btnInjectRun">执行注入</button>
+    <div class="gen-cards-row" style="margin-top:0.5rem;">
+      <button id="btnInjectPreview">预览注入</button>
+      <button id="btnInjectRun">执行注入</button>
+    </div>
     <div id="injectMsg" class="msg"></div>
     <pre id="injectResult" style="display:none;"></pre>
+    <datalist id="cardsPathOptions"></datalist>
+  </div>
   </section>
+  </div>
 
-  <section>
-  <h2>6. Trainset 与 DSPy 优化</h2>
-    <p>trainset.json 由第 1 步解析剧本时自动写入。可在此校验结构后运行 DSPy 优化（需安装 dspy-ai）。路径均相对当前工作区。</p>
-    <label>Trainset 路径（可拖入左侧文件填入）</label>
-    <input type="text" id="trainsetPath" class="path-drop-target" placeholder="output/optimizer/trainset.json">
-    <button type="button" id="btnValidateTrainset">校验</button>
-    <div id="validateTrainsetMsg" class="msg"></div>
-    <pre id="validateTrainsetResult" style="display:none;"></pre>
-    <label>Devset 路径（可选，可拖入左侧文件填入）</label>
-    <input type="text" id="optimizerDevsetPath" class="path-drop-target" placeholder="">
-    <label>导出文件路径（优化器读取评分的报告，可拖入左侧工作区文件填入）</label>
-    <input type="text" id="optimizerExportPath" class="path-drop-target" placeholder="output/optimizer/export_score.json">
-    <div class="upload-report-wrap" style="margin-top:0.6rem;">
-      <label>上传外部评估报告</label>
-      <div id="exportReportDropZone" class="drop-zone" style="max-width:28rem;">将 .md / .json / .txt 报告拖至此处，或点击选取</div>
-      <input type="file" id="exportReportFile" accept=".md,.json,.txt" style="display:none">
-      <div id="uploadExportReportMsg" class="msg"></div>
+  <button type="button" id="simSidebarTab" class="sim-sidebar-tab" title="展开仿真侧边栏" aria-label="展开仿真侧边栏">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/></svg>
+  </button>
+  <aside id="simSidebar" class="sim-sidebar">
+    <div id="simSidebarResizeHandle" class="sim-sidebar-resize-handle" title="拖拽调整宽度"></div>
+    <div class="sim-sidebar-head">
+      <button type="button" id="simSidebarClose" class="sim-sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="4" x2="16" y2="20"/></svg>
+      </button>
+      <h3>仿真</h3>
     </div>
-    <label>优化器类型</label>
-    <select id="optimizerType"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
-    <button type="button" id="btnRunOptimizer">运行优化</button>
-    <div id="optimizerMsg" class="msg"></div>
-    <pre id="optimizerResult" style="display:none;"></pre>
-  </section>
+    <div class="sim-sidebar-body">
+      <div class="sim-progress">
+        <div class="sim-progress-title">项目进度</div>
+        <div id="simProgressList">
+          <div class="sim-progress-item" data-step="1"><span>○</span> 1. 剧本解析</div>
+          <div class="sim-progress-item" data-step="2"><span>○</span> 2. 卡片生成</div>
+          <div class="sim-progress-item" data-step="3"><span>○</span> 3. 闭环验证</div>
+          <div class="sim-progress-item" data-step="4"><span>○</span> 4. 闭环优化</div>
+          <div class="sim-progress-item" data-step="5"><span>○</span> 5. 注入平台</div>
+        </div>
+      </div>
+      <div class="closed-loop-subsection" style="margin-bottom:1rem;">
+        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单次验证（闭环 / 模拟）</h4>
+        <label>卡片文件路径</label>
+        <input type="text" id="cardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_20260202_170046.md" style="width:100%;">
+        <label style="margin-top:0.4rem;">人设</label>
+        <select id="personaId" style="width:100%;"></select>
+        <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <button id="btnClosedLoop" class="btn-primary">闭环运行</button>
+          <label style="margin:0;"><input type="checkbox" id="closedLoopSaveExport" checked> 保存为优化器导出</label>
+        </div>
+        <div style="margin-top:0.35rem;">
+          <button id="btnSimulate" class="btn-secondary">仅运行模拟</button>
+        </div>
+        <div id="simMsg" class="msg"></div>
+        <pre id="simResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">卡片编辑</h4>
+        <label>加载卡片</label>
+        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+          <input type="text" id="cardEditPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="flex:1;min-width:8rem;">
+          <button type="button" id="btnLoadCardEdit">加载</button>
+          <button type="button" id="btnLoadFromCardsPath" class="qabtn" style="padding:0.25rem 0.5rem;font-size:0.85rem;">从主界面路径</button>
+        </div>
+        <label style="margin-top:0.5rem;">卡片内容（可编辑）</label>
+        <textarea id="cardEditContent" class="card-editor" rows="12" placeholder="加载卡片后在此编辑…"></textarea>
+        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <input type="text" id="cardEditSavePath" class="path-drop-target" list="cardsPathOptions" placeholder="保存路径" style="width:10rem;">
+          <button type="button" id="btnSaveCardEdit">保存</button>
+          <button type="button" id="btnPlayFromEditor">一键仿真</button>
+          <select id="cardEditPersonaId" style="width:auto;"></select>
+        </div>
+        <div id="cardEditMsg" class="msg"></div>
+        <pre id="cardEditResult" style="display:none;font-size:0.8rem;max-height:120px;"></pre>
+      </div>
+      <div>
+        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">按步骤仿真</h4>
+        <p class="hint" style="font-size:0.85rem;">加载卡片后分块展示，可直接运行模拟。</p>
+        <div style="display:flex;gap:0.35rem;margin-bottom:0.5rem;">
+          <input type="text" id="simModulePath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="flex:1;min-width:6rem;">
+          <button type="button" id="simModuleLoad">加载</button>
+        </div>
+        <div id="simModuleCards" class="sim-cards-container"></div>
+        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <select id="simModulePersonaId" style="width:auto;"></select>
+          <button type="button" id="simModuleRun">运行模拟</button>
+        </div>
+        <div id="simModuleMsg" class="msg"></div>
+        <pre id="simModuleResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
+      </div>
+      <div class="closed-loop-subsection" style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--natsume-border);">
+        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单独评估</h4>
+        <p class="hint" style="font-size:0.85rem;">对已有会话日志做评估；闭环运行已含评估，此处用于单独跑某次日志。</p>
+        <label>会话日志路径</label>
+        <input type="text" id="logPath" class="path-drop-target" list="logPathOptions" placeholder="output/simulator_output/logs/session_xxx.json" style="width:100%;">
+        <datalist id="logPathOptions"></datalist>
+        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <button id="btnEvaluate">按路径评估</button>
+          <label style="margin:0;"><input type="checkbox" id="evalSaveToExport"> 保存为导出文件</label>
+        </div>
+        <div style="margin-top:0.5rem;">
+          <label>或拖入会话日志</label>
+          <div id="evalLogDropZone" class="drop-zone" style="max-width:100%;">将 .json 拖至此处或点击选取</div>
+          <input type="file" id="evalLogFile" accept=".json" style="display:none">
+          <label style="margin-top:0.35rem;"><input type="checkbox" id="evalFileSaveToExport"> 保存为导出文件</label>
+        </div>
+        <div id="evalMsg" class="msg"></div>
+        <pre id="evalResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
+      </div>
+    </div>
+  </aside>
   </div>
   </div>
 
@@ -721,7 +1119,7 @@
     const WALLPAPER_OVERLAY = 'linear-gradient(rgba(245, 240, 230, 0.88), rgba(245, 240, 230, 0.9)), ';
     let lastUploadData = null;
 
-    (function ensureWorkspaceInUrl() {
+    function syncWorkspaceFromUrl() {
       var m = /^\/w\/([^/]+)\/?$/.exec(location.pathname);
       if (m) {
         try {
@@ -729,32 +1127,45 @@
         } catch (e) {
           window.WORKSPACE_ID = m[1];
         }
-        return;
-      }
-      var id = '';
-      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-        id = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
       } else {
-        for (var i = 0; i < 12; i++) id += 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)];
+        window.WORKSPACE_ID = 'demo';
+        history.replaceState(null, '', '/w/demo');
       }
-      window.WORKSPACE_ID = id;
-      history.replaceState(null, '', '/w/' + id);
-    })();
-    function getWorkspaceId() { return window.WORKSPACE_ID || ''; }
-    (function initWorkspaceLabel() {
       var wl = document.getElementById('currentWorkspaceLabel');
       if (wl) wl.textContent = getWorkspaceId();
+      if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+    }
+    (function ensureWorkspaceInUrl() {
+      syncWorkspaceFromUrl();
+      window.addEventListener('popstate', syncWorkspaceFromUrl);
+      document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') syncWorkspaceFromUrl();
+      });
     })();
-    (function initOpenProjectBtn() {
-      var btn = document.getElementById('btnOpenProject');
-      var input = document.getElementById('projectNameInput');
-      if (btn && input) {
-        btn.onclick = function() {
-          var name = input.value.trim();
-          if (name) switchWorkspaceByProjectName(name);
+    function getWorkspaceId() { return window.WORKSPACE_ID || ''; }
+    (function initCollapsibleSections() {
+      var KEY = 'eduflow_sections_collapsed';
+      try {
+        var saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      } catch (e) { var saved = {}; }
+      document.querySelectorAll('.collapsible-section').forEach(function(el) {
+        var id = el.dataset.section;
+        var header = el.querySelector('.section-header');
+        if (!header) return;
+        if (saved[id]) el.classList.add('collapsed');
+        header.setAttribute('aria-expanded', el.classList.contains('collapsed') ? 'false' : 'true');
+        header.onclick = function() {
+          el.classList.toggle('collapsed');
+          header.setAttribute('aria-expanded', el.classList.contains('collapsed') ? 'false' : 'true');
+          try {
+            saved[id] = el.classList.contains('collapsed');
+            localStorage.setItem(KEY, JSON.stringify(saved));
+          } catch (e) {}
         };
-        input.onkeydown = function(e) { if (e.key === 'Enter') btn.click(); };
-      }
+        header.onkeydown = function(e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+        };
+      });
     })();
     function showWorkspaceToast(id) {
       var wl = document.getElementById('currentWorkspaceLabel');
@@ -779,6 +1190,12 @@
       var base = (typeof API !== 'undefined' && API) ? API : (window.location.origin || '');
       var url = path.startsWith('http') ? path : (base.replace(/\/$/, '') + (path.startsWith('/') ? path : '/' + path));
       return fetch(url, options);
+    }
+    /** 安全解析响应体为 JSON；若为非 JSON（如 500 返回的 HTML/文本）则返回 { detail: 文本 }，避免 "Unexpected token" 崩溃 */
+    function safeResponseJson(r) {
+      return r.text().then(function(text) {
+        try { return JSON.parse(text); } catch (e) { return { detail: text || r.statusText || 'Invalid response' }; }
+      });
     }
 
     function applyWallpaper(dataUrl) {
@@ -815,7 +1232,7 @@
       }
     }
     function loadLlmConfig() {
-      apiFetch('/api/llm/config').then(function(r) { return r.json(); }).then(function(data) {
+      apiFetch('/api/llm/config').then(function(r) { return safeResponseJson(r); }).then(function(data) {
         document.getElementById('llmModelType').value = data.model_type || 'deepseek';
         document.getElementById('llmApiKey').value = '';
         document.getElementById('llmApiKeyMasked').textContent = data.has_api_key ? '已保存 Key: ' + (data.api_key_masked || '***') : '未设置';
@@ -839,7 +1256,7 @@
       }
       document.getElementById('llmConfigMsg').textContent = '保存中…';
       apiFetch('/api/llm/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function(r) { return r.json(); })
+        .then(function(r) { return safeResponseJson(r); })
         .then(function(data) {
           document.getElementById('llmConfigMsg').textContent = data.message || '已保存';
           loadLlmConfig();
@@ -974,7 +1391,7 @@
     var handleStack = [];
     var pathNames = [];
     var treeRoot = null;
-    var ALLOWED_SCRIPT_EXT = ['.md', '.docx', '.pdf', '.json'];
+    var ALLOWED_SCRIPT_EXT = ['.md', '.docx', '.doc', '.pdf', '.json'];
     var IDB_NAME = 'EduFlowIDB';
     var IDB_STORE = 'handles';
     var LAST_DIR_KEY = 'lastDir';
@@ -1067,15 +1484,15 @@
     }
     function renderTree() {
       var el = document.getElementById('localFileList');
-      var bread = document.getElementById('localBreadcrumb');
+      var folderLabel = document.getElementById('sidebarCurrentFolder');
       if (!treeRoot) {
-        bread.innerHTML = '';
+        if (folderLabel) folderLabel.textContent = '未择定';
         el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">请先择定本地目录</div>';
         el._treeNodes = [];
         el._fileHandles = [];
         return;
       }
-      bread.innerHTML = esc(treeRoot.name);
+      if (folderLabel) folderLabel.textContent = treeRoot.name;
       var flat = [];
       function collect(node, depth, parentPath) {
         if (!node) return;
@@ -1151,18 +1568,31 @@
       var msg = document.getElementById('uploadMsg');
       msg.textContent = '解析文件中…';
       msg.classList.remove('err');
+      lastUploadData = null;
+      var genBtn = document.getElementById('btnGenCards');
+      if (genBtn) {
+        genBtn.disabled = true;
+      }
       try {
         var fd = new FormData();
         fd.append('file', file);
-        msg.textContent = '解析与结构中…（首次约 10–30 秒，同内容会走缓存）';
+        msg.textContent = '解析与分幕中…（首次约 10–30 秒，同内容会走缓存）';
         var r = await apiFetch('/api/script/upload', { method: 'POST', body: fd });
-        var d = await r.json();
+        var d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         lastUploadData = d;
-        msg.textContent = '分析完成：' + (d.stages_count || 0) + ' 个阶段。请点击「生成卡片」。';
+        msg.textContent = '分析完成：识别出 ' + (d.stages_count || 0) + ' 个阶段。现在可以点击「生成卡片」，再依次进行学生模拟、评估和平台注入。';
+        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({1: true});
+        if (genBtn) {
+          genBtn.disabled = false;
+        }
       } catch (err) {
         msg.classList.add('err');
         msg.innerHTML = '<span class="err">' + (err.message || String(err)) + '</span>';
+        lastUploadData = null;
+        if (genBtn) {
+          genBtn.disabled = true;
+        }
       }
     }
 
@@ -1217,7 +1647,7 @@
       }
       if (fileHandle) {
         var lower = fileName.toLowerCase();
-        if (lower.endsWith('.md') || lower.endsWith('.docx')) {
+        if (lower.endsWith('.md') || lower.endsWith('.docx') || lower.endsWith('.doc')) {
           var previewItem = document.createElement('div');
           previewItem.className = 'ctx-menu-item';
           previewItem.textContent = '在页面内预览';
@@ -1287,6 +1717,8 @@
           } else {
             bodyEl.innerHTML = '<p class="err">需要 mammoth.js 才能预览 Word 文档</p>';
           }
+        } else if (lower.endsWith('.doc')) {
+          bodyEl.innerHTML = '<p>.doc 格式暂不支持页面内预览，请另存为 .docx 后预览，或下载后用 Word 打开。</p>';
         } else {
           bodyEl.textContent = '不支持预览该格式';
         }
@@ -1412,24 +1844,18 @@
     var lastFocusedPathInput = null;
     var workspaceFilesCache = { input: [], output: [] };
     function refreshWorkspaceFileList() {
-      var listEl = document.getElementById('workspaceFileList');
-      if (!listEl) return;
-      listEl.innerHTML = '<div class="file-list-item" style="color:var(--natsume-ink-light)">加载中…</div>';
       Promise.all([
-        apiFetch('/api/input/files').then(function(r) { return r.json(); }),
-        apiFetch('/api/output/files').then(function(r) { return r.json(); })
+        apiFetch('/api/input/files').then(function(r) { return safeResponseJson(r); }),
+        apiFetch('/api/output/files').then(function(r) { return safeResponseJson(r); })
       ]).then(function(results) {
         var inputList = (results[0] && results[0].files) ? results[0].files : [];
         var outputList = (results[1] && results[1].files) ? results[1].files : [];
         workspaceFilesCache = { input: inputList, output: outputList };
         renderWorkspaceFileList();
-      }).catch(function(err) {
-        listEl.innerHTML = '<div class="file-list-item err">' + (err.message || '加载失败') + '</div>';
-      });
+      }).catch(function() {});
     }
     function renderWorkspaceFileList() {
       var listEl = document.getElementById('workspaceFileList');
-      if (!listEl) return;
       var inp = workspaceFilesCache.input || [];
       var out = workspaceFilesCache.output || [];
       var html = '';
@@ -1451,71 +1877,91 @@
           });
         }
       } else {
-        html = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">无文件，或点击「刷新」</div>';
+        html = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">无文件</div>';
       }
-      listEl.innerHTML = html || '';
-      listEl.onclick = function(e) {
-        var item = e.target.closest('.file-list-item.file[data-path]');
-        if (!item) return;
-        var path = item.getAttribute('data-path');
-        if (path && lastFocusedPathInput) {
-          lastFocusedPathInput.value = path;
-          lastFocusedPathInput = null;
-        }
-      };
-      listEl.ondragstart = function(e) {
-        var item = e.target.closest('.file-list-item.file[data-path]');
-        if (!item) return;
-        e.dataTransfer.setData('text/plain', 'eduflow-file');
-        e.dataTransfer.effectAllowed = 'copy';
-        window._eduflowDraggedPath = item.getAttribute('data-path') || '';
-      };
-      listEl.ondragend = function() { window._eduflowDraggedPath = null; };
+      if (listEl) {
+        listEl.innerHTML = html || '';
+        listEl.onclick = function(e) {
+          var item = e.target.closest('.file-list-item.file[data-path]');
+          if (!item) return;
+          var path = item.getAttribute('data-path');
+          if (path && lastFocusedPathInput) {
+            lastFocusedPathInput.value = (typeof normalizePathForBackend === 'function' ? normalizePathForBackend(path) : path);
+            lastFocusedPathInput = null;
+          }
+        };
+        listEl.ondragstart = function(e) {
+          var item = e.target.closest('.file-list-item.file[data-path]');
+          if (!item) return;
+          e.dataTransfer.setData('text/plain', 'eduflow-file');
+          e.dataTransfer.effectAllowed = 'copy';
+          window._eduflowDraggedPath = item.getAttribute('data-path') || '';
+        };
+        listEl.ondragend = function() { window._eduflowDraggedPath = null; };
+      }
+      updatePathDatalists();
     }
-    document.getElementById('sidebarTabLocal').onclick = function() {
-      document.getElementById('sidebarTabLocal').classList.add('active');
-      document.getElementById('sidebarTabWorkspace').classList.remove('active');
-      document.getElementById('localPanel').style.display = 'block';
-      document.getElementById('workspacePanel').style.display = 'none';
-    };
-    document.getElementById('sidebarTabWorkspace').onclick = function() {
-      document.getElementById('sidebarTabWorkspace').classList.add('active');
-      document.getElementById('sidebarTabLocal').classList.remove('active');
-      document.getElementById('localPanel').style.display = 'none';
-      document.getElementById('workspacePanel').style.display = 'block';
-      if (!workspaceFilesCache.output.length && !workspaceFilesCache.input.length) refreshWorkspaceFileList();
-    };
-    document.getElementById('btnRefreshWorkspaceFiles').onclick = function() { refreshWorkspaceFileList(); };
+    function updatePathDatalists() {
+      var out = workspaceFilesCache.output || [];
+      var cardsDl = document.getElementById('cardsPathOptions');
+      var logDl = document.getElementById('logPathOptions');
+      if (cardsDl) {
+        cardsDl.innerHTML = out.filter(function(f) { return (f.path || '').toLowerCase().endsWith('.md'); }).map(function(f) {
+          var p = (f.path || '').replace(/^output\/?/, 'output/');
+          return '<option value="' + p.replace(/"/g, '&quot;') + '">';
+        }).join('');
+      }
+      if (logDl) {
+        logDl.innerHTML = out.filter(function(f) { return (f.path || '').toLowerCase().endsWith('.json'); }).map(function(f) {
+          var p = (f.path || '').replace(/^output\/?/, 'output/');
+          return '<option value="' + p.replace(/"/g, '&quot;') + '">';
+        }).join('');
+      }
+    }
+    refreshWorkspaceFileList();
 
-    async function loadFrameworks() {
-      const r = await apiFetch( '/api/frameworks');
-      const d = await r.json();
-      const sel = document.getElementById('frameworkId');
-      sel.innerHTML = (d.frameworks || []).map(f => '<option value="' + f.id + '">' + (f.name || f.id) + '</option>').join('') || '<option value="default">default</option>';
-    }
     async function loadPersonas() {
       const r = await apiFetch( '/api/personas');
-      const d = await r.json();
+      const d = await safeResponseJson(r);
       const sel = document.getElementById('personaId');
       const opts = (d.presets || []).map(p => '<option value="' + p + '">' + p + '</option>');
       (d.custom || []).forEach(c => opts.push('<option value="' + c + '">' + c + '</option>'));
       sel.innerHTML = opts.join('') || '<option value="excellent">excellent</option>';
+      var cardEditSel = document.getElementById('cardEditPersonaId');
+      if (cardEditSel) cardEditSel.innerHTML = sel.innerHTML;
+      var simPersonaSel = document.getElementById('simModulePersonaId');
+      if (simPersonaSel) simPersonaSel.innerHTML = sel.innerHTML;
     }
-    loadFrameworks();
     loadPersonas();
 
+    var lastLoadedPlatformConfig = {};
+    function setPlatformInputPlaceholder(id, value) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.placeholder = value || '';
+      el.value = '';
+    }
     async function loadPlatformConfig() {
       try {
         const r = await apiFetch( '/api/platform/config');
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        document.getElementById('cfgBaseUrl').value = d.base_url || '';
-        document.getElementById('cfgCookie').value = d.cookie || '';
-        document.getElementById('cfgAuthorization').value = d.authorization || '';
-        document.getElementById('cfgCourseId').value = d.course_id || '';
-        document.getElementById('cfgTrainTaskId').value = d.train_task_id || '';
-        document.getElementById('cfgStartNodeId').value = d.start_node_id || '';
-        document.getElementById('cfgEndNodeId').value = d.end_node_id || '';
+        lastLoadedPlatformConfig = {
+          base_url: d.base_url || '',
+          cookie: d.cookie || '',
+          authorization: d.authorization || '',
+          course_id: d.course_id || '',
+          train_task_id: d.train_task_id || '',
+          start_node_id: d.start_node_id || '',
+          end_node_id: d.end_node_id || '',
+        };
+        setPlatformInputPlaceholder('cfgBaseUrl', lastLoadedPlatformConfig.base_url);
+        setPlatformInputPlaceholder('cfgCookie', lastLoadedPlatformConfig.cookie);
+        setPlatformInputPlaceholder('cfgAuthorization', lastLoadedPlatformConfig.authorization);
+        setPlatformInputPlaceholder('cfgCourseId', lastLoadedPlatformConfig.course_id);
+        setPlatformInputPlaceholder('cfgTrainTaskId', lastLoadedPlatformConfig.train_task_id);
+        setPlatformInputPlaceholder('cfgStartNodeId', lastLoadedPlatformConfig.start_node_id);
+        setPlatformInputPlaceholder('cfgEndNodeId', lastLoadedPlatformConfig.end_node_id);
         document.getElementById('configMsg').textContent = '已加载当前配置';
       } catch (e) {
         document.getElementById('configMsg').innerHTML = '<span class="err">' + e.message + '</span>';
@@ -1534,10 +1980,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: url, save: true }),
         });
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        document.getElementById('cfgCourseId').value = d.course_id || '';
-        document.getElementById('cfgTrainTaskId').value = d.train_task_id || '';
+        lastLoadedPlatformConfig.course_id = d.course_id || '';
+        lastLoadedPlatformConfig.train_task_id = d.train_task_id || '';
+        var courseEl = document.getElementById('cfgCourseId');
+        var taskEl = document.getElementById('cfgTrainTaskId');
+        if (courseEl) { courseEl.placeholder = lastLoadedPlatformConfig.course_id; courseEl.value = ''; }
+        if (taskEl) { taskEl.placeholder = lastLoadedPlatformConfig.train_task_id; taskEl.value = ''; }
         msg.textContent = d.message || '已从 URL 填充课程 ID 与任务 ID，请保存配置';
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
@@ -1549,20 +1999,24 @@
       msg.textContent = '保存中…';
       msg.classList.remove('err');
       try {
+        var getCfg = function(id, key) {
+          var v = (document.getElementById(id) && document.getElementById(id).value || '').trim();
+          return v || (lastLoadedPlatformConfig[key] || '');
+        };
         const r = await apiFetch('/api/platform/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            base_url: document.getElementById('cfgBaseUrl').value.trim(),
-            cookie: document.getElementById('cfgCookie').value.trim(),
-            authorization: document.getElementById('cfgAuthorization').value.trim(),
-            course_id: document.getElementById('cfgCourseId').value.trim(),
-            train_task_id: document.getElementById('cfgTrainTaskId').value.trim(),
-            start_node_id: document.getElementById('cfgStartNodeId').value.trim(),
-            end_node_id: document.getElementById('cfgEndNodeId').value.trim(),
+            base_url: getCfg('cfgBaseUrl', 'base_url'),
+            cookie: getCfg('cfgCookie', 'cookie'),
+            authorization: getCfg('cfgAuthorization', 'authorization'),
+            course_id: getCfg('cfgCourseId', 'course_id'),
+            train_task_id: getCfg('cfgTrainTaskId', 'train_task_id'),
+            start_node_id: getCfg('cfgStartNodeId', 'start_node_id'),
+            end_node_id: getCfg('cfgEndNodeId', 'end_node_id'),
           }),
         });
-        const d = await r.json().catch(() => ({}));
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : (Array.isArray(d.detail) ? d.detail.map(x => x.msg || JSON.stringify(x)).join('; ') : JSON.stringify(d)));
         msg.textContent = d.message || '已保存';
       } catch (e) {
@@ -1575,7 +2029,7 @@
       msg.textContent = '正在从 .env 恢复…';
       try {
         const r = await apiFetch('/api/platform/reset-to-env', { method: 'POST' });
-        const d = await r.json().catch(() => ({}));
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         msg.textContent = d.message || '已用 .env 覆盖工作区配置';
         loadPlatformConfig();
@@ -1585,54 +2039,84 @@
     };
     loadPlatformConfig();
 
-    document.getElementById('btnValidateTrainset').onclick = async function() {
-      const msg = document.getElementById('validateTrainsetMsg');
-      const pre = document.getElementById('validateTrainsetResult');
-      const path = (document.getElementById('trainsetPath') && document.getElementById('trainsetPath').value || '').trim();
-      if (!path) { msg.innerHTML = '<span class="err">请填写 trainset 文件路径</span>'; return; }
-      msg.textContent = '校验中…';
-      pre.style.display = 'none';
-      try {
-        const r = await apiFetch('/api/trainset/validate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ trainset_path: path }),
-        });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = d.valid ? '通过' : '存在建议或错误';
-        pre.textContent = (d.messages || []).join('\n') || '(无)';
-        pre.style.display = 'block';
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-      }
-    };
     document.getElementById('btnRunOptimizer').onclick = async function() {
       const msg = document.getElementById('optimizerMsg');
       const pre = document.getElementById('optimizerResult');
-      msg.textContent = '优化运行中（可能较久）…';
+      const optBtn = document.getElementById('btnRunOptimizer');
+      const progressWrap = document.getElementById('optimizerProgressWrap');
+      const progressBar = document.getElementById('optimizerProgressBar');
+      const progressMsg = document.getElementById('optimizerProgressMsg');
+      const progressPct = document.getElementById('optimizerProgressPct');
+      msg.textContent = '';
       pre.style.display = 'none';
+      if (optBtn) optBtn.disabled = true;
+      if (progressWrap) {
+        progressWrap.style.display = 'block';
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressMsg) progressMsg.textContent = '准备中…';
+        if (progressPct) progressPct.textContent = '0%';
+      }
       try {
         const body = {
           trainset_path: (document.getElementById('trainsetPath') && document.getElementById('trainsetPath').value || 'output/optimizer/trainset.json').trim(),
           devset_path: (document.getElementById('optimizerDevsetPath') && document.getElementById('optimizerDevsetPath').value || '').trim() || null,
           export_path: (document.getElementById('optimizerExportPath') && document.getElementById('optimizerExportPath').value.trim()) || null,
           optimizer_type: (document.getElementById('optimizerType') && document.getElementById('optimizerType').value) || 'bootstrap',
+          use_auto_eval: !!(document.getElementById('optimizerUseAutoEval') && document.getElementById('optimizerUseAutoEval').checked),
+          persona_id: (document.getElementById('personaId') && document.getElementById('personaId').value) || 'excellent',
         };
-        const r = await apiFetch('/api/optimizer/run', {
+        const r = await apiFetch('/api/optimizer/run-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        const d = await r.json();
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = d.message || '优化完成';
-        pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
-        pre.style.display = 'block';
-        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+        if (!r.ok) throw new Error('请求失败');
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const chunks = buf.split('\n\n');
+          buf = chunks.pop() || '';
+          for (const chunk of chunks) {
+            let event = null, data = null;
+            for (const line of chunk.split('\n')) {
+              if (line.startsWith('event: ')) event = line.slice(7).trim();
+              else if (line.startsWith('data: ')) data = line.slice(6);
+            }
+            if (!event || !data) continue;
+            try {
+              const d = JSON.parse(data);
+              if (event === 'progress') {
+                const pct = d.percent != null ? d.percent : (d.total ? Math.round(100 * d.current / d.total) : 0);
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (progressMsg) progressMsg.textContent = d.message || '评估中…';
+                if (progressPct) progressPct.textContent = pct + '%';
+              } else if (event === 'done') {
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressMsg) progressMsg.textContent = '完成';
+                if (progressPct) progressPct.textContent = '100%';
+                msg.textContent = d.message || '优化完成';
+                pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
+                pre.style.display = 'block';
+                if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+                if (typeof window.updateSimProgress === 'function') window.updateSimProgress({4: true});
+              } else if (event === 'error') {
+                throw new Error(d.detail || data);
+              }
+            } catch (parseErr) {
+              if (event === 'error') throw new Error(data);
+            }
+          }
+        }
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        msg.innerHTML = '<span class="err">' + (e.message || '优化失败') + '</span>';
         pre.style.display = 'none';
+      } finally {
+        if (optBtn) optBtn.disabled = false;
+        if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 2000);
       }
     };
 
@@ -1654,7 +2138,7 @@
         var fd = new FormData();
         fd.append('file', file);
         fd.append('subpath', 'optimizer');
-        apiFetch('/api/output/upload', { method: 'POST', body: fd }).then(function(r) { return r.json().then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
+        apiFetch('/api/output/upload', { method: 'POST', body: fd }).then(function(r) { return safeResponseJson(r).then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
           if (!o.r.ok) throw new Error(o.d.error || o.d.detail || JSON.stringify(o.d));
           msg.textContent = '已上传：' + (o.d.path || '');
           var exportPathInput = document.getElementById('optimizerExportPath');
@@ -1688,11 +2172,15 @@
 
     document.getElementById('btnGenCards').onclick = async function() {
       var msg = document.getElementById('uploadMsg');
+      var genBtn = document.getElementById('btnGenCards');
+      var qaEl = document.getElementById('uploadQuickActions');
       if (!lastUploadData) {
         msg.innerHTML = '<span class="err">请先上传并解析剧本</span>';
         return;
       }
       msg.textContent = '生成中（可能较久）…';
+      if (qaEl) qaEl.style.display = 'none';
+      if (genBtn) genBtn.disabled = true;
       try {
         var r = await apiFetch('/api/cards/generate', {
           method: 'POST',
@@ -1700,23 +2188,42 @@
           body: JSON.stringify({
             full_content: lastUploadData.full_content,
             stages: lastUploadData.stages,
-            framework_id: (document.getElementById('frameworkId') && document.getElementById('frameworkId').value) || null,
+            framework_id: 'dspy',
             source_filename: lastUploadData.filename || null,
           }),
         });
-        var d = await r.json();
+        var d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         var outputPath = d.output_path || d.output_filename || '';
         var fullPath = d.full_path || ('workspaces/' + (d.workspace_id || getWorkspaceId()) + '/output/' + (d.output_filename || outputPath.replace('output/', '')));
-        msg.innerHTML = '已完成生成。卡片文件：<code>' + outputPath + '</code><br><span style="color:var(--natsume-ink-light);font-size:0.9em">完整路径：' + fullPath + '</span>';
+        msg.innerHTML = '已完成生成。卡片文件：<code>' + outputPath + '</code>';
+        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({2: true});
         if (d.output_path) {
           var cardsPathInput = document.getElementById('cardsPath');
           var injectCardsPathInput = document.getElementById('injectCardsPath');
           if (cardsPathInput) cardsPathInput.value = d.output_path;
           if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
+          var qa = document.getElementById('uploadQuickActions');
+          if (qa) {
+            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaClosedLoop">闭环运行（推荐）</button><button type="button" class="qabtn" id="qaSimulate">仅模拟</button>';
+            qa.style.display = 'flex';
+            var boundPath = d.output_path;
+            document.getElementById('qaClosedLoop').onclick = function() {
+              if (cardsPathInput) cardsPathInput.value = boundPath;
+              if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) window.toggleSimSidebar();
+              document.getElementById('btnClosedLoop').click();
+            };
+            document.getElementById('qaSimulate').onclick = function() {
+              if (cardsPathInput) cardsPathInput.value = boundPath;
+              if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) window.toggleSimSidebar();
+              document.getElementById('btnSimulate').click();
+            };
+          }
         }
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
+      } finally {
+        if (genBtn) genBtn.disabled = false;
       }
     };
     scriptFileInput.onchange = function() { handleScriptFile(this.files[0]); };
@@ -1737,6 +2244,16 @@
       if (f) handleScriptFile(f);
     };
 
+    /** 将任意路径规范为后端可用的形式：只保留 output/... 或 input/... 或相对文件名，去掉多余前缀 */
+    function normalizePathForBackend(path) {
+      if (!path || typeof path !== 'string') return '';
+      var p = path.replace(/\\/g, '/').trim().replace(/^\/+/, '');
+      var o = p.indexOf('output/');
+      var i = p.indexOf('input/');
+      if (o !== -1) return p.substring(o);
+      if (i !== -1) return p.substring(i);
+      return p;
+    }
     (function setupPathDropTargets() {
       document.querySelectorAll('.path-drop-target').forEach(function(inp) {
         inp.onfocus = function() { lastFocusedPathInput = inp; };
@@ -1750,11 +2267,205 @@
           e.preventDefault();
           inp.classList.remove('drag-over');
           if (window._eduflowDraggedPath) {
-            inp.value = window._eduflowDraggedPath;
+            inp.value = normalizePathForBackend(window._eduflowDraggedPath);
           }
         };
       });
     })();
+
+    (function setupSimSidebar() {
+      var sidebar = document.getElementById('simSidebar');
+      var tab = document.getElementById('simSidebarTab');
+      var closeBtn = document.getElementById('simSidebarClose');
+      function openSidebar() {
+        if (sidebar) sidebar.classList.add('open');
+        document.body.classList.add('sim-sidebar-open');
+      }
+      function closeSidebar() {
+        if (sidebar) sidebar.classList.remove('open');
+        document.body.classList.remove('sim-sidebar-open');
+      }
+      if (tab) tab.onclick = openSidebar;
+      if (closeBtn) closeBtn.onclick = closeSidebar;
+      var navBtn = document.getElementById('btnSimNav');
+      if (navBtn) navBtn.onclick = function() {
+        if (sidebar && sidebar.classList.contains('open')) closeSidebar();
+        else openSidebar();
+      };
+      window.toggleSimSidebar = function() {
+        if (sidebar && sidebar.classList.contains('open')) closeSidebar();
+        else openSidebar();
+      };
+      (function setupSimSidebarResize() {
+        var SIM_WIDTH_KEY = 'eduflow_sim_sidebar_width';
+        var MIN_W = 280, MAX_W = 600, DEFAULT_W = 380;
+        var root = document.documentElement;
+        function getW() {
+          var w = parseFloat(getComputedStyle(root).getPropertyValue('--sim-sidebar-width'));
+          return isNaN(w) ? DEFAULT_W : w;
+        }
+        function setW(px) {
+          px = Math.min(MAX_W, Math.max(MIN_W, px));
+          root.style.setProperty('--sim-sidebar-width', px + 'px');
+          try { localStorage.setItem(SIM_WIDTH_KEY, String(px)); } catch (e) {}
+        }
+        try {
+          var s = localStorage.getItem(SIM_WIDTH_KEY);
+          if (s != null) { var n = parseFloat(s); if (!isNaN(n)) setW(n); }
+        } catch (e) {}
+        var handle = document.getElementById('simSidebarResizeHandle');
+        if (handle) {
+          handle.onmousedown = function(e) {
+            if (!sidebar || !sidebar.classList.contains('open')) return;
+            e.preventDefault();
+            var startX = e.clientX, startW = getW();
+            function onMove(ev) { setW(startW - (ev.clientX - startX)); }
+            function onUp() {
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          };
+        }
+      })();
+      window._simProgressSteps = window._simProgressSteps || {1: false, 2: false, 3: false, 4: false, 5: false};
+      window.updateSimProgress = function(steps) {
+        if (steps) {
+          for (var k in steps) window._simProgressSteps[k] = !!steps[k];
+        }
+        var list = document.getElementById('simProgressList');
+        if (!list) return;
+        var items = list.querySelectorAll('.sim-progress-item');
+        var s = window._simProgressSteps;
+        items.forEach(function(el) {
+          var step = el.getAttribute('data-step');
+          if (s[step]) {
+            el.classList.add('done');
+            el.querySelector('span').textContent = '✓';
+          } else {
+            el.classList.remove('done');
+            el.querySelector('span').textContent = '○';
+          }
+        });
+      };
+    })();
+    (function setupSimModule() {
+      var cardsContainer = document.getElementById('simModuleCards');
+      var pathInput = document.getElementById('simModulePath');
+      var msgEl = document.getElementById('simModuleMsg');
+      var resultPre = document.getElementById('simModuleResult');
+      document.getElementById('simModuleLoad').onclick = async function() {
+        var path = (pathInput && pathInput.value || '').trim();
+        if (!path) { msgEl.innerHTML = '<span class="err">请输入卡片路径</span>'; return; }
+        if (!path.startsWith('output/')) path = 'output/' + path;
+        msgEl.textContent = '加载中…';
+        cardsContainer.innerHTML = '';
+        resultPre.style.display = 'none';
+        try {
+          var r = await apiFetch('/api/simulate/cards-parsed?path=' + encodeURIComponent(path));
+          var d = await safeResponseJson(r);
+          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          var cards = d.cards || [];
+          msgEl.textContent = '已加载 ' + cards.length + ' 张卡片';
+          cards.forEach(function(c) {
+            var block = document.createElement('div');
+            block.className = 'sim-card-block';
+            var head = document.createElement('div');
+            head.className = 'sim-card-head';
+            head.innerHTML = '<span class="sim-card-id">' + (c.card_id || '') + '</span> ' + (c.stage_name || c.title || '') + ' <span style="color:var(--natsume-ink-light);font-size:0.85rem;">(' + (c.card_type || '') + ')</span>';
+            block.appendChild(head);
+            var sections = c.sections || {};
+            ['Role', 'Context', 'Interaction', 'Transition', 'Constraints', 'Prologue', 'Output'].forEach(function(key) {
+              var val = sections[key];
+              if (!val) return;
+              var sec = document.createElement('div');
+              sec.className = 'sim-card-section';
+              sec.innerHTML = '<div class="sim-card-section-title">' + key + '</div><div class="sim-card-section-body">' + String(val).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+              block.appendChild(sec);
+            });
+            cardsContainer.appendChild(block);
+          });
+        } catch (e) {
+          msgEl.innerHTML = '<span class="err">' + e.message + '</span>';
+        }
+      };
+      document.getElementById('simModuleRun').onclick = async function() {
+        var path = (pathInput && pathInput.value || '').trim();
+        if (!path) { msgEl.innerHTML = '<span class="err">请先加载卡片路径</span>'; return; }
+        if (!path.startsWith('output/')) path = 'output/' + path;
+        msgEl.textContent = '模拟运行中（可能较久）…';
+        resultPre.style.display = 'none';
+        var runBtn = document.getElementById('simModuleRun');
+        if (runBtn) runBtn.disabled = true;
+        try {
+          var r = await apiFetch('/api/simulate/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              cards_path: path,
+              persona_id: (document.getElementById('simModulePersonaId') && document.getElementById('simModulePersonaId').value) || 'excellent',
+              mode: 'auto',
+              run_evaluation: true,
+            }),
+          });
+          var d = await safeResponseJson(r);
+          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          msgEl.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
+          resultPre.style.display = 'block';
+          resultPre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
+        } catch (e) {
+          msgEl.innerHTML = '<span class="err">' + e.message + '</span>';
+          resultPre.style.display = 'none';
+        } finally {
+          if (runBtn) runBtn.disabled = false;
+        }
+      };
+    })();
+
+    function setButtonsEnabled(ids, enabled) {
+      (ids || []).forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+      });
+    }
+    document.getElementById('btnClosedLoop').onclick = async () => {
+      const path = document.getElementById('cardsPath').value.trim();
+      const msg = document.getElementById('simMsg');
+      const pre = document.getElementById('simResult');
+      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      const saveExport = document.getElementById('closedLoopSaveExport') && document.getElementById('closedLoopSaveExport').checked;
+      msg.textContent = '闭环运行中（仿真+评估，可能较久）...';
+      pre.style.display = 'none';
+      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
+      try {
+        const r = await apiFetch('/api/closed-loop/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cards_path: path,
+            persona_id: document.getElementById('personaId').value || 'excellent',
+            save_to_export: saveExport,
+          }),
+        });
+        const d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '闭环完成：总分 ' + (d.total_score != null ? d.total_score : '-') + (d.saved_export_path ? '，已保存导出' : '');
+        pre.style.display = 'block';
+        pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
+        if (d.session_id) {
+          var lp = document.getElementById('logPath');
+          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
+        }
+        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({3: true});
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      } finally {
+        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
+      }
+    };
 
     document.getElementById('btnSimulate').onclick = async () => {
       const path = document.getElementById('cardsPath').value.trim();
@@ -1762,6 +2473,8 @@
       const pre = document.getElementById('simResult');
       if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
       msg.textContent = '模拟运行中（可能较久）...';
+      pre.style.display = 'none';
+      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
       try {
         const r = await apiFetch( '/api/simulate/run', {
           method: 'POST',
@@ -1773,14 +2486,110 @@
             run_evaluation: true,
           }),
         });
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         msg.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
         pre.style.display = 'block';
         pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
+        if (d.session_id) {
+          var lp = document.getElementById('logPath');
+          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
+        }
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
         pre.style.display = 'none';
+      } finally {
+        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
+      }
+    };
+
+    document.getElementById('btnLoadFromCardsPath').onclick = function() {
+      var cardsPath = document.getElementById('cardsPath');
+      var cardEditPath = document.getElementById('cardEditPath');
+      if (cardsPath && cardsPath.value.trim()) {
+        cardEditPath.value = cardsPath.value.trim();
+        document.getElementById('btnLoadCardEdit').click();
+        if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) {
+          window.toggleSimSidebar();
+        }
+      } else if (document.getElementById('cardEditMsg')) {
+        document.getElementById('cardEditMsg').innerHTML = '<span class="err">请先在右侧栏「单次验证」填写卡片路径</span>';
+      }
+    };
+    document.getElementById('btnLoadCardEdit').onclick = async function() {
+      var path = document.getElementById('cardEditPath').value.trim();
+      var msg = document.getElementById('cardEditMsg');
+      var ta = document.getElementById('cardEditContent');
+      var savePath = document.getElementById('cardEditSavePath');
+      if (!path) { msg.innerHTML = '<span class="err">请输入卡片路径</span>'; return; }
+      if (!path.startsWith('output/')) path = 'output/' + path;
+      msg.textContent = '加载中…';
+      try {
+        var r = await apiFetch('/api/output/read?path=' + encodeURIComponent(path));
+        var d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        ta.value = d.content || '';
+        savePath.value = d.path || path;
+        msg.textContent = '已加载：' + (d.path || path);
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+      }
+    };
+    document.getElementById('btnSaveCardEdit').onclick = async function() {
+      var path = document.getElementById('cardEditSavePath').value.trim();
+      var content = document.getElementById('cardEditContent').value;
+      var msg = document.getElementById('cardEditMsg');
+      if (!path) { msg.innerHTML = '<span class="err">请输入保存路径</span>'; return; }
+      if (!path.startsWith('output/')) path = 'output/' + path;
+      msg.textContent = '保存中…';
+      try {
+        var r = await apiFetch('/api/output/write', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: path, content: content }),
+        });
+        var d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '已保存：' + (d.path || path);
+        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+      }
+    };
+    document.getElementById('btnPlayFromEditor').onclick = async function() {
+      var content = document.getElementById('cardEditContent').value.trim();
+      var msg = document.getElementById('cardEditMsg');
+      var pre = document.getElementById('cardEditResult');
+      if (!content) { msg.innerHTML = '<span class="err">请先加载或输入卡片内容</span>'; return; }
+      msg.textContent = '仿真中（可能较久）…';
+      pre.style.display = 'none';
+      var btn = document.getElementById('btnPlayFromEditor');
+      if (btn) btn.disabled = true;
+      try {
+        var r = await apiFetch('/api/simulate/run-from-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cards_content: content,
+            persona_id: (document.getElementById('cardEditPersonaId') && document.getElementById('cardEditPersonaId').value) || 'excellent',
+            run_evaluation: true,
+          }),
+        });
+        var d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        msg.textContent = '仿真完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
+        pre.style.display = 'block';
+        pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
+        if (d.session_id) {
+          var lp = document.getElementById('logPath');
+          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
+        }
+        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+      } catch (e) {
+        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        pre.style.display = 'none';
+      } finally {
+        if (btn) btn.disabled = false;
       }
     };
 
@@ -1790,6 +2599,8 @@
       const pre = document.getElementById('evalResult');
       if (!path) { msg.innerHTML = '<span class="err">请输入日志文件路径</span>'; return; }
       msg.textContent = '评估中...';
+      pre.style.display = 'none';
+      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
       try {
         const saveToExport = document.getElementById('evalSaveToExport') && document.getElementById('evalSaveToExport').checked;
         const r = await apiFetch( '/api/evaluate', {
@@ -1797,7 +2608,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ log_path: path, save_to_export: saveToExport }),
         });
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         msg.textContent = '总分：' + (d.total_score ?? '') + ' / ' + (d.max_score ?? 100) + '，' + (d.rating || '');
         if (d.saved_export_path) {
@@ -1811,6 +2622,8 @@
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
         pre.style.display = 'none';
+      } finally {
+        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
       }
     };
 
@@ -1828,7 +2641,7 @@
         var fd = new FormData();
         fd.append('file', file);
         fd.append('save_to_export', (document.getElementById('evalFileSaveToExport') && document.getElementById('evalFileSaveToExport').checked) ? 'true' : 'false');
-        apiFetch('/api/evaluate/from-file', { method: 'POST', body: fd }).then(function(r) { return r.json().then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
+        apiFetch('/api/evaluate/from-file', { method: 'POST', body: fd }).then(function(r) { return safeResponseJson(r).then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
           if (!o.r.ok) throw new Error(o.d.detail || JSON.stringify(o.d));
           msg.textContent = '总分：' + (o.d.total_score ?? '') + ' / ' + (o.d.max_score ?? 100) + '，' + (o.d.rating || '');
           if (o.d.saved_export_path) {
@@ -1868,7 +2681,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cards_path: path }),
         });
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         msg.textContent = d.summary || ('A类 ' + d.total_a + '，B类 ' + d.total_b);
         pre.style.display = 'block';
@@ -1894,7 +2707,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cards_path: path, task_name: taskName, description: description, overwrite }),
         });
-        const d = await r.json();
+        const d = await safeResponseJson(r);
         if (!r.ok) {
           if (r.status === 409) {
             msg.innerHTML = '<span class="err">' + (d.detail || '检测到已有卡片，未覆写') + '</span>';
@@ -1905,6 +2718,7 @@
           throw new Error(d.detail || JSON.stringify(d));
         }
         msg.textContent = d.message || (d.success ? '注入成功' : '注入完成，请查看详情');
+        if (d.success && typeof window.updateSimProgress === 'function') window.updateSimProgress({5: true});
         if (!d.success) msg.innerHTML = '<span class="err">' + (msg.textContent) + '</span>';
         pre.style.display = 'block';
         pre.textContent = JSON.stringify(d, null, 2);

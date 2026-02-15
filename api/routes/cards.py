@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
@@ -9,7 +9,8 @@ router = APIRouter()
 
 from config import CARD_GENERATOR_TYPE, EVALUATION_CONFIG
 from api.workspace import get_workspace_id, get_workspace_dirs
-from api.routes.llm_config import get_llm_config
+from api.routes.llm_config import require_llm_config
+from api.exceptions import BadRequestError, ConfigError, ValidationError
 from generators import list_frameworks, get_framework
 from generators.evaluation_section import build_evaluation_markdown
 
@@ -28,16 +29,14 @@ def _progress_callback(current: int, total: int, message: str):
 @router.post("/generate")
 def generate_cards(req: GenerateRequest, workspace_id: str = Depends(get_workspace_id)):
     """根据已分析的剧本内容生成教学卡片，保存到当前工作区 output。使用工作区 LLM 配置（设置中的 API Key + 模型）。"""
-    cfg = get_llm_config(workspace_id)
-    if not cfg.get("api_key"):
-        raise HTTPException(status_code=500, detail="未配置 API Key，请在「设置」中填写并保存")
+    cfg = require_llm_config(workspace_id)
     stages = req.stages
     if not stages:
-        raise HTTPException(status_code=400, detail="stages 不能为空")
+        raise BadRequestError("stages 不能为空")
     framework_id = req.framework_id or CARD_GENERATOR_TYPE
     frameworks = list_frameworks()
     if not frameworks:
-        raise HTTPException(status_code=500, detail="无可用生成框架")
+        raise ConfigError("无可用生成框架")
     if framework_id and not any(m["id"] == framework_id for m in frameworks):
         framework_id = frameworks[0]["id"]
     if not framework_id:
@@ -45,7 +44,7 @@ def generate_cards(req: GenerateRequest, workspace_id: str = Depends(get_workspa
     try:
         GeneratorClass, meta = get_framework(framework_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ValidationError(str(e), details={"framework_id": framework_id})
     try:
         if framework_id == "dspy":
             generator = GeneratorClass(
@@ -61,7 +60,7 @@ def generate_cards(req: GenerateRequest, workspace_id: str = Depends(get_workspa
                 model=cfg.get("model") or None,
             )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"初始化生成器失败: {e}")
+        raise ConfigError("初始化生成器失败", details={"reason": str(e)})
     cards_content = generator.generate_all_cards(
         stages,
         req.full_content,

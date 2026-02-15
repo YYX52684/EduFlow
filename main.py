@@ -9,12 +9,18 @@
 - 交互质量评估：基于对话日志生成多维度评估报告
 """
 import argparse
+import io
 import os
 import sys
 from datetime import datetime
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Windows 下强制 stdout/stderr 使用 UTF-8，避免中文路径/输出乱码
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from config import (
     INPUT_DIR,
@@ -33,6 +39,8 @@ from parsers import (
     parse_markdown,
     parse_docx,
     parse_docx_with_structure,
+    parse_doc,
+    parse_doc_with_structure,
     parse_pdf,
     extract_task_meta_from_doc,
     extract_task_meta_from_content_structure,
@@ -60,6 +68,7 @@ def get_parser_for_file(file_path: str):
     parsers = {
         '.md': parse_markdown,
         '.docx': parse_docx,
+        '.doc': parse_doc,
         '.pdf': parse_pdf,
     }
     
@@ -700,7 +709,7 @@ def main():
     parser.add_argument(
         '--input', '-i',
         required=False,  # 在 --inject-only 模式下不需要
-        help='输入文件路径（支持 .md, .docx, .pdf 格式）'
+        help='输入文件路径（支持 .md, .docx, .doc, .pdf 格式）'
     )
     
     parser.add_argument(
@@ -773,7 +782,7 @@ def main():
     parser.add_argument(
         '--simulate',
         metavar='MD_FILE',
-        help='运行学生模拟测试，指定卡片Markdown文件'
+        help='运行学生模拟测试（本地卡片 + 本地NPC LLM），指定卡片Markdown文件'
     )
     
     parser.add_argument(
@@ -810,6 +819,17 @@ def main():
         '--no-eval',
         action='store_true',
         help='模拟测试后不运行评估'
+    )
+    parser.add_argument(
+        '--simulate-platform',
+        action='store_true',
+        help='使用平台侧LLM进行学生模拟测试（学生由本地LLM扮演，老师在智慧树平台中）'
+    )
+    parser.add_argument(
+        '--platform-step-id',
+        metavar='STEP_ID',
+        default=None,
+        help='平台训练任务起始节点 stepId（为空则尝试使用 PLATFORM_START_NODE_ID）'
     )
     
     # ========== 评估参数 ==========
@@ -1011,8 +1031,8 @@ def main():
         run_evaluation_only(args.evaluate, args.sim_output)
         return
     
-    # 处理学生模拟测试模式
-    if args.simulate:
+    # 处理学生模拟测试模式（本地卡片）
+    if args.simulate and not args.simulate_platform:
         md_path = os.path.abspath(args.simulate)
         
         if not os.path.exists(md_path):
@@ -1046,6 +1066,81 @@ def main():
             verbose=args.verbose,
             run_evaluation=not args.no_eval,
         )
+        return
+
+    # 处理使用平台LLM的学生模拟测试模式
+    if args.simulate_platform:
+        from simulator.platform_client import PlatformTrainConfig, PlatformTrainClient
+        from simulator.student_persona import PersonaManager
+        from simulator.llm_student import StudentFactory
+        from config import PLATFORM_CONFIG
+
+        # 平台 stepId：优先取命令行参数，其次取 PLATFORM_START_NODE_ID
+        step_id = (args.platform_step_id or "").strip()
+        if not step_id:
+            step_id = PLATFORM_CONFIG.get("start_node_id", "").strip()
+        if not step_id:
+            parser.error("--simulate-platform 需要提供 --platform-step-id，或在平台配置中设置 PLATFORM_START_NODE_ID")
+
+        print("=" * 60)
+        print("学生模拟测试（平台LLM模式）")
+        print("=" * 60)
+        print(f"\n训练任务ID: {PLATFORM_CONFIG.get('train_task_id', '')}")
+        print(f"起始节点 stepId: {step_id}")
+        print(f"人设: {args.persona}")
+        print()
+
+        # 平台配置 + 客户端
+        pt_cfg = PlatformTrainConfig.from_env()
+        client = PlatformTrainClient(pt_cfg)
+
+        # 学生人设 + 学生LLM
+        manager = PersonaManager()
+        persona = manager.get_persona(args.persona)
+        student = StudentFactory.create_from_env(persona)
+
+        # 首次 runCard：拿平台NPC开场白
+        try:
+            first = client.run_card(step_id=step_id)
+        except Exception as e:
+            print(f"[错误] 调用平台 runCard 失败: {e}")
+            sys.exit(1)
+
+        data = first.get("data") or {}
+        npc_text = data.get("text") or ""
+        print("[平台 NPC 开场白]:", npc_text or "(无文本返回)")
+        print("sessionId:", client.session_id or "(空)")
+
+        if not npc_text:
+            print("[提示] 平台未返回开场白文本，结束。")
+            return
+
+        # 跑若干轮对话（仅控制台打印，不写本地日志）
+        max_rounds = 10
+        for i in range(max_rounds):
+            # 学生根据 NPC 说的话回复
+            student_reply = student.generate_response(npc_text)
+            print(f"\n[学生 第{i+1}轮]: {student_reply}")
+
+            # 发给平台
+            try:
+                resp = client.chat(step_id=step_id, text=student_reply)
+            except Exception as e:
+                print(f"[错误] 调用平台 chat 失败: {e}")
+                break
+
+            npc_text = PlatformTrainClient.extract_npc_reply(resp)
+            print(f"[平台 NPC 第{i+1}轮]: {npc_text}")
+
+            data = resp.get("data") or {}
+            # 若平台提示跳过或已无文本，可适时结束
+            if data.get("needSkipStep"):
+                print("\n[提示] 平台返回 needSkipStep=True，可能需要跳转到 nextStepId =", data.get("nextStepId"))
+                break
+            if not (data.get("text") or "").strip():
+                print("\n[提示] 平台未返回新的 NPC 文本，结束。")
+                break
+
         return
     
     # 处理仅注入模式
@@ -1093,10 +1188,8 @@ def main():
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     def _safe_print(s):
-        try:
-            print(s)
-        except UnicodeEncodeError:
-            print(s.encode(sys.getdefaultencoding(), errors="replace").decode())
+        # stdout 已在启动时设为 UTF-8，直接打印即可
+        print(s)
     print("=" * 60)
     print("教学卡片自动生成脚本")
     print("=" * 60)
@@ -1106,11 +1199,15 @@ def main():
     print()
     
     try:
-        # 步骤1: 解析文件（docx 一次打开同时得到正文与结构，避免后续再打开）
+        # 步骤1: 解析文件（docx/doc 一次打开同时得到正文与结构，避免后续再打开）
         print("[1] 步骤1: 解析输入文件...")
         doc_structure = None
-        if input_path.lower().endswith(".docx"):
+        ext_lower = input_path.lower()
+        if ext_lower.endswith(".docx"):
             content, raw_structure = parse_docx_with_structure(input_path)
+            doc_structure = [{"title": s["title"], "level": s.get("level", 1), "content": s.get("content", "")} for s in raw_structure]
+        elif ext_lower.endswith(".doc"):
+            content, raw_structure = parse_doc_with_structure(input_path)
             doc_structure = [{"title": s["title"], "level": s.get("level", 1), "content": s.get("content", "")} for s in raw_structure]
         else:
             file_parser = get_parser_for_file(input_path)

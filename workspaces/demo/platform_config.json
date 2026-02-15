@@ -1,0 +1,9 @@
+{
+  "course_id": "请替换为您的课程ID",
+  "train_task_id": "请替换为您的实训任务ID",
+  "base_url": "https://cloudapi.polymas.com",
+  "cookie": "请替换为登录后的 Cookie（注入平台时需要）",
+  "authorization": "请替换为 Authorization Token",
+  "start_node_id": "可选：智慧树流程起始节点ID",
+  "end_node_id": "可选：智慧树流程结束节点ID"
+}

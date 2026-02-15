@@ -56,7 +56,7 @@ class LLMStudent:
         self.api_key = config.get("api_key", defaults["api_key"])
         self.model = config.get("model", defaults["model"])
         self.service_code = config.get("service_code", self.DEFAULT_SERVICE_CODE)
-        self.max_tokens = config.get("max_tokens", 300)
+        self.max_tokens = config.get("max_tokens", 200)  # 学生单轮约 50–100 字
         self.temperature = config.get("temperature", 0.8)
         
         # 对话历史
