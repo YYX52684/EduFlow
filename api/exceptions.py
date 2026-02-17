@@ -52,6 +52,20 @@ class NotFoundError(EduFlowError):
         super().__init__(message, code="NOT_FOUND", status_code=404, details=details)
 
 
+class UnauthorizedError(EduFlowError):
+    """未登录或 token 无效（401）"""
+
+    def __init__(self, message: str = "请先登录", details: Optional[dict] = None):
+        super().__init__(message, code="UNAUTHORIZED", status_code=401, details=details)
+
+
+class ForbiddenError(EduFlowError):
+    """无权限（如访问他人工作区）（403）"""
+
+    def __init__(self, message: str = "无权限访问该工作区", details: Optional[dict] = None):
+        super().__init__(message, code="FORBIDDEN", status_code=403, details=details)
+
+
 class ValidationError(EduFlowError):
     """请求参数或业务数据校验失败"""
 

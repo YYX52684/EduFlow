@@ -8,7 +8,8 @@ from typing import Optional
 
 router = APIRouter()
 
-from api.workspace import get_workspace_id, get_workspace_dirs
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_workspace_dirs
 
 # 允许的剧本扩展名
 ALLOWED_EXT = {".md", ".docx", ".doc", ".pdf"}
@@ -26,7 +27,7 @@ def _safe_relative(path: str, base: str) -> Optional[str]:
 
 
 @router.get("/files")
-def list_input_files(workspace_id: str = Depends(get_workspace_id)):
+def list_input_files(workspace_id: str = Depends(require_workspace_owned)):
     """列出当前工作区 input 目录下所有文件（递归）。"""
     input_dir, _, _ = get_workspace_dirs(workspace_id)
     if not os.path.isdir(input_dir):
@@ -47,7 +48,7 @@ def list_input_files(workspace_id: str = Depends(get_workspace_id)):
 
 @router.post("/upload")
 async def upload_to_input(
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
     file: UploadFile = File(...),
     subpath: Optional[str] = Form(""),
 ):

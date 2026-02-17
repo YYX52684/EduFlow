@@ -70,6 +70,14 @@ def get_workspace_dirs(workspace_id: str) -> tuple[str, str, str]:
     return input_dir, output_dir, workspace_root
 
 
+def get_workspace_file_path(workspace_id: str, filename: str) -> str:
+    """返回工作区根目录下某文件的绝对路径。filename 仅文件名（如 llm_config.json），不含子路径。"""
+    _, _, workspace_root = get_workspace_dirs(workspace_id)
+    if os.path.isabs(filename) or ".." in filename or filename.strip() != filename:
+        raise BadRequestError("filename 须为工作区根目录下的文件名", details={"filename": filename})
+    return os.path.join(workspace_root, filename)
+
+
 def _safe_relative_path(part: str) -> bool:
     """校验为安全相对路径成分（无 .. 且非空）。"""
     if not part or part.strip() != part:
@@ -192,3 +200,36 @@ def resolve_workspace_path(
     if must_exist and not os.path.exists(full):
         raise NotFoundError("文件或目录不存在", details={"path": relative_path, "kind": kind})
     return full
+
+
+def resolve_input_path(
+    workspace_id: str,
+    relative_path: str,
+    must_exist: bool = False,
+) -> str:
+    """
+    将相对路径解析为工作区 input 下的绝对路径。
+    若 relative_path 为 "input" 或空，返回当前项目的 input 目录；
+    否则自动补 "input/" 前缀后解析。
+    """
+    path = relative_path.strip().replace("\\", "/").lstrip("/")
+    if path in ("", "input", "input/"):
+        return get_project_dirs(workspace_id)[0]
+    if not path.startswith("input/"):
+        path = "input/" + path
+    return resolve_workspace_path(workspace_id, path, kind="input", must_exist=must_exist)
+
+
+def resolve_output_path(
+    workspace_id: str,
+    relative_path: str,
+    must_exist: bool = False,
+) -> str:
+    """
+    将相对路径解析为工作区 output 下的绝对路径。
+    自动补 "output/" 前缀后解析。
+    """
+    path = relative_path.strip().replace("\\", "/").lstrip("/")
+    if not path.startswith("output/"):
+        path = "output/" + path
+    return resolve_workspace_path(workspace_id, path, kind="output", must_exist=must_exist)

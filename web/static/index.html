@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>EduFlow 交互控制台</title>
+  <meta name="description" content="EduFlow 沉浸式教学卡片自动生成工具，将教学剧本转为智慧树平台卡片。">
+  <!-- 收藏夹与标签页图标 -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%238FA989'/%3E%3Cpath fill='white' d='M8 9h16v1.5H8zm0 5h14v1.5H8zm0 5h10v1.5H8z'/%3E%3C/svg%3E">
+  <!-- 链接预览（Edge/社交分享等） -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="EduFlow 交互控制台">
+  <meta property="og:description" content="EduFlow 沉浸式教学卡片自动生成工具，将教学剧本转为智慧树平台卡片。">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
@@ -11,18 +18,28 @@
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
   <style>
     :root {
-      --natsume-paper: #f5f0e6;
+      /* Natsume 风格配色 */
+      --natsume-bg: #FDF9F3;
+      --natsume-paper: #F5F0E6;
       --natsume-cream: #ebe4d8;
-      --natsume-ink: #4a4035;
+      --natsume-ink: #4A4A4A;
       --natsume-ink-light: #6b5f52;
-      --natsume-green: #6b7b6b;
-      --natsume-green-soft: #8f9d8f;
-      --natsume-leaf: #7d8b6f;
-      --natsume-border: #d4c9b8;
-      --natsume-shadow: rgba(74, 64, 53, 0.08);
+      --natsume-green: #8FA989;
+      --natsume-green-hover: #7a9a74;
+      --natsume-green-soft: #9fb899;
+      --natsume-leaf: #8FA989;
+      --natsume-accent: #E88D67;
+      --natsume-accent-hover: #d97d57;
+      --natsume-border: #e8e2d8;
+      --natsume-border-strong: #d4c9b8;
+      --natsume-shadow: rgba(74, 64, 53, 0.06);
+      --natsume-shadow-hover: rgba(74, 64, 53, 0.1);
       --natsume-err: #a65d4a;
       --sidebar-width: 280px;
+      --sidebar-margin: var(--sidebar-width);
       --sim-sidebar-width: 380px;
+      --card-radius: 1.5rem;
+      --btn-radius: 0.75rem;
       /* Mac-style motion */
       --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
       --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -30,6 +47,57 @@
       --transition-fast: 0.2s var(--ease-out-quart);
       --transition-normal: 0.3s var(--ease-out-expo);
       --transition-slow: 0.4s var(--ease-out-expo);
+    }
+    /* 色系：柔和 — 降低对比，主色更温和 */
+    html[data-theme="soft"] {
+      --natsume-bg: #F8F6F2;
+      --natsume-paper: #F0EDE8;
+      --natsume-ink: #5a5a52;
+      --natsume-ink-light: #6e6b63;
+      --natsume-green: #9aa894;
+      --natsume-green-hover: #8a9884;
+      --natsume-green-soft: #a8b4a2;
+      --natsume-leaf: #9aa894;
+      --natsume-accent: #c99a7a;
+      --natsume-accent-hover: #b88a6a;
+      --natsume-border: #e5e0d8;
+      --natsume-border-strong: #d2cdc4;
+      --natsume-shadow: rgba(80, 75, 70, 0.05);
+      --natsume-shadow-hover: rgba(80, 75, 70, 0.08);
+    }
+    /* 色系：低对比 — 灰褐系，整体更收敛 */
+    html[data-theme="muted"] {
+      --natsume-bg: #F5F4F2;
+      --natsume-paper: #EBE9E6;
+      --natsume-ink: #555550;
+      --natsume-ink-light: #6a6964;
+      --natsume-green: #8a9086;
+      --natsume-green-hover: #7a8076;
+      --natsume-green-soft: #989e94;
+      --natsume-leaf: #8a9086;
+      --natsume-accent: #a89078;
+      --natsume-accent-hover: #988068;
+      --natsume-border: #ddd9d4;
+      --natsume-border-strong: #c9c5c0;
+      --natsume-shadow: rgba(70, 68, 65, 0.05);
+      --natsume-shadow-hover: rgba(70, 68, 65, 0.08);
+    }
+    /* 色系：冷色 — 偏蓝灰 */
+    html[data-theme="cool"] {
+      --natsume-bg: #F6F7F9;
+      --natsume-paper: #EEF0F3;
+      --natsume-ink: #4a4d52;
+      --natsume-ink-light: #5e6168;
+      --natsume-green: #7a8f8a;
+      --natsume-green-hover: #6a7f7a;
+      --natsume-green-soft: #8a9d98;
+      --natsume-leaf: #7a8f8a;
+      --natsume-accent: #7a8a9a;
+      --natsume-accent-hover: #6a7a8a;
+      --natsume-border: #e0e2e6;
+      --natsume-border-strong: #c8ccd2;
+      --natsume-shadow: rgba(60, 65, 75, 0.06);
+      --natsume-shadow-hover: rgba(60, 65, 75, 0.1);
     }
     html {
       scrollbar-gutter: stable;
@@ -44,7 +112,7 @@
       margin: 0;
       padding: 0;
       overflow-x: hidden;
-      background: var(--natsume-paper);
+      background: var(--natsume-bg);
       color: var(--natsume-ink);
       line-height: 1.7;
       min-height: 100vh;
@@ -53,12 +121,14 @@
       background-attachment: fixed;
       background-repeat: no-repeat;
       background-image:
-        radial-gradient(ellipse at 20% 10%, rgba(139, 157, 143, 0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 90%, rgba(125, 139, 111, 0.05) 0%, transparent 50%);
+        radial-gradient(ellipse at 20% 10%, rgba(143, 169, 137, 0.05) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 90%, rgba(232, 141, 103, 0.04) 0%, transparent 50%);
       display: flex;
     }
     /* 壁纸与主界面关联：整页背景在 body 上且 fixed，不随侧边栏收起/展开移动；侧边栏半透明以透出背景 */
-    body.sidebar-collapsed { --sidebar-width: 0; }
+    /* 左侧栏：与右侧栏对称——用侧栏自身 class 控制滑动，body class 控制主内容 margin */
+    body.sidebar-collapsed { --sidebar-margin: 0; }
+    /* 与右侧栏对称：仅方向相反，动效一致（transition + box-shadow） */
     .local-sidebar {
       position: fixed;
       left: 0;
@@ -68,13 +138,18 @@
       display: flex;
       flex-direction: column;
       padding: 0;
-      background: rgba(235, 228, 216, 0.88);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-right: 1px solid var(--natsume-border);
+      box-shadow: 4px 0 24px rgba(74, 64, 53, 0.06);
       z-index: 20;
-      transition: width var(--transition-normal);
+      transform: translateX(0);
+      transition: transform var(--transition-normal), box-shadow var(--transition-fast);
       overflow-x: hidden;
+    }
+    .local-sidebar.collapsed {
+      transform: translateX(-100%);
     }
     .sidebar-resize-handle {
       position: fixed;
@@ -85,11 +160,11 @@
       cursor: col-resize;
       z-index: 21;
       background: transparent;
-      transition: left var(--transition-normal);
+      transition: left var(--transition-normal), opacity var(--transition-normal);
     }
     .sidebar-resize-handle:hover { background: rgba(143, 157, 143, 0.2); }
     .sidebar-resize-handle:active { background: rgba(125, 139, 111, 0.3); }
-    body.sidebar-collapsed .sidebar-resize-handle { display: none; }
+    body.sidebar-collapsed .sidebar-resize-handle { opacity: 0; pointer-events: none; }
     .sidebar-collapse-btn {
       /* Claude 风格：侧边栏内右上角，无背景无边框，悬停轻高亮 */
       position: absolute;
@@ -111,7 +186,7 @@
     }
     .sidebar-collapse-btn:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
     .sidebar-collapse-btn:active { background: rgba(143, 157, 143, 0.2); }
-    body.sidebar-collapsed .sidebar-collapse-btn { display: none; }
+    /* 与右侧栏 tab 一致：收起时显示 tab，展开时隐藏 */
     .sidebar-expand-tab {
       display: none;
       position: fixed;
@@ -133,25 +208,33 @@
     }
     .sidebar-expand-tab:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
     .sidebar-expand-tab:active { background: rgba(143, 157, 143, 0.2); }
-    body.sidebar-collapsed .sidebar-expand-tab { display: flex; }
+    body.sidebar-collapsed .sidebar-expand-tab { display: flex !important; }
     .main-content {
-      margin-left: var(--sidebar-width);
-      transition: margin-left var(--transition-normal);
+      margin-left: var(--sidebar-margin);
+      transition: margin-left var(--transition-normal), opacity var(--transition-normal);
       min-width: 0;
       flex: 1;
       display: flex;
       justify-content: center;
-      padding: 2rem 1.5rem;
+      padding: 2.5rem 2rem;
     }
     .main-content-inner {
       width: 100%;
-      max-width: 900px;
+      max-width: 920px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+      animation: pageFadeIn 0.5s var(--ease-out-expo) both;
+    }
+    @keyframes pageFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     .local-sidebar .sidebar-head {
       flex-shrink: 0;
       position: relative;
-      padding: 1rem 36px 0.75rem 14px;
-      margin: 1.25rem 10px 0 10px;
+      padding: 1.25rem 36px 1rem 1rem;
+      margin: 1rem 0.75rem 0 0.75rem;
       background: transparent;
       transition: transform var(--transition-fast);
     }
@@ -192,8 +275,7 @@
       color: var(--natsume-ink-light);
     }
     .header {
-      margin-bottom: 2rem;
-      padding-bottom: 1.25rem;
+      padding: 1rem 0;
       border-bottom: 1px solid var(--natsume-border);
     }
     h1 {
@@ -214,49 +296,70 @@
       transition: border-color var(--transition-fast), color var(--transition-fast);
     }
     .nav a:hover {
-      color: var(--natsume-leaf);
-      border-bottom-color: var(--natsume-leaf);
+      color: var(--natsume-accent);
+      border-bottom-color: var(--natsume-accent);
+    }
+    .card-path-link {
+      color: var(--natsume-green);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      cursor: pointer;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+    }
+    .card-path-link:hover {
+      color: var(--natsume-accent);
+      border-bottom-color: var(--natsume-accent);
     }
     section {
-      margin: 1.75rem 0;
-      padding: 1.35rem 1.5rem;
-      background: rgba(235, 228, 216, 0.6);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(212, 201, 184, 0.5);
-      border-radius: 14px;
-      box-shadow: 0 2px 16px rgba(74, 64, 53, 0.05);
-      transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+      margin: 0;
+      padding: 1.75rem 2rem;
+      background: #fff;
+      border: 1px solid var(--natsume-border);
+      border-radius: var(--card-radius);
+      box-shadow: 0 2px 12px var(--natsume-shadow);
+      transition: box-shadow var(--transition-normal), border-color var(--transition-fast), opacity var(--transition-normal);
+      animation: sectionFadeIn 0.45s var(--ease-out-expo) both;
+    }
+    #mainConsoleView section:nth-child(2) { animation-delay: 0.08s; }
+    #mainConsoleView section:nth-child(3) { animation-delay: 0.18s; }
+    @keyframes sectionFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    #mainConsoleView {
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
     }
     section:hover {
-      box-shadow: 0 4px 24px rgba(74, 64, 53, 0.08);
+      box-shadow: 0 4px 20px var(--natsume-shadow-hover);
     }
     section h2 {
       font-size: 1.15rem;
       font-weight: 600;
       color: var(--natsume-ink);
-      margin: 0 0 0.6rem 0;
-      padding-bottom: 0.4rem;
+      margin: 0 0 0.75rem 0;
+      padding-bottom: 0.5rem;
       border-bottom: 1px solid var(--natsume-border);
     }
     .section-title-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 1rem;
-      margin: 0 0 0.6rem 0;
-      padding-bottom: 0.4rem;
+      gap: 1.25rem;
+      margin: 0 0 0.75rem 0;
+      padding-bottom: 0.5rem;
       border-bottom: 1px solid var(--natsume-border);
     }
     .section-title-row h2 { margin: 0; padding-bottom: 0; border-bottom: none; }
     section p {
-      margin: 0 0 0.75rem 0;
+      margin: 0 0 1rem 0;
       color: var(--natsume-ink-light);
       font-size: 0.95rem;
     }
     label {
       display: block;
-      margin: 0.6rem 0 0.25rem;
+      margin: 0.75rem 0 0.35rem;
       font-size: 0.9rem;
       color: var(--natsume-ink-light);
     }
@@ -264,69 +367,69 @@
     input[type="text"],
     select {
       width: 100%;
-      padding: 0.5rem 0.65rem;
+      padding: 0.6rem 0.85rem;
       font-family: inherit;
       font-size: 0.95rem;
       color: var(--natsume-ink);
-      background: rgba(255, 255, 255, 0.8);
+      background: var(--natsume-paper);
       border: 1px solid var(--natsume-border);
-      border-radius: 10px;
+      border-radius: var(--btn-radius);
       transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
     }
     input:hover,
     select:hover {
-      background: rgba(255, 255, 255, 0.95);
+      background: #f8f4ed;
     }
     input:focus,
     select:focus {
       outline: none;
-      border-color: var(--natsume-green-soft);
-      box-shadow: 0 0 0 3px rgba(111, 125, 111, 0.12);
-      background: rgba(255, 255, 255, 1);
+      border-color: var(--natsume-green);
+      box-shadow: 0 0 0 3px rgba(143, 169, 137, 0.15);
+      background: #fff;
     }
     input::placeholder {
-      color: var(--natsume-border);
+      color: var(--natsume-border-strong);
     }
     button {
       margin-top: 0.5rem;
       margin-right: 0.5rem;
-      padding: 0.5rem 1.1rem;
+      padding: 0.55rem 1.2rem;
       font-family: inherit;
       font-size: 0.9rem;
-      color: var(--natsume-paper);
+      color: #fff;
       background: var(--natsume-green);
       border: none;
-      border-radius: 10px;
+      border-radius: var(--btn-radius);
       cursor: pointer;
-      transition: background var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
-      box-shadow: 0 2px 8px rgba(74, 64, 53, 0.1);
+      transition: background var(--transition-normal), transform var(--transition-fast), box-shadow var(--transition-normal);
+      box-shadow: 0 2px 8px rgba(143, 169, 137, 0.25);
     }
     button:hover {
-      background: var(--natsume-leaf);
+      background: var(--natsume-green-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(74, 64, 53, 0.12);
+      box-shadow: 0 4px 14px rgba(143, 169, 137, 0.3);
     }
     button:active {
       transform: translateY(0) scale(0.98);
       transition-duration: 0.1s;
     }
     button.btn-primary {
-      padding: 0.6rem 1.3rem;
+      padding: 0.65rem 1.4rem;
       font-weight: 600;
-      background: var(--natsume-leaf);
-      box-shadow: 0 2px 12px rgba(125, 139, 111, 0.3);
+      background: var(--natsume-green);
+      box-shadow: 0 2px 12px rgba(143, 169, 137, 0.3);
     }
     button.btn-primary:hover {
-      background: #6b7b5f;
-      box-shadow: 0 4px 16px rgba(125, 139, 111, 0.35);
+      background: var(--natsume-green-hover);
+      box-shadow: 0 4px 16px rgba(143, 169, 137, 0.35);
     }
     button.btn-secondary {
-      background: var(--natsume-border);
+      background: var(--natsume-border-strong);
       color: var(--natsume-ink);
     }
     button.btn-secondary:hover {
       background: var(--natsume-ink-light);
-      color: var(--natsume-paper);
+      color: #fff;
     }
     pre {
       margin-top: 0.75rem;
@@ -339,20 +442,20 @@
       line-height: 1.5;
       color: var(--natsume-ink-light);
     }
-    .gen-cards-row, .btn-row-right { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.5rem; }
-    .gen-cards-row { margin-top: 0.9rem; }
-    .quick-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .gen-cards-row, .btn-row-right { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.75rem; }
+    .gen-cards-row { margin-top: 1rem; }
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
     .quick-actions .qabtn {
-      padding: 0.3rem 0.6rem;
+      padding: 0.4rem 0.75rem;
       font-size: 0.85rem;
-      background: var(--natsume-leaf);
+      background: var(--natsume-green);
       color: white;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--btn-radius);
       cursor: pointer;
-      transition: transform var(--transition-fast), filter var(--transition-fast);
+      transition: background var(--transition-normal), transform var(--transition-fast);
     }
-    .quick-actions .qabtn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .quick-actions .qabtn:hover { background: var(--natsume-green-hover); transform: translateY(-1px); }
     .quick-actions .qabtn:disabled { opacity: 0.6; cursor: not-allowed; }
     .quick-actions .hint { color: var(--natsume-ink-light); font-size: 0.85rem; margin-left: 0.25rem; }
     .card-editor {
@@ -361,29 +464,30 @@
       font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
       font-size: 0.9rem;
       line-height: 1.5;
-      padding: 0.6rem;
+      padding: 0.75rem;
       border: 1px solid var(--natsume-border);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.6);
+      border-radius: var(--btn-radius);
+      background: var(--natsume-paper);
       resize: vertical;
       transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
     }
     .card-editor:focus {
       outline: none;
-      border-color: var(--natsume-green-soft);
-      box-shadow: 0 0 0 2px rgba(111, 125, 111, 0.1);
+      border-color: var(--natsume-green);
+      box-shadow: 0 0 0 3px rgba(143, 169, 137, 0.15);
     }
-    .sim-cards-container { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
+    .sim-cards-container { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.75rem; }
     .sim-card-block {
-      border: 1px solid rgba(212, 201, 184, 0.6);
-      border-radius: 10px;
-      background: rgba(255,255,255,0.5);
-      padding: 0.75rem 1rem;
-      transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+      border: 1px solid var(--natsume-border);
+      border-radius: var(--card-radius);
+      background: #fff;
+      padding: 1rem 1.25rem;
+      box-shadow: 0 2px 8px var(--natsume-shadow);
+      transition: box-shadow var(--transition-normal), border-color var(--transition-fast);
     }
-    .sim-card-block:hover { box-shadow: 0 2px 12px rgba(74, 64, 53, 0.06); }
+    .sim-card-block:hover { box-shadow: 0 4px 16px var(--natsume-shadow-hover); }
     .sim-card-block .sim-card-head { font-weight: 600; color: var(--natsume-ink); margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-    .sim-card-block .sim-card-head .sim-card-id { background: var(--natsume-leaf); color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.85rem; }
+    .sim-card-block .sim-card-head .sim-card-id { background: var(--natsume-green); color: white; padding: 0.2rem 0.6rem; border-radius: 0.5rem; font-size: 0.85rem; }
     .sim-card-block .sim-card-section { margin-top: 0.5rem; }
     .sim-card-block .sim-card-section-title { font-size: 0.8rem; color: var(--natsume-ink-light); margin-bottom: 0.2rem; }
     .sim-card-block .sim-card-section-body { font-size: 0.9rem; white-space: pre-wrap; word-break: break-word; }
@@ -419,14 +523,61 @@
       animation: fadeIn 0.25s var(--ease-out-quart);
     }
     .modal-overlay.show { display: flex; }
+    .modal-overlay[aria-hidden="false"] { display: flex; }
+    /* 预览/编辑弹窗：在除去左边栏后的区域居中（主界面+右边栏被视为整体） */
+    #previewModal.modal-overlay,
+    #cardEditModal.modal-overlay {
+      left: max(var(--sidebar-margin, 0px), 44px);
+      transition: left var(--transition-normal);
+    }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    /* 加载指示：内联小旋转器 + 全局长任务遮罩 */
+    .loading-spinner {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      border: 2px solid var(--natsume-border-strong);
+      border-top-color: var(--natsume-green);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: -0.2em;
+      margin-right: 0.35rem;
+    }
+    .msg.loading-msg { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #globalLoadingOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(74, 64, 53, 0.2);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 150;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    #globalLoadingOverlay.show { display: flex; }
+    #globalLoadingOverlay .global-loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--natsume-border);
+      border-top-color: var(--natsume-green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    #globalLoadingOverlay .global-loading-text {
+      font-size: 0.95rem;
+      color: var(--natsume-ink);
+      max-width: 280px;
+      text-align: center;
+    }
     .modal-panel {
-      background: rgba(235, 228, 216, 0.95);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(212, 201, 184, 0.6);
-      border-radius: 16px;
-      box-shadow: 0 16px 48px rgba(74, 64, 53, 0.12);
+      background: #fff;
+      border: 1px solid var(--natsume-border);
+      border-radius: var(--card-radius);
+      box-shadow: 0 16px 48px var(--natsume-shadow-hover);
       padding: 0;
       max-width: 420px;
       width: 90%;
@@ -481,18 +632,19 @@
     .modal-panel h3 { margin: 0 0 1rem 0; font-size: 1.1rem; color: var(--natsume-ink); }
     .modal-panel .modal-close { float: right; margin: -0.25rem 0 0 0; }
     .drop-zone {
-      border: 2px dashed var(--natsume-border);
-      border-radius: 12px;
-      padding: 1.25rem;
+      border: 2px dashed var(--natsume-border-strong);
+      border-radius: var(--btn-radius);
+      padding: 1.5rem;
       text-align: center;
       color: var(--natsume-ink-light);
       font-size: 0.9rem;
       cursor: pointer;
+      background: var(--natsume-paper);
       transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
     }
     .drop-zone:hover, .drop-zone.dragover {
-      border-color: var(--natsume-green-soft);
-      background: rgba(143, 157, 143, 0.08);
+      border-color: var(--natsume-green);
+      background: rgba(143, 169, 137, 0.08);
     }
     .path-drop-target {
       transition: border-color var(--transition-fast), background var(--transition-fast);
@@ -632,8 +784,42 @@
     }
     .ctx-menu-item:hover { background: rgba(143, 157, 143, 0.15); }
     #previewModal .modal-panel { max-width: min(95vw, 900px); width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; }
+    #cardEditModal .modal-panel {
+      max-width: min(95vw, 1100px); width: 95%;
+      min-height: 75vh; max-height: 90vh;
+      display: flex; flex-direction: column; padding: 0;
+    }
+    #cardEditModal .preview-header {
+      flex-shrink: 0; padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--natsume-border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    }
+    #cardEditModal .card-edit-modal-body {
+      flex: 1; min-height: 400px; overflow: auto; padding: 1.25rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      background: var(--natsume-paper);
+      border-radius: 0 0 var(--card-radius) var(--card-radius);
+      font-family: "Noto Serif SC", "Songti SC", serif;
+      font-size: 0.95rem; line-height: 1.7;
+    }
+    #cardEditModal #cardEditModalTextarea {
+      font-family: "Noto Serif SC", "Songti SC", serif;
+    }
+    #cardEditModal .card-edit-modal-body pre,
+    #cardEditModal .card-edit-modal-body code {
+      font-family: ui-monospace, "Cascadia Code", monospace;
+    }
+    .card-edit-mode-tabs { display: flex; gap: 0.25rem; }
+    .card-edit-tab {
+      padding: 0.25rem 0.6rem; font-size: 0.85rem;
+      background: transparent; border: 1px solid var(--natsume-border); border-radius: 6px;
+      color: var(--natsume-ink-light); cursor: pointer;
+      transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+    }
+    .card-edit-tab:hover { color: var(--natsume-ink); border-color: var(--natsume-green-soft); }
+    .card-edit-tab.active { background: var(--natsume-green-soft); color: var(--natsume-ink); border-color: var(--natsume-green); }
     #previewModal .preview-header { flex-shrink: 0; padding: 0.75rem 1rem; border-bottom: 1px solid var(--natsume-border); display: flex; align-items: center; justify-content: space-between; }
-    #previewModal .preview-body { flex: 1; overflow: auto; padding: 1rem; background: var(--natsume-paper); border-radius: 0 0 12px 12px; font-size: 0.9rem; line-height: 1.6; }
+    #previewModal .preview-body { flex: 1; overflow: auto; padding: 1.25rem; background: var(--natsume-paper); border-radius: 0 0 var(--card-radius) var(--card-radius); font-size: 0.9rem; line-height: 1.6; }
     #previewModal .preview-body pre, #previewModal .preview-body code { font-family: ui-monospace, monospace; }
     #previewModal .preview-body pre { padding: 0.75rem; border-radius: 6px; overflow-x: auto; }
     .header, .local-sidebar, section, .main-content,
@@ -792,7 +978,7 @@
       border-bottom: 1px solid var(--natsume-border);
       transition: color var(--transition-fast);
     }
-    .collapsible-section .section-header:hover { color: var(--natsume-leaf); }
+        .collapsible-section .section-header:hover { color: var(--natsume-green); }
     .collapsible-section .section-chevron {
       font-size: 0.75rem;
       color: var(--natsume-ink-light);
@@ -813,17 +999,103 @@
       display: none;
     }
     .collapsible-section.collapsed { padding-bottom: 0.75rem; }
+    #optimizerSubsection summary::-webkit-details-marker { display: none; }
+    #optimizerSubsection[open] .optimizer-chevron { transform: rotate(90deg); }
     .sidebar-workspace-name { font-weight: 600; color: var(--natsume-ink); }
     #sidebarCurrentFolder { word-break: break-all; display: inline-block; max-width: 100%; }
+    /* 夏目友人帐风格登录/注册 */
+    .auth-screen {
+      position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+      background: var(--natsume-bg); display: flex; align-items: center; justify-content: center;
+      z-index: 1000;
+      animation: pageFadeIn 0.4s var(--ease-out-expo);
+    }
+    .auth-screen.hidden { display: none; }
+    .auth-panel {
+      background: #fff; border: 1px solid var(--natsume-border);
+      border-radius: var(--card-radius); padding: 2.25rem; min-width: 320px; max-width: 380px;
+      box-shadow: 0 8px 32px var(--natsume-shadow);
+    }
+    .auth-panel .auth-logo { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 600; color: var(--natsume-ink); }
+    .auth-panel .auth-hint { margin: 0 0 1.25rem; font-size: 0.9em; color: var(--natsume-ink-light); line-height: 1.4; }
+    .auth-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+    .auth-tab { padding: 0.4rem 1rem; border: 1px solid var(--natsume-border); background: transparent; border-radius: 6px; cursor: pointer; color: var(--natsume-ink-light); }
+    .auth-tab:hover { color: var(--natsume-ink); border-color: var(--natsume-green-soft); }
+    .auth-tab.active { background: var(--natsume-green); color: #fff; border-color: var(--natsume-green); }
+    .auth-form label { display: block; margin-top: 0.75rem; margin-bottom: 0.25rem; font-size: 0.9em; color: var(--natsume-ink); }
+    .auth-form input {
+      width: 100%; padding: 0.5rem 0.6rem; margin-bottom: 0.5rem;
+      border: 1px solid var(--natsume-border); border-radius: 6px; box-sizing: border-box;
+      background: var(--natsume-paper); color: var(--natsume-ink);
+    }
+    .auth-form input:focus { outline: none; border-color: var(--natsume-green-soft); }
+    .auth-form .auth-pwd-wrap { position: relative; margin-bottom: 0.5rem; }
+    .auth-form .auth-pwd-wrap input { padding-right: 2.75rem; margin-bottom: 0; }
+    .auth-form .auth-pwd-eye {
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      width: 28px; height: 28px; padding: 0; border: none;
+      background: rgba(180, 175, 165, 0.35); color: var(--natsume-ink);
+      cursor: pointer; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .auth-form .auth-pwd-eye:hover { background: rgba(143, 157, 143, 0.4); color: var(--natsume-ink); }
+    .auth-form .auth-pwd-eye:active { background: rgba(125, 139, 111, 0.35); }
+    .auth-form .auth-pwd-eye svg { width: 16px; height: 16px; }
+    .auth-form .auth-submit { margin-top: 1rem; padding: 0.6rem 1.25rem; width: 100%; background: var(--natsume-green); color: #fff; border: none; border-radius: var(--btn-radius); cursor: pointer; transition: background var(--transition-normal); }
+    .auth-form .auth-submit:hover { background: var(--natsume-green-hover); }
+    .auth-msg { margin-top: 0.75rem; font-size: 0.9em; min-height: 1.2em; }
+    .auth-msg.err { color: var(--natsume-err); }
+    .auth-user-span { margin-right: 0.5rem; font-size: 0.9em; color: var(--natsume-ink-light); }
+    .theme-selector { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-top: 0.35rem; }
+    .theme-option { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; cursor: pointer; font-size: 0.95rem; color: var(--natsume-ink); }
+    .theme-option input { margin: 0; accent-color: var(--natsume-green); }
   </style>
 </head>
 <body>
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-panel">
+      <h1 class="auth-logo">EduFlow</h1>
+      <p class="auth-hint">登录后使用您的专属工作区，历史记录将保留。</p>
+      <div id="authTabs" class="auth-tabs">
+        <button type="button" class="auth-tab active" data-tab="login">登录</button>
+        <button type="button" class="auth-tab" data-tab="register">注册</button>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <label for="loginUsername">用户名</label>
+        <input type="text" id="loginUsername" name="username" autocomplete="username" required placeholder="请输入用户名">
+        <label for="loginPassword">密码</label>
+        <div class="auth-pwd-wrap">
+          <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="请输入密码">
+          <button type="button" class="auth-pwd-eye" id="loginPwdEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div id="loginMsg" class="auth-msg err"></div>
+        <button type="submit" class="auth-submit">登录</button>
+      </form>
+      <form id="registerForm" class="auth-form" style="display:none">
+        <label for="registerUsername">用户名</label>
+        <input type="text" id="registerUsername" name="username" autocomplete="username" required placeholder="字母、数字、中文、._-">
+        <label for="registerPassword">密码</label>
+        <div class="auth-pwd-wrap">
+          <input type="password" id="registerPassword" name="password" autocomplete="new-password" required placeholder="至少 6 位">
+          <button type="button" class="auth-pwd-eye" id="regPwdEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <label for="registerPasswordAgain">再次输入密码</label>
+        <div class="auth-pwd-wrap">
+          <input type="password" id="registerPasswordAgain" name="password_again" autocomplete="new-password" required placeholder="请再输入一次密码">
+          <button type="button" class="auth-pwd-eye" id="regPwdAgainEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div id="registerMsg" class="auth-msg err"></div>
+        <button type="submit" class="auth-submit">注册</button>
+      </form>
+    </div>
+  </div>
   <aside id="localSidebar" class="local-sidebar">
     <div class="sidebar-head">
       <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/></svg>
       </button>
-      <div class="sidebar-workspace-row">工作区：<span id="currentWorkspaceLabel" class="sidebar-workspace-name"></span></div>
+      <div class="sidebar-workspace-row" style="display:none">工作区：<span id="currentWorkspaceLabel" class="sidebar-workspace-name"></span></div>
       <div class="sidebar-folder-row">当前文件夹：<span id="sidebarCurrentFolder" class="breadcrumb">未择定</span></div>
       <button type="button" id="btnPickLocalDir">择定本地目录</button>
       <div id="dirPickerTip" class="file-list-item err" style="display:none; margin-top:0.35rem; font-size:0.85em;"></div>
@@ -844,13 +1116,13 @@
   <header class="header">
     <h1>EduFlow 交互控制台</h1>
     <p class="nav">
-      <a href="/docs">API 文档 (OpenAPI)</a> · <a href="/api/health">健康检查</a>
-      <button type="button" id="btnSimNav" class="btn-icon" title="打开仿真侧边栏">仿真</button>
+      <span id="authUserSpan" class="auth-user-span"></span>
       <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
+      <button type="button" id="btnLogout" class="btn-icon" title="退出登录" style="display:none">退出</button>
     </p>
   </header>
 
-  <div id="settingsModal" class="modal-overlay">
+  <div id="settingsModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel settings-panel-large">
       <nav class="settings-nav">
         <button type="button" class="settings-nav-item active" data-settings-page="llm">API 与模型</button>
@@ -880,8 +1152,16 @@
           <div id="llmConfigMsg" class="msg"></div>
         </div>
         <div id="settingsPageWallpaper" class="settings-panel-page">
-          <h3>外观（壁纸）</h3>
-          <label>壁纸</label>
+          <h3>外观</h3>
+          <p class="hint" style="margin-bottom:1rem;">色系与壁纸仅影响本机显示，不会同步到服务器。</p>
+          <label>色系</label>
+          <div id="themeSelector" class="theme-selector">
+            <label class="theme-option"><input type="radio" name="theme" value="natsume"> 默认（Natsume）</label>
+            <label class="theme-option"><input type="radio" name="theme" value="soft"> 柔和</label>
+            <label class="theme-option"><input type="radio" name="theme" value="muted"> 低对比</label>
+            <label class="theme-option"><input type="radio" name="theme" value="cool"> 冷色</label>
+          </div>
+          <label style="margin-top:1.25rem;">壁纸</label>
           <div id="wallpaperPreview" class="wallpaper-preview"><span class="no-preview">当前未设置壁纸</span></div>
           <div id="wallpaperDropZone" class="drop-zone">将图片拖至此处，或点击选取</div>
           <input type="file" id="wallpaperFile" accept="image/*">
@@ -892,7 +1172,7 @@
   </div>
 
   <div id="mainConsoleView">
-  <div id="previewModal" class="modal-overlay">
+  <div id="previewModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel">
       <div class="preview-header">
         <strong id="previewModalTitle">预览</strong>
@@ -901,14 +1181,36 @@
       <div id="previewModalBody" class="preview-body"></div>
     </div>
   </div>
+  <div id="cardEditModal" class="modal-overlay" aria-hidden="true" aria-labelledby="cardEditModalTitle">
+    <div class="modal-panel">
+      <div class="preview-header">
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <strong id="cardEditModalTitle">卡片编辑</strong>
+          <span class="card-edit-mode-tabs">
+            <button type="button" class="card-edit-tab active" data-mode="edit">编辑</button>
+            <button type="button" class="card-edit-tab" data-mode="preview">预览</button>
+          </span>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.25rem;">
+          <button type="button" id="btnCardEditSave" class="qabtn">保存</button>
+          <button type="button" id="btnCloseCardEdit" class="btn-icon">×</button>
+        </div>
+      </div>
+      <div id="cardEditModalBody" class="card-edit-modal-body">
+        <div id="cardEditModalPreview" style="display:none;flex:1;min-height:360px;overflow:auto;"></div>
+        <textarea id="cardEditModalTextarea" class="card-editor" style="flex:1;min-height:360px;width:100%;resize:vertical;" placeholder="加载中…"></textarea>
+        <div id="cardEditModalMsg" class="msg" style="flex-shrink:0;margin-top:0.5rem;"></div>
+      </div>
+    </div>
+  </div>
 
   <section class="collapsible-section" data-section="1">
   <div class="section-header" role="button" tabindex="0" aria-expanded="true">
     <span class="section-chevron">▼</span>
-    <h2>1. 剧本与生成（含迭代优化）</h2>
+    <h2>1. 剧本与生成</h2>
   </div>
   <div class="section-body">
-  <p>从左侧目录选取剧本或拖入下方；解析完成后点击「生成卡片」。可选：对卡片做迭代优化（约 15–60 分钟）。<strong>推荐流程</strong>：上传剧本 → 生成卡片 →（可选）迭代优化 → 右侧栏闭环验证 → 智慧树注入。</p>
+  <p>无需选择本地目录，直接拖入或点击选取剧本即可。解析完成后点击「生成卡片」，可查看/编辑卡片内容并注入智慧树。<strong>推荐流程</strong>：拖入剧本 → 生成卡片 → 查看或编辑 → 配置平台后执行注入。</p>
   <label>拖入或点选剧本</label>
   <div id="scriptDropZone" class="drop-zone">将 .md / .docx / .doc / .pdf 拖至此处，或点击选取</div>
   <input type="file" id="scriptFile" accept=".md,.docx,.doc,.pdf">
@@ -916,10 +1218,24 @@
     <button type="button" id="btnGenCards" disabled title="请先上传并解析剧本，再生成卡片">生成卡片</button>
   </div>
   <div id="uploadMsg" class="msg"></div>
+  <div id="cardGenProgressWrap" class="card-gen-progress" style="display:none;margin-top:0.5rem;">
+    <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--natsume-ink-light);">
+      <span id="cardGenProgressMsg">准备中…</span>
+      <span id="cardGenProgressPct">0%</span>
+    </div>
+    <div style="height:6px;background:var(--natsume-border);border-radius:3px;overflow:hidden;margin-top:0.25rem;">
+      <div id="cardGenProgressBar" style="height:100%;width:0%;background:var(--natsume-leaf);transition:width 0.3s;"></div>
+    </div>
+    <div id="cardGenStreamPreview" class="card-gen-stream-preview" style="margin-top:0.5rem;max-height:280px;overflow:auto;background:var(--natsume-bg);border:1px solid var(--natsume-border);border-radius:8px;padding:0.75rem;font-size:0.8rem;line-height:1.4;white-space:pre-wrap;word-break:break-word;color:var(--natsume-ink);"></div>
+  </div>
   <div id="uploadQuickActions" class="quick-actions" style="display:none;margin-top:0.5rem;"></div>
 
-  <div class="closed-loop-subsection" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--natsume-border);">
-    <h3 style="font-size:1rem;margin:0 0 0.5rem 0;color:var(--natsume-ink);">迭代优化</h3>
+  <details id="optimizerSubsection" class="closed-loop-subsection" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--natsume-border);">
+    <summary style="cursor:pointer;font-size:1rem;font-weight:600;color:var(--natsume-ink);list-style:none;display:flex;align-items:center;gap:0.35rem;">
+      <span class="optimizer-chevron" style="display:inline-block;transition:transform 0.2s;">▶</span>
+      迭代优化（DSPy）
+    </summary>
+    <p class="hint" style="margin:0.5rem 0 0.6rem 0;font-size:0.85rem;">用 Trainset 多轮生成→仿真→评估，自动优化提示与卡片质量，耗时可长达 15–60 分钟。主流程无需此步骤。</p>
     <label>Trainset 路径</label>
     <input type="text" id="trainsetPath" class="path-drop-target" placeholder="output/optimizer/trainset.json">
     <label>Devset 路径（可选）</label>
@@ -956,7 +1272,7 @@
     </details>
     <div id="optimizerMsg" class="msg"></div>
     <pre id="optimizerResult" style="display:none;"></pre>
-  </div>
+  </details>
   </div>
   </section>
 
@@ -998,7 +1314,7 @@
     <h3 style="font-size:1rem;margin:1.25rem 0 0.5rem 0;color:var(--natsume-ink);">注入平台</h3>
     <p class="hint" style="margin-top:0;">将卡片 Markdown 推送到智慧树；请先保存上方配置。</p>
     <label>卡片文件路径</label>
-    <input type="text" id="injectCardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_20260202_170046.md">
+    <input type="text" id="injectCardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md">
     <label>任务名称（可选，为空则不更新任务配置）</label>
     <input type="text" id="injectTaskName" placeholder="">
     <label>任务描述（可选）</label>
@@ -1042,37 +1358,25 @@
       <div class="closed-loop-subsection" style="margin-bottom:1rem;">
         <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单次验证（闭环 / 模拟）</h4>
         <label>卡片文件路径</label>
-        <input type="text" id="cardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_20260202_170046.md" style="width:100%;">
+        <input type="text" id="cardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="width:100%;">
         <label style="margin-top:0.4rem;">人设</label>
         <select id="personaId" style="width:100%;"></select>
         <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
           <button id="btnClosedLoop" class="btn-primary">闭环运行</button>
+          <button id="btnClosedLoopCancel" type="button" class="btn-secondary" style="display:none;">取消</button>
           <label style="margin:0;"><input type="checkbox" id="closedLoopSaveExport" checked> 保存为优化器导出</label>
+        </div>
+        <div id="closedLoopProgressWrap" style="display:none;margin-top:0.5rem;padding:0.5rem;background:var(--natsume-bg);border:1px solid var(--natsume-border);border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;color:var(--natsume-ink-light);">
+            <span id="closedLoopProgressMsg">准备中…</span>
+          </div>
+          <p class="hint" style="margin:0.25rem 0 0 0;font-size:0.8rem;">可点击「取消」放弃等待（后台可能继续运行），或继续操作其他区域。</p>
         </div>
         <div style="margin-top:0.35rem;">
           <button id="btnSimulate" class="btn-secondary">仅运行模拟</button>
         </div>
         <div id="simMsg" class="msg"></div>
         <pre id="simResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
-      </div>
-      <div style="margin-bottom:1rem;">
-        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">卡片编辑</h4>
-        <label>加载卡片</label>
-        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
-          <input type="text" id="cardEditPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="flex:1;min-width:8rem;">
-          <button type="button" id="btnLoadCardEdit">加载</button>
-          <button type="button" id="btnLoadFromCardsPath" class="qabtn" style="padding:0.25rem 0.5rem;font-size:0.85rem;">从主界面路径</button>
-        </div>
-        <label style="margin-top:0.5rem;">卡片内容（可编辑）</label>
-        <textarea id="cardEditContent" class="card-editor" rows="12" placeholder="加载卡片后在此编辑…"></textarea>
-        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
-          <input type="text" id="cardEditSavePath" class="path-drop-target" list="cardsPathOptions" placeholder="保存路径" style="width:10rem;">
-          <button type="button" id="btnSaveCardEdit">保存</button>
-          <button type="button" id="btnPlayFromEditor">一键仿真</button>
-          <select id="cardEditPersonaId" style="width:auto;"></select>
-        </div>
-        <div id="cardEditMsg" class="msg"></div>
-        <pre id="cardEditResult" style="display:none;font-size:0.8rem;max-height:120px;"></pre>
       </div>
       <div>
         <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">按步骤仿真</h4>
@@ -1091,20 +1395,11 @@
       </div>
       <div class="closed-loop-subsection" style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--natsume-border);">
         <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单独评估</h4>
-        <p class="hint" style="font-size:0.85rem;">对已有会话日志做评估；闭环运行已含评估，此处用于单独跑某次日志。</p>
-        <label>会话日志路径</label>
-        <input type="text" id="logPath" class="path-drop-target" list="logPathOptions" placeholder="output/simulator_output/logs/session_xxx.json" style="width:100%;">
-        <datalist id="logPathOptions"></datalist>
-        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
-          <button id="btnEvaluate">按路径评估</button>
-          <label style="margin:0;"><input type="checkbox" id="evalSaveToExport"> 保存为导出文件</label>
-        </div>
-        <div style="margin-top:0.5rem;">
-          <label>或拖入会话日志</label>
-          <div id="evalLogDropZone" class="drop-zone" style="max-width:100%;">将 .json 拖至此处或点击选取</div>
-          <input type="file" id="evalLogFile" accept=".json" style="display:none">
-          <label style="margin-top:0.35rem;"><input type="checkbox" id="evalFileSaveToExport"> 保存为导出文件</label>
-        </div>
+        <p class="hint" style="font-size:0.85rem;">对已有会话日志做评估；闭环运行已含评估，此处用于单独跑某次日志。支持 .json 与 .txt（.txt 可为「学生: …」「NPC: …」格式）。</p>
+        <label>拖入会话日志进行评估</label>
+        <div id="evalLogDropZone" class="drop-zone" style="max-width:100%;">将 .json 或 .txt 拖至此处或点击选取</div>
+        <input type="file" id="evalLogFile" accept=".json,.txt" style="display:none">
+        <label style="margin-top:0.35rem;display:block;"><input type="checkbox" id="evalFileSaveToExport"> 保存为导出文件</label>
         <div id="evalMsg" class="msg"></div>
         <pre id="evalResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
       </div>
@@ -1113,281 +1408,16 @@
   </div>
   </div>
 
+  <div id="globalLoadingOverlay" aria-live="polite" aria-busy="false" role="status">
+    <div class="global-loading-spinner" aria-hidden="true"></div>
+    <div id="globalLoadingText" class="global-loading-text">处理中…</div>
+  </div>
+
+  <script src="/static/js/common.js"></script>
+  <script src="/static/js/auth.js"></script>
+  <script src="/static/js/settings.js"></script>
   <script>
-    const API = '';
-    const WALLPAPER_KEY = 'eduflow_wallpaper';
-    const WALLPAPER_OVERLAY = 'linear-gradient(rgba(245, 240, 230, 0.88), rgba(245, 240, 230, 0.9)), ';
-    let lastUploadData = null;
-
-    function syncWorkspaceFromUrl() {
-      var m = /^\/w\/([^/]+)\/?$/.exec(location.pathname);
-      if (m) {
-        try {
-          window.WORKSPACE_ID = decodeURIComponent(m[1]);
-        } catch (e) {
-          window.WORKSPACE_ID = m[1];
-        }
-      } else {
-        window.WORKSPACE_ID = 'demo';
-        history.replaceState(null, '', '/w/demo');
-      }
-      var wl = document.getElementById('currentWorkspaceLabel');
-      if (wl) wl.textContent = getWorkspaceId();
-      if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-    }
-    (function ensureWorkspaceInUrl() {
-      syncWorkspaceFromUrl();
-      window.addEventListener('popstate', syncWorkspaceFromUrl);
-      document.addEventListener('visibilitychange', function() {
-        if (document.visibilityState === 'visible') syncWorkspaceFromUrl();
-      });
-    })();
-    function getWorkspaceId() { return window.WORKSPACE_ID || ''; }
-    (function initCollapsibleSections() {
-      var KEY = 'eduflow_sections_collapsed';
-      try {
-        var saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-      } catch (e) { var saved = {}; }
-      document.querySelectorAll('.collapsible-section').forEach(function(el) {
-        var id = el.dataset.section;
-        var header = el.querySelector('.section-header');
-        if (!header) return;
-        if (saved[id]) el.classList.add('collapsed');
-        header.setAttribute('aria-expanded', el.classList.contains('collapsed') ? 'false' : 'true');
-        header.onclick = function() {
-          el.classList.toggle('collapsed');
-          header.setAttribute('aria-expanded', el.classList.contains('collapsed') ? 'false' : 'true');
-          try {
-            saved[id] = el.classList.contains('collapsed');
-            localStorage.setItem(KEY, JSON.stringify(saved));
-          } catch (e) {}
-        };
-        header.onkeydown = function(e) {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
-        };
-      });
-    })();
-    function showWorkspaceToast(id) {
-      var wl = document.getElementById('currentWorkspaceLabel');
-      if (!wl) return;
-      wl.textContent = '已切换: ' + id;
-      setTimeout(function() { wl.textContent = id; }, 2000);
-    }
-    function encodeWorkspaceIdForHeader(id) {
-      if (!id) return '';
-      try {
-        return btoa(unescape(encodeURIComponent(id)));
-      } catch (e) {
-        return /^[\x00-\x7F]*$/.test(id) ? id : '';
-      }
-    }
-    function apiFetch(path, options) {
-      options = options || {};
-      options.headers = options.headers || {};
-      var wid = getWorkspaceId();
-      var encoded = encodeWorkspaceIdForHeader(wid);
-      options.headers['X-Workspace-Id'] = encoded || (wid && /^[\x00-\x7F]*$/.test(wid) ? wid : '');
-      var base = (typeof API !== 'undefined' && API) ? API : (window.location.origin || '');
-      var url = path.startsWith('http') ? path : (base.replace(/\/$/, '') + (path.startsWith('/') ? path : '/' + path));
-      return fetch(url, options);
-    }
-    /** 安全解析响应体为 JSON；若为非 JSON（如 500 返回的 HTML/文本）则返回 { detail: 文本 }，避免 "Unexpected token" 崩溃 */
-    function safeResponseJson(r) {
-      return r.text().then(function(text) {
-        try { return JSON.parse(text); } catch (e) { return { detail: text || r.statusText || 'Invalid response' }; }
-      });
-    }
-
-    function applyWallpaper(dataUrl) {
-      if (!dataUrl) {
-        document.body.style.backgroundImage = '';
-        document.body.style.backgroundSize = '';
-        return;
-      }
-      document.body.style.backgroundImage = WALLPAPER_OVERLAY + 'url(' + dataUrl + ')';
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundAttachment = 'fixed';
-    }
-    function loadWallpaper() {
-      try {
-        const dataUrl = localStorage.getItem(WALLPAPER_KEY);
-        if (dataUrl) applyWallpaper(dataUrl);
-      } catch (e) {}
-    }
-    loadWallpaper();
-
-    var settingsModal = document.getElementById('settingsModal');
-    function updateWallpaperPreview() {
-      var wrap = document.getElementById('wallpaperPreview');
-      try {
-        var dataUrl = localStorage.getItem(WALLPAPER_KEY);
-        if (dataUrl) {
-          wrap.innerHTML = '<img src="' + dataUrl + '" alt="当前壁纸">';
-        } else {
-          wrap.innerHTML = '<span class="no-preview">当前未设置壁纸</span>';
-        }
-      } catch (e) {
-        wrap.innerHTML = '<span class="no-preview">当前未设置壁纸</span>';
-      }
-    }
-    function loadLlmConfig() {
-      apiFetch('/api/llm/config').then(function(r) { return safeResponseJson(r); }).then(function(data) {
-        document.getElementById('llmModelType').value = data.model_type || 'deepseek';
-        document.getElementById('llmApiKey').value = '';
-        document.getElementById('llmApiKeyMasked').textContent = data.has_api_key ? '已保存 Key: ' + (data.api_key_masked || '***') : '未设置';
-        document.getElementById('llmBaseUrl').value = data.base_url || '';
-        document.getElementById('llmModelName').value = data.model || '';
-        document.getElementById('llmCustomFields').style.display = (data.model_type === 'openai') ? 'block' : 'none';
-      }).catch(function() {
-        document.getElementById('llmApiKeyMasked').textContent = '加载失败';
-      });
-    }
-    document.getElementById('llmModelType').onchange = function() {
-      document.getElementById('llmCustomFields').style.display = (this.value === 'openai') ? 'block' : 'none';
-    };
-    document.getElementById('btnSaveLlmConfig').onclick = function() {
-      var payload = { model_type: document.getElementById('llmModelType').value };
-      var key = document.getElementById('llmApiKey').value.trim();
-      if (key) payload.api_key = key;
-      if (document.getElementById('llmModelType').value === 'openai') {
-        payload.base_url = document.getElementById('llmBaseUrl').value.trim();
-        payload.model = document.getElementById('llmModelName').value.trim();
-      }
-      document.getElementById('llmConfigMsg').textContent = '保存中…';
-      apiFetch('/api/llm/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        .then(function(r) { return safeResponseJson(r); })
-        .then(function(data) {
-          document.getElementById('llmConfigMsg').textContent = data.message || '已保存';
-          loadLlmConfig();
-        })
-        .catch(function(e) {
-          document.getElementById('llmConfigMsg').textContent = '保存失败: ' + (e.message || e);
-        });
-    };
-    document.getElementById('btnSettings').onclick = function() {
-      updateWallpaperPreview();
-      loadLlmConfig();
-      settingsModal.classList.add('show');
-    };
-    document.getElementById('btnCloseSettings').onclick = function() { settingsModal.classList.remove('show'); };
-    settingsModal.onclick = function(e) { if (e.target === settingsModal) settingsModal.classList.remove('show'); };
-    (function initSettingsNav() {
-      var navItems = settingsModal.querySelectorAll('.settings-nav-item');
-      var pages = { llm: document.getElementById('settingsPageLlm'), wallpaper: document.getElementById('settingsPageWallpaper') };
-      navItems.forEach(function(btn) {
-        btn.onclick = function() {
-          var pageId = this.getAttribute('data-settings-page');
-          navItems.forEach(function(b) { b.classList.remove('active'); });
-          this.classList.add('active');
-          for (var k in pages) { pages[k].classList.remove('active'); if (k === pageId) pages[k].classList.add('active'); }
-        };
-      });
-    })();
-
-    var wallpaperDZ = document.getElementById('wallpaperDropZone');
-    var wallpaperInput = document.getElementById('wallpaperFile');
-    function setWallpaperFromFile(file) {
-      if (!file || !file.type.startsWith('image/')) return;
-      var r = new FileReader();
-      r.onload = function() {
-        try {
-          localStorage.setItem(WALLPAPER_KEY, r.result);
-          applyWallpaper(r.result);
-          updateWallpaperPreview();
-        } catch (e) { alert('壁纸过大或无法保存，请换一张较小的图片'); }
-      };
-      r.readAsDataURL(file);
-    }
-    wallpaperDZ.onclick = function() { wallpaperInput.click(); };
-    wallpaperInput.onchange = function() { setWallpaperFromFile(this.files[0]); this.value = ''; };
-    wallpaperDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
-    wallpaperDZ.ondragleave = function() { this.classList.remove('dragover'); };
-    wallpaperDZ.ondrop = function(e) {
-      e.preventDefault();
-      this.classList.remove('dragover');
-      var f = e.dataTransfer.files[0];
-      if (f) setWallpaperFromFile(f);
-    };
-    document.getElementById('btnClearWallpaper').onclick = function() {
-      localStorage.removeItem(WALLPAPER_KEY);
-      applyWallpaper(null);
-      updateWallpaperPreview();
-    };
-
-    document.addEventListener('dblclick', function(e) {
-      if (document.body.classList.contains('ui-hidden')) {
-        document.body.classList.remove('ui-hidden');
-        document.body.classList.add('ui-restoring');
-        requestAnimationFrame(function() {
-          requestAnimationFrame(function() {
-            document.body.classList.remove('ui-restoring');
-          });
-        });
-        return;
-      }
-      if (e.target.closest('button, a, input, select, textarea, .local-sidebar, .modal-overlay, .ctx-menu, section, header, .drop-zone, pre, .file-list, .breadcrumb, .sidebar-resize-handle, .sidebar-collapse-btn, .sidebar-expand-tab, .file-list-item, .nav a, label, [contenteditable]')) return;
-      document.body.classList.add('ui-fade-out');
-      setTimeout(function() {
-        document.body.classList.add('ui-hidden');
-        document.body.classList.remove('ui-fade-out');
-      }, 220);
-    });
-
-    (function() {
-      var SIDEBAR_WIDTH_KEY = 'eduflow_sidebar_width';
-      var SIDEBAR_COLLAPSED_KEY = 'eduflow_sidebar_collapsed';
-      var MIN_WIDTH = 200;
-      var MAX_WIDTH = 480;
-      var DEFAULT_WIDTH = 280;
-      var root = document.documentElement;
-      function getSidebarWidth() {
-        var w = parseFloat(getComputedStyle(root).getPropertyValue('--sidebar-width'));
-        return isNaN(w) ? DEFAULT_WIDTH : w;
-      }
-      function setSidebarWidth(px) {
-        px = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, px));
-        root.style.setProperty('--sidebar-width', px + 'px');
-        try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(px)); } catch (e) {}
-      }
-      function setCollapsed(collapsed) {
-        if (collapsed) document.body.classList.add('sidebar-collapsed');
-        else document.body.classList.remove('sidebar-collapsed');
-        try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) {}
-      }
-      function isCollapsed() { return document.body.classList.contains('sidebar-collapsed'); }
-      try {
-        var savedW = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-        if (savedW != null) {
-          var n = parseFloat(savedW);
-          if (!isNaN(n)) root.style.setProperty('--sidebar-width', Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) + 'px');
-        }
-        if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') document.body.classList.add('sidebar-collapsed');
-      } catch (e) {}
-      var resizeHandle = document.getElementById('sidebarResizeHandle');
-      var startX, startW;
-      resizeHandle.onmousedown = function(e) {
-        if (isCollapsed()) return;
-        e.preventDefault();
-        startX = e.clientX;
-        startW = getSidebarWidth();
-        function onMove(e) { setSidebarWidth(startW + (e.clientX - startX)); }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      };
-      document.getElementById('sidebarCollapseBtn').onclick = function() { setCollapsed(true); };
-      document.getElementById('sidebarExpandTab').onclick = function() {
-        setCollapsed(false);
-        var w = DEFAULT_WIDTH;
-        try { var s = localStorage.getItem(SIDEBAR_WIDTH_KEY); if (s != null) { var n = parseFloat(s); if (!isNaN(n)) w = n; } } catch (e) {}
-        setSidebarWidth(w);
-      };
-    })();
-
+    /* 使用 common.js / auth.js / settings.js 提供的全局 API；仅保留应用逻辑 */
     var handleStack = [];
     var pathNames = [];
     var treeRoot = null;
@@ -1535,13 +1565,13 @@
     (function showDirPickerTipIfInsecure() {
       if (typeof window.isSecureContext !== 'boolean' || window.isSecureContext) return;
       var tip = document.getElementById('dirPickerTip');
-      tip.textContent = '当前为 HTTP 访问，「选择目录」不可用。请本机用 python run_web.py --https 启动后访问 https://本机IP:8000，或使用右侧拖拽/选文件上传。';
+      tip.textContent = '当前为 HTTP 访问，「选择目录」不可用（浏览器安全策略要求 HTTPS 或 localhost）。请用右侧拖拽/选文件上传；配置 HTTPS 后即可使用选择目录（本机：python run_web.py --https；服务器：Nginx + 证书，见 DEPLOY.md）。';
       tip.style.display = 'block';
     })();
 
     document.getElementById('btnPickLocalDir').onclick = async function() {
       if (typeof showDirectoryPicker !== 'function') {
-        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">您的浏览器暂不支持选择目录，请用右侧拖拽上传</div>';
+        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">当前环境不支持选择目录（浏览器要求 HTTPS 或 localhost），请用右侧拖拽或选文件上传</div>';
         return;
       }
       try {
@@ -1555,7 +1585,7 @@
       } catch (e) {
         if (e.name !== 'AbortError') {
           var msg = (e.name === 'SecurityError' || (e.message && e.message.indexOf('secure') !== -1))
-            ? '当前环境不允许选择目录（需 HTTPS 或 localhost）。请用右侧拖拽/选文件上传，或改用 https://本机IP:8000 访问。'
+            ? '当前环境不允许选择目录（需 HTTPS 或 localhost）。请用右侧拖拽/选文件上传，或通过 HTTPS 访问（本机或服务器配置 HTTPS 后即可）。'
             : '未择定目录';
           document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">' + msg + '</div>';
         }
@@ -1652,7 +1682,7 @@
           previewItem.className = 'ctx-menu-item';
           previewItem.textContent = '在页面内预览';
           previewItem.onclick = function() {
-            openPreview(fileHandle, fileName);
+            openCardEditFromFile(fileHandle, fileName);
             document.getElementById('ctxMenu') && document.getElementById('ctxMenu').remove();
           };
           menu.appendChild(previewItem);
@@ -1697,7 +1727,7 @@
       var bodyEl = document.getElementById('previewModalBody');
       titleEl.textContent = fileName || '预览';
       bodyEl.innerHTML = '<p style="color:var(--natsume-ink-light)">加载中…</p>';
-      modal.classList.add('show');
+      openModal(modal, null);
       try {
         var file = await fileHandle.getFile();
         var lower = (fileName || '').toLowerCase();
@@ -1726,6 +1756,115 @@
         bodyEl.innerHTML = '<p class="err">预览失败: ' + (e.message || e) + '</p>';
       }
     }
+    function renderCardEditPreview() {
+      var ta = document.getElementById('cardEditModalTextarea');
+      var prevEl = document.getElementById('cardEditModalPreview');
+      if (!ta || !prevEl) return;
+      var content = ta.value || '';
+      if (typeof marked !== 'undefined') {
+        marked.setOptions({ gfm: true });
+        prevEl.innerHTML = marked.parse(content);
+      } else {
+        prevEl.textContent = content;
+      }
+    }
+    function setCardEditMode(mode) {
+      var ta = document.getElementById('cardEditModalTextarea');
+      var prevEl = document.getElementById('cardEditModalPreview');
+      var saveBtn = document.getElementById('btnCardEditSave');
+      document.querySelectorAll('.card-edit-tab').forEach(function(t) {
+        t.classList.toggle('active', t.getAttribute('data-mode') === mode);
+      });
+      if (mode === 'preview') {
+        renderCardEditPreview();
+        if (ta) ta.style.display = 'none';
+        if (prevEl) { prevEl.style.display = 'block'; prevEl.style.flex = '1'; }
+      } else {
+        if (ta) ta.style.display = 'block';
+        if (prevEl) prevEl.style.display = 'none';
+      }
+    }
+    /** 打开卡片查看/编辑弹窗：根据 output 路径加载内容，可编辑并保存 */
+    async function openCardEditModal(outputPath) {
+      if (!outputPath || !outputPath.trim()) return;
+      var path = outputPath.trim();
+      if (!path.startsWith('output/')) path = 'output/' + path;
+      var modal = document.getElementById('cardEditModal');
+      var titleEl = document.getElementById('cardEditModalTitle');
+      var ta = document.getElementById('cardEditModalTextarea');
+      var prevEl = document.getElementById('cardEditModalPreview');
+      var msgEl = document.getElementById('cardEditModalMsg');
+      var saveBtn = document.getElementById('btnCardEditSave');
+      titleEl.textContent = '卡片：' + path;
+      ta.value = '';
+      ta.placeholder = '加载中…';
+      ta.dataset.editPath = '';
+      if (prevEl) prevEl.innerHTML = '';
+      if (msgEl) msgEl.textContent = '';
+      if (saveBtn) saveBtn.style.display = '';
+      setCardEditMode('edit');
+      openModal(modal, null);
+      try {
+        var r = await apiFetch('/api/output/read?path=' + encodeURIComponent(path));
+        var d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        ta.value = (d && d.content) || '';
+        ta.placeholder = '在此编辑卡片内容…';
+        ta.dataset.editPath = path;
+      } catch (e) {
+        ta.placeholder = '';
+        if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+      }
+    }
+    /** 从左侧栏文件打开查看/编辑（.md 支持预览+编辑，.docx 仅预览） */
+    async function openCardEditFromFile(fileHandle, fileName) {
+      document.querySelectorAll('.card-edit-tab').forEach(function(t) { t.style.display = ''; });
+      var modal = document.getElementById('cardEditModal');
+      var titleEl = document.getElementById('cardEditModalTitle');
+      var ta = document.getElementById('cardEditModalTextarea');
+      var prevEl = document.getElementById('cardEditModalPreview');
+      var msgEl = document.getElementById('cardEditModalMsg');
+      var saveBtn = document.getElementById('btnCardEditSave');
+      titleEl.textContent = fileName || '预览';
+      ta.value = '';
+      ta.placeholder = '加载中…';
+      ta.dataset.editPath = '';
+      if (prevEl) prevEl.innerHTML = '';
+      if (msgEl) msgEl.textContent = '';
+      if (saveBtn) saveBtn.style.display = 'none';
+      setCardEditMode('edit');
+      openModal(modal, null);
+      try {
+        var file = await fileHandle.getFile();
+        var lower = (fileName || '').toLowerCase();
+        if (lower.endsWith('.md')) {
+          var text = await file.text();
+          ta.value = text || '';
+          ta.placeholder = '在此编辑（本地文件无法保存回原文件）';
+          setCardEditMode('preview');
+        } else if (lower.endsWith('.docx')) {
+          var buf = await file.arrayBuffer();
+          if (typeof mammoth !== 'undefined') {
+            var result = await mammoth.convertToHtml({ arrayBuffer: buf });
+            ta.value = '';
+            if (prevEl) { prevEl.innerHTML = result.value || '<p>（无内容）</p>'; prevEl.style.display = 'block'; }
+            if (ta) ta.style.display = 'none';
+            document.querySelectorAll('.card-edit-tab').forEach(function(t) {
+              t.classList.toggle('active', t.getAttribute('data-mode') === 'preview');
+              t.style.display = t.getAttribute('data-mode') === 'preview' ? '' : 'none';
+            });
+          } else {
+            if (msgEl) msgEl.innerHTML = '<span class="err">需要 mammoth.js 才能预览 Word 文档</span>';
+          }
+        } else if (lower.endsWith('.doc')) {
+          if (msgEl) msgEl.innerHTML = '<span class="err">.doc 格式请另存为 .docx 后预览</span>';
+        } else {
+          if (msgEl) msgEl.innerHTML = '<span class="err">不支持该格式</span>';
+        }
+      } catch (e) {
+        if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+      }
+    }
     function setWorkspaceFromFolderName(folderName) {
       var id = (folderName || '').trim().replace(/[\\/:*?"<>|]/g, '_').slice(0, 64) || 'folder';
       window.WORKSPACE_ID = id;
@@ -1744,8 +1883,41 @@
     }
     (function initPreviewModal() {
       var modal = document.getElementById('previewModal');
-      document.getElementById('btnClosePreview').onclick = function() { modal.classList.remove('show'); };
-      modal.onclick = function(e) { if (e.target === modal) modal.classList.remove('show'); };
+      document.getElementById('btnClosePreview').onclick = function() { closeModal(modal); };
+      modal.onclick = function(e) { if (e.target === modal) closeModal(modal); };
+    })();
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('.card-path-link');
+      if (link) {
+        e.preventDefault();
+        var path = link.getAttribute('data-path');
+        if (path) openCardEditModal(path);
+      }
+    });
+    (function initCardEditModal() {
+      var modal = document.getElementById('cardEditModal');
+      document.getElementById('btnCloseCardEdit').onclick = function() { closeModal(modal); };
+      modal.onclick = function(e) { if (e.target === modal) closeModal(modal); };
+      document.querySelectorAll('.card-edit-tab').forEach(function(btn) {
+        btn.onclick = function() { setCardEditMode(this.getAttribute('data-mode')); };
+      });
+      document.getElementById('btnCardEditSave').onclick = async function() {
+        var ta = document.getElementById('cardEditModalTextarea');
+        var path = ta && ta.dataset.editPath;
+        var msgEl = document.getElementById('cardEditModalMsg');
+        if (!path) { if (msgEl) msgEl.innerHTML = '<span class="err">无有效路径</span>'; return; }
+        var content = ta.value;
+        if (msgEl) msgEl.textContent = '保存中…';
+        try {
+          var r = await apiFetch('/api/output/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: path, content: content }) });
+          var d = await safeResponseJson(r);
+          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          if (msgEl) msgEl.textContent = '已保存';
+          if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+        } catch (e) {
+          if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+        }
+      };
     })();
 
     document.getElementById('localFileList').onclick = async function(e) {
@@ -1904,15 +2076,8 @@
     function updatePathDatalists() {
       var out = workspaceFilesCache.output || [];
       var cardsDl = document.getElementById('cardsPathOptions');
-      var logDl = document.getElementById('logPathOptions');
       if (cardsDl) {
         cardsDl.innerHTML = out.filter(function(f) { return (f.path || '').toLowerCase().endsWith('.md'); }).map(function(f) {
-          var p = (f.path || '').replace(/^output\/?/, 'output/');
-          return '<option value="' + p.replace(/"/g, '&quot;') + '">';
-        }).join('');
-      }
-      if (logDl) {
-        logDl.innerHTML = out.filter(function(f) { return (f.path || '').toLowerCase().endsWith('.json'); }).map(function(f) {
           var p = (f.path || '').replace(/^output\/?/, 'output/');
           return '<option value="' + p.replace(/"/g, '&quot;') + '">';
         }).join('');
@@ -2174,15 +2339,27 @@
       var msg = document.getElementById('uploadMsg');
       var genBtn = document.getElementById('btnGenCards');
       var qaEl = document.getElementById('uploadQuickActions');
+      var progressWrap = document.getElementById('cardGenProgressWrap');
+      var progressBar = document.getElementById('cardGenProgressBar');
+      var progressMsg = document.getElementById('cardGenProgressMsg');
+      var progressPct = document.getElementById('cardGenProgressPct');
+      var streamPreview = document.getElementById('cardGenStreamPreview');
       if (!lastUploadData) {
         msg.innerHTML = '<span class="err">请先上传并解析剧本</span>';
         return;
       }
-      msg.textContent = '生成中（可能较久）…';
+      msg.textContent = '';
       if (qaEl) qaEl.style.display = 'none';
       if (genBtn) genBtn.disabled = true;
+      if (progressWrap) {
+        progressWrap.style.display = 'block';
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressMsg) progressMsg.textContent = '正在连接…';
+        if (progressPct) progressPct.textContent = '0%';
+      }
+      if (streamPreview) streamPreview.textContent = '';
       try {
-        var r = await apiFetch('/api/cards/generate', {
+        var r = await apiFetch('/api/cards/generate-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2192,11 +2369,54 @@
             source_filename: lastUploadData.filename || null,
           }),
         });
-        var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(r.status === 502 ? '生成失败，请检查 LLM 配置与网络' : '请求失败');
+        var reader = r.body.getReader();
+        var decoder = new TextDecoder();
+        var buf = '';
+        var d = null;
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buf += decoder.decode(chunk.value, { stream: true });
+          var parts = buf.split('\n\n');
+          buf = parts.pop() || '';
+          for (var i = 0; i < parts.length; i++) {
+            var event = null, dataStr = null;
+            parts[i].split('\n').forEach(function(line) {
+              if (line.startsWith('event: ')) event = line.slice(7).trim();
+              else if (line.startsWith('data: ')) dataStr = line.slice(6);
+            });
+            if (!event || !dataStr) continue;
+            try {
+              var data = JSON.parse(dataStr);
+              if (event === 'progress') {
+                var pct = data.percent != null ? data.percent : (data.total ? Math.round(100 * data.current / data.total) : 0);
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (progressMsg) progressMsg.textContent = data.message || '生成中…';
+                if (progressPct) progressPct.textContent = pct + '%';
+              } else if (event === 'card') {
+                if (streamPreview) {
+                  if (streamPreview.textContent) streamPreview.textContent += '\n\n---\n\n';
+                  streamPreview.textContent += data.content || '';
+                  streamPreview.scrollTop = streamPreview.scrollHeight;
+                }
+              } else if (event === 'done') {
+                d = data;
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressMsg) progressMsg.textContent = '完成';
+                if (progressPct) progressPct.textContent = '100%';
+              } else if (event === 'error') {
+                throw new Error(data.detail || dataStr);
+              }
+            } catch (parseErr) {
+              if (event === 'error') throw new Error(dataStr || parseErr.message);
+            }
+          }
+        }
+        if (!d) throw new Error('未收到完成数据');
         var outputPath = d.output_path || d.output_filename || '';
-        var fullPath = d.full_path || ('workspaces/' + (d.workspace_id || getWorkspaceId()) + '/output/' + (d.output_filename || outputPath.replace('output/', '')));
-        msg.innerHTML = '已完成生成。卡片文件：<code>' + outputPath + '</code>';
+        var escPath = (outputPath || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        msg.innerHTML = '已完成生成。卡片文件：<a href="#" class="card-path-link" data-path="' + escPath + '">' + escPath + '</a>（点击可查看并编辑）';
         if (typeof window.updateSimProgress === 'function') window.updateSimProgress({2: true});
         if (d.output_path) {
           var cardsPathInput = document.getElementById('cardsPath');
@@ -2205,9 +2425,14 @@
           if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
           var qa = document.getElementById('uploadQuickActions');
           if (qa) {
-            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaClosedLoop">闭环运行（推荐）</button><button type="button" class="qabtn" id="qaSimulate">仅模拟</button>';
+            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaInject">注入平台</button><button type="button" class="qabtn" id="qaClosedLoop">闭环运行</button><button type="button" class="qabtn" id="qaSimulate">仅模拟</button>';
             qa.style.display = 'flex';
             var boundPath = d.output_path;
+            var qaInjectBtn = document.getElementById('qaInject');
+            if (qaInjectBtn) qaInjectBtn.onclick = function() {
+              var injectSection = document.querySelector('section [id="injectCardsPath"]');
+              if (injectSection) injectSection.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            };
             document.getElementById('qaClosedLoop').onclick = function() {
               if (cardsPathInput) cardsPathInput.value = boundPath;
               if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) window.toggleSimSidebar();
@@ -2221,9 +2446,10 @@
           }
         }
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        msg.innerHTML = '<span class="err">' + (e.message || '生成失败') + '</span>';
       } finally {
         if (genBtn) genBtn.disabled = false;
+        if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 8000);
       }
     };
     scriptFileInput.onchange = function() { handleScriptFile(this.files[0]); };
@@ -2296,6 +2522,67 @@
         if (sidebar && sidebar.classList.contains('open')) closeSidebar();
         else openSidebar();
       };
+      (function setupSimSidebarSwipe() {
+        if (!sidebar) return;
+        var dragPx = 0, touchStartX = null, wheelAccum = 0, wheelEndTimer = null;
+        var COMMIT_RATIO = 0.35;
+        var WHEEL_END_MS = 120;
+        var transitionEase = 'cubic-bezier(0.16, 1, 0.3, 1)';
+        function getWidth() { return sidebar.getBoundingClientRect().width || 380; }
+        function applyDrag(px) {
+          sidebar.style.transition = 'none';
+          sidebar.style.transform = 'translateX(' + Math.max(0, Math.min(px, getWidth())) + 'px)';
+        }
+        function endDrag(commit) {
+          if (commit) {
+            sidebar.style.transition = 'transform 0.25s ' + transitionEase;
+            sidebar.style.transform = '';
+            closeSidebar();
+          } else {
+            sidebar.style.transition = 'transform 0.3s ' + transitionEase;
+            sidebar.style.transform = 'translateX(0)';
+            var onEnd = function() {
+              sidebar.removeEventListener('transitionend', onEnd);
+              sidebar.style.transition = '';
+              sidebar.style.transform = '';
+            };
+            sidebar.addEventListener('transitionend', onEnd);
+          }
+          dragPx = 0;
+          wheelAccum = 0;
+          touchStartX = null;
+        }
+        sidebar.addEventListener('wheel', function(e) {
+          if (!sidebar.classList.contains('open')) return;
+          if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
+          e.preventDefault();
+          wheelAccum -= e.deltaX;
+          wheelAccum = Math.max(0, Math.min(wheelAccum, getWidth()));
+          applyDrag(wheelAccum);
+          clearTimeout(wheelEndTimer);
+          wheelEndTimer = setTimeout(function() {
+            wheelEndTimer = null;
+            var th = getWidth() * COMMIT_RATIO;
+            endDrag(wheelAccum >= th);
+          }, WHEEL_END_MS);
+        }, { passive: false });
+        sidebar.addEventListener('touchstart', function(e) {
+          touchStartX = e.touches[0].clientX;
+          dragPx = 0;
+        }, { passive: true });
+        sidebar.addEventListener('touchmove', function(e) {
+          if (touchStartX == null || !sidebar.classList.contains('open')) return;
+          var dx = e.touches[0].clientX - touchStartX;
+          dragPx = Math.max(0, Math.min(dx, getWidth()));
+          applyDrag(dragPx);
+          if (Math.abs(dx) > 8) e.preventDefault();
+        }, { passive: false });
+        sidebar.addEventListener('touchend', function(e) {
+          if (touchStartX == null) return;
+          var th = getWidth() * COMMIT_RATIO;
+          endDrag(dragPx >= th);
+        }, { passive: true });
+      })();
       (function setupSimSidebarResize() {
         var SIM_WIDTH_KEY = 'eduflow_sim_sidebar_width';
         var MIN_W = 280, MAX_W = 600, DEFAULT_W = 380;
@@ -2398,6 +2685,7 @@
         resultPre.style.display = 'none';
         var runBtn = document.getElementById('simModuleRun');
         if (runBtn) runBtn.disabled = true;
+        showLongTaskFeedback('模拟运行中，请稍候…');
         try {
           var r = await apiFetch('/api/simulate/run', {
             method: 'POST',
@@ -2418,6 +2706,7 @@
           msgEl.innerHTML = '<span class="err">' + e.message + '</span>';
           resultPre.style.display = 'none';
         } finally {
+          hideLongTaskFeedback();
           if (runBtn) runBtn.disabled = false;
         }
       };
@@ -2429,17 +2718,25 @@
         if (el) el.disabled = !enabled;
       });
     }
+    var closedLoopAbortController = null;
     document.getElementById('btnClosedLoop').onclick = async () => {
       const path = document.getElementById('cardsPath').value.trim();
       const msg = document.getElementById('simMsg');
       const pre = document.getElementById('simResult');
+      const progressWrap = document.getElementById('closedLoopProgressWrap');
+      const progressMsg = document.getElementById('closedLoopProgressMsg');
+      const cancelBtn = document.getElementById('btnClosedLoopCancel');
       if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
       const saveExport = document.getElementById('closedLoopSaveExport') && document.getElementById('closedLoopSaveExport').checked;
-      msg.textContent = '闭环运行中（仿真+评估，可能较久）...';
+      msg.textContent = '';
       pre.style.display = 'none';
-      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
+      setButtonsEnabled(['btnClosedLoop', 'qaClosedLoop'], false);
+      if (progressWrap) progressWrap.style.display = 'block';
+      if (progressMsg) progressMsg.textContent = '正在连接…';
+      if (cancelBtn) cancelBtn.style.display = 'inline-block';
+      closedLoopAbortController = new AbortController();
       try {
-        const r = await apiFetch('/api/closed-loop/run', {
+        const r = await apiFetch('/api/closed-loop/run-stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2447,25 +2744,62 @@
             persona_id: document.getElementById('personaId').value || 'excellent',
             save_to_export: saveExport,
           }),
+          signal: closedLoopAbortController.signal,
         });
-        const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(r.status === 502 ? '闭环运行失败，请检查 LLM 配置' : '请求失败');
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        var buf = '';
+        var d = null;
+        while (true) {
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buf += decoder.decode(chunk.value, { stream: true });
+          var parts = buf.split('\n\n');
+          buf = parts.pop() || '';
+          for (var i = 0; i < parts.length; i++) {
+            var event = null, dataStr = null;
+            parts[i].split('\n').forEach(function(line) {
+              if (line.startsWith('event: ')) event = line.slice(7).trim();
+              else if (line.startsWith('data: ')) dataStr = line.slice(6);
+            });
+            if (!event || !dataStr) continue;
+            try {
+              var data = JSON.parse(dataStr);
+              if (event === 'progress' && progressMsg) progressMsg.textContent = data.message || '运行中…';
+              else if (event === 'done') d = data;
+              else if (event === 'error') throw new Error(data.detail || dataStr);
+            } catch (parseErr) {
+              if (event === 'error') throw new Error(dataStr || parseErr.message);
+            }
+          }
+        }
+        if (!d) throw new Error('未收到完成数据');
         msg.textContent = '闭环完成：总分 ' + (d.total_score != null ? d.total_score : '-') + (d.saved_export_path ? '，已保存导出' : '');
         pre.style.display = 'block';
         pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
-        if (d.session_id) {
-          var lp = document.getElementById('logPath');
-          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
-        }
         if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
         if (typeof window.updateSimProgress === 'function') window.updateSimProgress({3: true});
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        if (e.name === 'AbortError') {
+          msg.textContent = '已取消等待（后台可能仍在运行）';
+        } else {
+          msg.innerHTML = '<span class="err">' + (e.message || '闭环运行失败') + '</span>';
+        }
         pre.style.display = 'none';
       } finally {
-        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
+        closedLoopAbortController = null;
+        setButtonsEnabled(['btnClosedLoop', 'qaClosedLoop'], true);
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 4000);
       }
     };
+    (function() {
+      var btn = document.getElementById('btnClosedLoopCancel');
+      if (btn) btn.onclick = function() {
+        if (closedLoopAbortController) closedLoopAbortController.abort();
+      };
+    })();
 
     document.getElementById('btnSimulate').onclick = async () => {
       const path = document.getElementById('cardsPath').value.trim();
@@ -2474,7 +2808,8 @@
       if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
       msg.textContent = '模拟运行中（可能较久）...';
       pre.style.display = 'none';
-      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
+      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
+      showLongTaskFeedback('模拟运行中，请稍候…');
       try {
         const r = await apiFetch( '/api/simulate/run', {
           method: 'POST',
@@ -2491,139 +2826,12 @@
         msg.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
         pre.style.display = 'block';
         pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
-        if (d.session_id) {
-          var lp = document.getElementById('logPath');
-          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
-        }
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
         pre.style.display = 'none';
       } finally {
-        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
-      }
-    };
-
-    document.getElementById('btnLoadFromCardsPath').onclick = function() {
-      var cardsPath = document.getElementById('cardsPath');
-      var cardEditPath = document.getElementById('cardEditPath');
-      if (cardsPath && cardsPath.value.trim()) {
-        cardEditPath.value = cardsPath.value.trim();
-        document.getElementById('btnLoadCardEdit').click();
-        if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) {
-          window.toggleSimSidebar();
-        }
-      } else if (document.getElementById('cardEditMsg')) {
-        document.getElementById('cardEditMsg').innerHTML = '<span class="err">请先在右侧栏「单次验证」填写卡片路径</span>';
-      }
-    };
-    document.getElementById('btnLoadCardEdit').onclick = async function() {
-      var path = document.getElementById('cardEditPath').value.trim();
-      var msg = document.getElementById('cardEditMsg');
-      var ta = document.getElementById('cardEditContent');
-      var savePath = document.getElementById('cardEditSavePath');
-      if (!path) { msg.innerHTML = '<span class="err">请输入卡片路径</span>'; return; }
-      if (!path.startsWith('output/')) path = 'output/' + path;
-      msg.textContent = '加载中…';
-      try {
-        var r = await apiFetch('/api/output/read?path=' + encodeURIComponent(path));
-        var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        ta.value = d.content || '';
-        savePath.value = d.path || path;
-        msg.textContent = '已加载：' + (d.path || path);
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-      }
-    };
-    document.getElementById('btnSaveCardEdit').onclick = async function() {
-      var path = document.getElementById('cardEditSavePath').value.trim();
-      var content = document.getElementById('cardEditContent').value;
-      var msg = document.getElementById('cardEditMsg');
-      if (!path) { msg.innerHTML = '<span class="err">请输入保存路径</span>'; return; }
-      if (!path.startsWith('output/')) path = 'output/' + path;
-      msg.textContent = '保存中…';
-      try {
-        var r = await apiFetch('/api/output/write', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: path, content: content }),
-        });
-        var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = '已保存：' + (d.path || path);
-        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-      }
-    };
-    document.getElementById('btnPlayFromEditor').onclick = async function() {
-      var content = document.getElementById('cardEditContent').value.trim();
-      var msg = document.getElementById('cardEditMsg');
-      var pre = document.getElementById('cardEditResult');
-      if (!content) { msg.innerHTML = '<span class="err">请先加载或输入卡片内容</span>'; return; }
-      msg.textContent = '仿真中（可能较久）…';
-      pre.style.display = 'none';
-      var btn = document.getElementById('btnPlayFromEditor');
-      if (btn) btn.disabled = true;
-      try {
-        var r = await apiFetch('/api/simulate/run-from-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cards_content: content,
-            persona_id: (document.getElementById('cardEditPersonaId') && document.getElementById('cardEditPersonaId').value) || 'excellent',
-            run_evaluation: true,
-          }),
-        });
-        var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = '仿真完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
-        pre.style.display = 'block';
-        pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
-        if (d.session_id) {
-          var lp = document.getElementById('logPath');
-          if (lp) lp.value = 'output/simulator_output/logs/session_' + d.session_id + '.json';
-        }
-        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-        pre.style.display = 'none';
-      } finally {
-        if (btn) btn.disabled = false;
-      }
-    };
-
-    document.getElementById('btnEvaluate').onclick = async () => {
-      const path = document.getElementById('logPath').value.trim();
-      const msg = document.getElementById('evalMsg');
-      const pre = document.getElementById('evalResult');
-      if (!path) { msg.innerHTML = '<span class="err">请输入日志文件路径</span>'; return; }
-      msg.textContent = '评估中...';
-      pre.style.display = 'none';
-      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
-      try {
-        const saveToExport = document.getElementById('evalSaveToExport') && document.getElementById('evalSaveToExport').checked;
-        const r = await apiFetch( '/api/evaluate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ log_path: path, save_to_export: saveToExport }),
-        });
-        const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = '总分：' + (d.total_score ?? '') + ' / ' + (d.max_score ?? 100) + '，' + (d.rating || '');
-        if (d.saved_export_path) {
-          msg.textContent += '；已保存为 ' + d.saved_export_path;
-          var expInp = document.getElementById('optimizerExportPath');
-          if (expInp) expInp.value = d.saved_export_path;
-          if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-        }
-        pre.style.display = 'block';
-        pre.textContent = JSON.stringify(d, null, 2);
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-        pre.style.display = 'none';
-      } finally {
-        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnEvaluate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
+        hideLongTaskFeedback();
+        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
       }
     };
 
@@ -2633,7 +2841,13 @@
       if (!dz || !fileInput) return;
       dz.onclick = function() { fileInput.click(); };
       function doEvalFromFile(file) {
-        if (!file || !file.name.toLowerCase().endsWith('.json')) return;
+        if (!file) return;
+        var ext = (file.name || '').toLowerCase();
+        if (!ext.endsWith('.json') && !ext.endsWith('.txt')) {
+          var msg = document.getElementById('evalMsg');
+          if (msg) msg.innerHTML = '<span class="err">请选择 .json 或 .txt 会话日志</span>';
+          return;
+        }
         var msg = document.getElementById('evalMsg');
         var pre = document.getElementById('evalResult');
         msg.textContent = '评估中...';
@@ -2701,6 +2915,7 @@
       const pre = document.getElementById('injectResult');
       if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
       msg.textContent = '注入中...';
+      showLongTaskFeedback('注入平台中，请稍候…');
       try {
         const r = await apiFetch( '/api/inject/run', {
           method: 'POST',
@@ -2710,6 +2925,7 @@
         const d = await safeResponseJson(r);
         if (!r.ok) {
           if (r.status === 409) {
+            hideLongTaskFeedback();
             msg.innerHTML = '<span class="err">' + (d.detail || '检测到已有卡片，未覆写') + '</span>';
             pre.style.display = 'block';
             pre.textContent = JSON.stringify(d, null, 2);
@@ -2725,6 +2941,8 @@
       } catch (e) {
         msg.innerHTML = '<span class="err">' + e.message + '</span>';
         pre.style.display = 'none';
+      } finally {
+        hideLongTaskFeedback();
       }
     };
   </script>

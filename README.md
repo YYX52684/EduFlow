@@ -184,6 +184,8 @@ python run_web.py
 - 打开浏览器会跳转到 **工作区地址**（如 `http://localhost:8000/w/abc123`），每人一个工作区，上传与生成的文件、平台配置均隔离在 `workspaces/<工作区ID>/` 下，互不影响。
 - 本机访问：`http://localhost:8000/` 或 `http://127.0.0.1:8000/`，API 文档：`http://localhost:8000/docs`。
 
+**开放给同事使用**：三种方式（本机局域网、服务器部署、同事本地跑）及步骤见 **[docs/开放给同事使用.md](docs/开放给同事使用.md)**。
+
 **分享给同事（同一局域网）：**
 
 - 启动后终端会打印 **同事访问地址**（如 `http://192.168.x.x:8000`），同事用该地址打开即可（会得到自己的 `/w/xxx` 工作区）。
@@ -205,7 +207,7 @@ python run_web.py
 
 - 你把项目推到 Git，同事 `git clone` 后在本机执行上述安装与配置（含 `.env`），再运行 `python run_web.py`。数据在本机，与服务器或你本机完全独立。
 
-更多说明见 [Operations.md](Operations.md) 第十一节。
+更多说明见 [docs/operations.md](docs/operations.md) 第十一节。
 
 ### 5. Docker 部署（可选）
 

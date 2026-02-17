@@ -10,7 +10,8 @@ from typing import Optional
 
 router = APIRouter()
 
-from api.workspace import get_workspace_id, get_project_dirs, resolve_workspace_path
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_project_dirs, resolve_workspace_path
 from api.exceptions import NotFoundError, LLMError
 
 # 评估报告允许的扩展名
@@ -35,7 +36,7 @@ class WriteBody(BaseModel):
 @router.get("/read")
 def read_output_file(
     path: str,
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
 ):
     """读取 output 下指定文件的文本内容，用于卡片编辑。path 如 output/cards_xxx.md。"""
     full_path = resolve_workspace_path(workspace_id, path, kind="output", must_exist=True)
@@ -53,7 +54,7 @@ def read_output_file(
 @router.post("/write")
 def write_output_file(
     body: WriteBody,
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
 ):
     """将文本内容写入 output 下指定路径，用于保存编辑后的卡片。路径不存在则创建。"""
     full_path = resolve_workspace_path(workspace_id, body.path, kind="output")
@@ -70,7 +71,7 @@ def write_output_file(
 
 
 @router.get("/files")
-def list_output_files(workspace_id: str = Depends(get_workspace_id)):
+def list_output_files(workspace_id: str = Depends(require_workspace_owned)):
     """列出当前工作区 output 目录下所有文件（递归）。"""
     _, output_dir, _ = get_project_dirs(workspace_id)
     if not os.path.isdir(output_dir):
@@ -88,7 +89,7 @@ def list_output_files(workspace_id: str = Depends(get_workspace_id)):
 
 @router.post("/upload")
 async def upload_to_output(
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
     file: UploadFile = File(...),
     subpath: Optional[str] = Form("output/optimizer"),
     save_as: Optional[str] = Form(""),

@@ -6,11 +6,12 @@ LLM NPC模拟器
 """
 
 import os
-import requests
 import json
 import re
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
+
+from .llm_client import get_simulator_default_config, call_chat_completion
 
 
 @dataclass
@@ -19,15 +20,6 @@ class NPCMessage:
     role: str           # "npc" 或 "student"
     content: str        # 消息内容
     metadata: dict = field(default_factory=dict)  # 附加元数据
-
-
-def _default_npc_config():
-    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
-    return {
-        "api_url": DEEPSEEK_CHAT_URL,
-        "api_key": DEEPSEEK_API_KEY or "",
-        "model": DEEPSEEK_MODEL,
-    }
 
 
 class LLMNPC:
@@ -53,7 +45,7 @@ class LLMNPC:
                 - temperature: 温度参数
         """
         config = config or {}
-        defaults = _default_npc_config()
+        defaults = get_simulator_default_config()
         self.system_prompt = card_prompt
         self.api_url = config.get("api_url", defaults["api_url"])
         self.api_key = config.get("api_key", defaults["api_key"])
@@ -164,60 +156,20 @@ class LLMNPC:
         ]
     
     def _call_llm(self, messages: List[dict]) -> str:
-        """
-        调用LLM API
-        
-        Args:
-            messages: 消息列表
-            
-        Returns:
-            LLM的回复
-        """
-        headers = {
-            "Content-Type": "application/json",
-        }
-        
-        # 添加认证信息
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        if self.service_code:
-            headers["serviceCode"] = self.service_code
-        
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "stream": False
-        }
-        
+        """调用 LLM API，返回回复文本。"""
         try:
-            response = requests.post(
+            return call_chat_completion(
                 self.api_url,
-                headers=headers,
-                json=payload,
-                timeout=60
+                self.api_key,
+                self.model,
+                messages,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+                service_code=self.service_code,
+                timeout=60,
             )
-            response.raise_for_status()
-            
-            result = response.json()
-            
-            # 解析OpenAI格式的响应
-            if "choices" in result and len(result["choices"]) > 0:
-                return result["choices"][0]["message"]["content"]
-            
-            # 尝试其他格式
-            if "content" in result:
-                return result["content"]
-            if "response" in result:
-                return result["response"]
-            
-            raise ValueError(f"无法解析API响应: {result}")
-            
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"API调用失败: {e}")
-        except json.JSONDecodeError as e:
-            raise RuntimeError(f"响应解析失败: {e}")
+        except Exception as e:
+            raise RuntimeError(f"API 调用失败: {e}")
     
     def update_system_prompt(self, new_prompt: str):
         """
@@ -259,7 +211,7 @@ class NPCFactory:
         from dotenv import load_dotenv
         
         load_dotenv()
-        defaults = _default_npc_config()
+        defaults = get_simulator_default_config()
         config = {
             "api_url": os.getenv("NPC_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),
             "api_key": os.getenv("NPC_API_KEY", os.getenv("SIMULATOR_API_KEY", defaults["api_key"])),
@@ -284,7 +236,7 @@ class NPCFactory:
         from dotenv import load_dotenv
         
         load_dotenv()
-        defaults = _default_npc_config()
+        defaults = get_simulator_default_config()
         model = card_model_id if card_model_id else os.getenv("CARD_MODEL_ID", defaults["model"])
         config = {
             "api_url": os.getenv("NPC_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),

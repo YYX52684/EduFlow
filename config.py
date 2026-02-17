@@ -18,7 +18,7 @@ def _deepseek_chat_url():
     return f"{base}/v1/chat/completions"
 DEEPSEEK_CHAT_URL = os.getenv("DEEPSEEK_CHAT_URL", _deepseek_chat_url())
 
-# 文件路径配置
+# 文件路径配置（根目录 input/output 仅用于 CLI 未指定 --workspace 时的默认路径；Web/API 使用 workspaces/<id>/input|output）
 INPUT_DIR = os.path.join(os.path.dirname(__file__), "input")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")

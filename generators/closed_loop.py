@@ -59,6 +59,7 @@ def run_simulate_and_evaluate(
     verbose: bool = False,
     api_url: Optional[str] = None,
     model_name: Optional[str] = None,
+    progress_callback: Optional[Callable[[str, str], None]] = None,
 ) -> Tuple[Any, Any]:
     """
     运行仿真并评估，返回 (SessionLog, EvaluationReport)。
@@ -73,12 +74,17 @@ def run_simulate_and_evaluate(
         total_max_rounds: 总会话最大轮次
         save_logs: 是否保存会话日志
         verbose: 详细输出
+        progress_callback: 可选，phase 变化时调用 (phase, message)，用于流式 UI
 
     Returns:
         (session_log, evaluation_report)
     """
     from simulator.session_runner import SessionRunner, SessionConfig, SessionMode
     from simulator.evaluator import Evaluator
+
+    def progress(phase: str, message: str) -> None:
+        if progress_callback:
+            progress_callback(phase, message)
 
     sim_config, eval_config = _build_llm_config(api_key, model_type)
     if api_url:
@@ -90,6 +96,7 @@ def run_simulate_and_evaluate(
     if not sim_config.get("api_url") or not sim_config.get("api_key"):
         raise ValueError("未配置 LLM API，请检查 api_key 与 model_type")
 
+    progress("loading", "加载卡片…")
     config = SessionConfig(
         mode=SessionMode.AUTO,
         persona_id=persona_id,
@@ -104,6 +111,8 @@ def run_simulate_and_evaluate(
     runner = SessionRunner(config)
     runner.load_cards(cards_path)
     runner.setup()
+
+    progress("simulate", "仿真中（学生与 NPC 对话，可能较久）…")
     log = runner.run()
 
     # 仅当会话正常完成时才评估
@@ -121,6 +130,7 @@ def run_simulate_and_evaluate(
         )
         return log, dummy_report
 
+    progress("evaluate", "评估对话质量…")
     dialogue = runner.get_dialogue_for_evaluation()
     evaluator = Evaluator(eval_config)
     report = evaluator.evaluate(dialogue, session_id=log.session_id)
