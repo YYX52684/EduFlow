@@ -266,10 +266,6 @@ class PlatformCardLoader:
         Returns:
             解析后的卡片列表
         """
-        # TODO: 需要抓取教师端API来实现
-        # 需要的API：
-        # 1. 获取训练任务详情（节点列表、连线关系）
-        # 2. 获取单个节点的详细配置（包括llmPrompt）
         raise NotImplementedError(
             "平台拉取功能待实现。\n"
             "需要先通过F12抓包获取以下API：\n"

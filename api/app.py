@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routes import health, frameworks, personas, script, cards, simulate, evaluate, inject, platform_config, input_files, output_files, trainset, optimizer, closed_loop, projects, llm_config
+from .routes import health, frameworks, personas, script, cards, simulate, evaluate, inject, platform_config, input_files, output_files, trainset, optimizer, closed_loop, projects, llm_config, auth
 from .exceptions import EduFlowError
 from .middleware import RequestIDMiddleware, get_request_id
 
@@ -77,6 +77,7 @@ def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(status_code=500, content=body)
 
 app.include_router(health.router, prefix="/api", tags=["health"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(frameworks.router, prefix="/api", tags=["frameworks"])
 app.include_router(personas.router, prefix="/api", tags=["personas"])
 app.include_router(script.router, prefix="/api/script", tags=["script"])

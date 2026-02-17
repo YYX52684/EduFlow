@@ -29,9 +29,13 @@ env/
 # IDE
 .idea/
 .vscode/
+.VSCodeCounter/
 *.swp
 *.swo
 *~
+
+# Auth DB (user accounts and workspace ownership)
+data/
 
 # Environment variables
 .env

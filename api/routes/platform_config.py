@@ -12,7 +12,8 @@ from typing import Optional
 router = APIRouter()
 
 from config import PLATFORM_CONFIG
-from api.workspace import get_workspace_id, get_workspace_dirs
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_workspace_file_path
 from api.exceptions import BadRequestError
 
 
@@ -33,13 +34,32 @@ def _load_env_config() -> dict:
 CFG_KEYS = ["base_url", "cookie", "authorization", "course_id", "train_task_id", "start_node_id", "end_node_id"]
 
 
+def get_merged_platform_config(workspace_id: str) -> dict:
+    """
+    读取平台配置：以 PLATFORM_CONFIG（.env）为底，工作区 JSON 中非空值覆盖。
+    注入、校验等需要「最终生效配置」时使用此函数。
+    """
+    merged = dict(PLATFORM_CONFIG)
+    path = get_workspace_file_path(workspace_id, "platform_config.json")
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                ws = json.load(f)
+            for k in CFG_KEYS:
+                v = ws.get(k)
+                if v is not None and str(v).strip():
+                    merged[k] = str(v).strip()
+        except Exception:
+            pass
+    return merged
+
+
 def _workspace_config_path(workspace_id: str) -> str:
-    _, _, workspace_root = get_workspace_dirs(workspace_id)
-    return os.path.join(workspace_root, "platform_config.json")
+    return get_workspace_file_path(workspace_id, "platform_config.json")
 
 
 @router.get("/config")
-def get_platform_config(workspace_id: str = Depends(get_workspace_id)):
+def get_platform_config(workspace_id: str = Depends(require_workspace_owned)):
     """返回当前工作区智慧树平台配置；无则回退到服务端 .env。"""
     path = _workspace_config_path(workspace_id)
     if os.path.isfile(path):
@@ -63,7 +83,7 @@ class PlatformConfigUpdate(BaseModel):
 
 
 @router.post("/config")
-def save_platform_config(body: PlatformConfigUpdate, workspace_id: str = Depends(get_workspace_id)):
+def save_platform_config(body: PlatformConfigUpdate, workspace_id: str = Depends(require_workspace_owned)):
     """保存到当前工作区，仅更新提交的字段。"""
     path = _workspace_config_path(workspace_id)
     current = {}
@@ -91,7 +111,7 @@ class SetProjectRequest(BaseModel):
 
 
 @router.post("/reset-to-env")
-def reset_platform_config_to_env(workspace_id: str = Depends(get_workspace_id)):
+def reset_platform_config_to_env(workspace_id: str = Depends(require_workspace_owned)):
     """用当前 .env 中的平台配置覆盖工作区配置，解决「修改了 .env 但注入仍用旧配置」的问题。会重新读取 .env，无需重启服务。"""
     path = _workspace_config_path(workspace_id)
     cfg = _load_env_config()
@@ -101,7 +121,7 @@ def reset_platform_config_to_env(workspace_id: str = Depends(get_workspace_id)):
 
 
 @router.post("/set-project")
-def set_project_from_url(body: SetProjectRequest, workspace_id: str = Depends(get_workspace_id)):
+def set_project_from_url(body: SetProjectRequest, workspace_id: str = Depends(require_workspace_owned)):
     """从智慧树页面 URL 提取课程 ID、训练任务 ID，并可选写入当前工作区配置。"""
     url = (body.url or "").strip()
     if not url:

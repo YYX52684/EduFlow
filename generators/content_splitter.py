@@ -29,6 +29,9 @@ _ANALYZE_CACHE_MAX = 32
 # 单次分析送入模型的剧本最大字符数，避免超出上下文或超时（约 5 万字符）
 ANALYZE_CONTENT_MAX_CHARS = 50000
 
+# 分析接口的 max_tokens：分幕结果 JSON 可能很长，需大于默认 MAX_TOKENS 以免被截断导致解析失败
+ANALYZE_MAX_TOKENS = 16384
+
 # 磁盘缓存目录（项目根下 .cache/content_splitter），重启后仍可命中
 def _disk_cache_dir() -> Optional[str]:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -164,7 +167,7 @@ class ContentSplitter:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=MAX_TOKENS,
+                max_tokens=ANALYZE_MAX_TOKENS,
                 temperature=TEMPERATURE,
                 messages=[
                     {"role": "user", "content": prompt}
@@ -199,9 +202,52 @@ class ContentSplitter:
                 raise RuntimeError(f"API调用失败: {e}")
             raise
     
+    def _repair_truncated_json(self, json_str: str) -> str:
+        """
+        尝试修复因 LLM 截断导致的不完整 JSON：补全未闭合的括号。
+        仅在字符串明显被截断（结尾在字符串/数组/对象中间）时尝试。
+        """
+        # 忽略在字符串内的括号：简单按引号内/外来跟踪
+        in_string = False
+        escape = False
+        quote_char = None
+        stack = []  # 未闭合的 '[' 或 '{'
+        for i, c in enumerate(json_str):
+            if escape:
+                escape = False
+                continue
+            if c == "\\" and in_string:
+                escape = True
+                continue
+            if in_string:
+                if c == quote_char:
+                    in_string = False
+                continue
+            if c in ('"', "'"):
+                in_string = True
+                quote_char = c
+                continue
+            if c == "[":
+                stack.append("[")
+            elif c == "{":
+                stack.append("{")
+            elif c == "]":
+                if stack and stack[-1] == "[":
+                    stack.pop()
+            elif c == "}":
+                if stack and stack[-1] == "{":
+                    stack.pop()
+        if not stack:
+            return json_str
+        # 按未闭合顺序补全：stack 顶是最后未闭合的
+        suffix = ""
+        for x in reversed(stack):
+            suffix += "]" if x == "[" else "}"
+        return json_str + suffix
+
     def _extract_json(self, text: str) -> dict:
         """
-        从文本中提取JSON内容
+        从文本中提取JSON内容；若 LLM 返回被截断的 JSON 会尝试补全括号后再解析。
         
         Args:
             text: 可能包含JSON的文本
@@ -224,8 +270,13 @@ class ContentSplitter:
                 return json.loads(json_str)
             except json.JSONDecodeError:
                 pass
+            json_str = self._repair_truncated_json(json_str)
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                pass
         
-        # 尝试找到JSON块
+        # 尝试找到JSON块（首 { 到末 }）
         start_idx = text.find('{')
         if start_idx == -1:
             raise ValueError(f"未找到JSON内容。API返回: {text[:500]}...")
@@ -238,6 +289,13 @@ class ContentSplitter:
         
         try:
             return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+        
+        # 可能被截断：补全未闭合的括号后再解析
+        json_str_repaired = self._repair_truncated_json(json_str)
+        try:
+            return json.loads(json_str_repaired)
         except json.JSONDecodeError as e:
             raise ValueError(f"JSON解析失败: {e}。提取的内容: {json_str[:500]}...")
     

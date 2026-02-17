@@ -322,7 +322,7 @@ class CardGenerator:
         return f"<!-- STAGE_META: {json.dumps(meta, ensure_ascii=False)} -->\n"
     
     def generate_all_cards(self, stages: list[dict], original_content: str,
-                           progress_callback=None) -> str:
+                           progress_callback=None, card_callback=None) -> str:
         """
         生成所有阶段的A/B类卡片
         
@@ -330,6 +330,7 @@ class CardGenerator:
             stages: 阶段信息列表
             original_content: 完整的原始剧本内容
             progress_callback: 进度回调函数，接收(current, total, message)参数
+            card_callback: 每张卡片生成完成后调用 (label, content)，用于流式展示
             
         Returns:
             合并后的所有卡片内容（A1-B1-A2-B2...格式）
@@ -347,7 +348,10 @@ class CardGenerator:
                                 f"正在生成第{i}幕A类卡片（NPC角色）...")
             
             card_a = self.generate_card_a(stage, i, total_stages, original_content)
-            all_cards.append(f"# 卡片{i}A\n\n{stage_meta}{card_a}")
+            block_a = f"# 卡片{i}A\n\n{stage_meta}{card_a}"
+            all_cards.append(block_a)
+            if card_callback:
+                card_callback(f"卡片{i}A", block_a)
             
             # 生成B类卡片
             if progress_callback:
@@ -356,7 +360,10 @@ class CardGenerator:
             
             next_stage = stages[i] if i < total_stages else None
             card_b = self.generate_card_b(stage, i, total_stages, next_stage, original_content)
-            all_cards.append(f"# 卡片{i}B\n\n{card_b}")
+            block_b = f"# 卡片{i}B\n\n{card_b}"
+            all_cards.append(block_b)
+            if card_callback:
+                card_callback(f"卡片{i}B", block_b)
         
         # 用分隔线连接所有卡片
         return "\n\n---\n\n".join(all_cards)

@@ -33,8 +33,11 @@ class DSPyFramework(BaseCardGenerator):
         progress_callback: Optional[Callable[[int, int, str], None]] = None,
         **kwargs: Any
     ) -> str:
+        card_callback = kwargs.pop("card_callback", None)
         return self._gen.generate_all_cards(
-            stages, original_content, progress_callback=progress_callback
+            stages, original_content,
+            progress_callback=progress_callback,
+            card_callback=card_callback,
         )
 
 

@@ -9,7 +9,8 @@ router = APIRouter()
 
 from simulator import SessionRunner, SessionConfig
 from simulator.card_loader import LocalCardLoader
-from api.workspace import get_workspace_id, get_workspace_dirs, resolve_workspace_path
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_workspace_dirs, resolve_workspace_path
 from simulator.session_runner import SessionMode
 from simulator.evaluator import EvaluatorFactory
 from api.routes.llm_config import require_llm_config
@@ -57,7 +58,7 @@ class SimulateFromContentRequest(BaseModel):
 @router.get("/cards-parsed")
 def get_cards_parsed(
     path: str,
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
 ):
     """解析卡片文件，返回按执行顺序排列的卡片列表，供前端平台式分块展示。path 相对 output，如 output/cards_xxx.md。"""
     md_path = resolve_workspace_path(workspace_id, path, kind="output", must_exist=True)
@@ -73,7 +74,7 @@ def get_cards_parsed(
 
 
 @router.post("/run")
-def run_simulation(req: SimulateRequest, workspace_id: str = Depends(get_workspace_id)):
+def run_simulation(req: SimulateRequest, workspace_id: str = Depends(require_workspace_owned)):
     """运行学生模拟测试（仅支持 auto 模式），卡片与输出均在当前工作区。
 
     使用当前工作区 LLM 配置（设置中的 API Key + 模型）作为 NPC 与学生 LLM 的统一配置。
@@ -146,7 +147,7 @@ def run_simulation(req: SimulateRequest, workspace_id: str = Depends(get_workspa
 @router.post("/run-from-content")
 def run_simulation_from_content(
     req: SimulateFromContentRequest,
-    workspace_id: str = Depends(get_workspace_id),
+    workspace_id: str = Depends(require_workspace_owned),
 ):
     """基于卡片正文直接试玩，无需先保存文件。将内容写入临时文件后运行仿真，适合编辑后一键试玩。"""
     if not (req.cards_content or req.cards_content.strip()):

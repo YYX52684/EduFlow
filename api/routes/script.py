@@ -6,18 +6,12 @@ from pydantic import BaseModel
 from parsers import parse_markdown, parse_docx, parse_docx_with_structure, parse_doc_with_structure, parse_pdf
 from generators import ContentSplitter
 from generators.trainset_builder import append_trainset_example
-from api.workspace import get_workspace_id, get_project_dirs, resolve_workspace_path, _decode_workspace_id_header
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_project_dirs, resolve_workspace_path
 from api.routes.llm_config import get_llm_config, require_llm_config
 from api.exceptions import BadRequestError, LLMError
 
 router = APIRouter()
-
-
-def _optional_workspace_id(x_workspace_id: str | None = Header(None, alias="X-Workspace-Id")) -> str | None:
-    """可选工作区 ID，用于上传时写入 trainset。支持 Base64 编码（前端传中文时）。"""
-    if not x_workspace_id or not x_workspace_id.strip():
-        return None
-    return _decode_workspace_id_header(x_workspace_id).strip() or None
 
 
 def _get_parser_for_ext(ext: str):
@@ -29,8 +23,8 @@ def _get_parser_for_ext(ext: str):
 
 
 @router.post("/upload")
-async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str | None = Depends(_optional_workspace_id)):
-    """上传剧本文件，解析内容并分析结构。若请求头带 X-Workspace-Id，会同步写入该工作区当前项目的 trainset.json。"""
+async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = Depends(require_workspace_owned)):
+    """上传剧本文件，解析内容并分析结构；需登录且写入当前用户工作区。"""
     suffix = os.path.splitext(file.filename or "")[1].lower()
     if not suffix:
         suffix = ".md"
@@ -104,7 +98,7 @@ class AnalyzePathRequest(BaseModel):
 
 
 @router.post("/analyze-path")
-def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(get_workspace_id)):
+def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(require_workspace_owned)):
     """根据当前工作区 input 内文件路径解析并分析结构。"""
     path = req.path.strip().replace("\\", "/")
     if path.startswith("/") or ".." in path or not path.startswith("input/"):

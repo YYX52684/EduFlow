@@ -11,31 +11,12 @@ from typing import Optional, Tuple, List, Dict, Any
 
 router = APIRouter()
 
-from config import PLATFORM_CONFIG, PLATFORM_ENDPOINTS
+from config import PLATFORM_ENDPOINTS
 from api_platform import PlatformAPIClient, CardInjector
-from api.workspace import get_workspace_id, get_workspace_dirs, resolve_workspace_path
+from api.routes.auth import require_workspace_owned
+from api.routes.platform_config import get_merged_platform_config
+from api.workspace import resolve_workspace_path
 from api.exceptions import ConfigError, NotFoundError, PlatformAPIError
-
-
-def _get_workspace_platform_config(workspace_id: str) -> Dict[str, Any]:
-    """
-    读取平台配置：工作区 JSON 与 .env 合并，工作区非空值优先，空值用 .env 补全。
-    这样编辑 .env 后，工作区未填的字段会自动生效。
-    """
-    merged = dict(PLATFORM_CONFIG)
-    _, _, workspace_root = get_workspace_dirs(workspace_id)
-    cfg_path = os.path.join(workspace_root, "platform_config.json")
-    if os.path.isfile(cfg_path):
-        try:
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                ws = json.load(f)
-            for k in ("base_url", "cookie", "authorization", "course_id", "train_task_id", "start_node_id", "end_node_id"):
-                v = ws.get(k)
-                if v is not None and str(v).strip():
-                    merged[k] = str(v).strip()
-        except Exception:
-            pass
-    return merged
 
 
 def _check_platform_config(cfg: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -74,10 +55,10 @@ class InjectRunRequest(BaseModel):
 
 
 @router.post("/preview")
-def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(get_workspace_id)):
+def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(require_workspace_owned)):
     """预览卡片解析结果，不实际调用平台 API。"""
     md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output", must_exist=True)
-    cfg = _get_workspace_platform_config(workspace_id)
+    cfg = get_merged_platform_config(workspace_id)
     try:
         client = _create_client(cfg)
         injector = CardInjector(client)
@@ -114,10 +95,10 @@ def inject_preview(req: InjectPreviewRequest, workspace_id: str = Depends(get_wo
 
 
 @router.post("/run")
-def inject_run(req: InjectRunRequest, workspace_id: str = Depends(get_workspace_id)):
+def inject_run(req: InjectRunRequest, workspace_id: str = Depends(require_workspace_owned)):
     """执行注入：将卡片推送到智慧树平台。使用当前工作区平台配置。"""
     md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output", must_exist=True)
-    cfg = _get_workspace_platform_config(workspace_id)
+    cfg = get_merged_platform_config(workspace_id)
     ok, missing = _check_platform_config(cfg)
     if not ok:
         raise ConfigError(

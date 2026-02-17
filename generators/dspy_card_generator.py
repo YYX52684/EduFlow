@@ -544,9 +544,10 @@ class DSPyCardGenerator:
         return self._format_card_b(result, stage_index, total_stages)
 
     def _generate_all_cards_impl(self, stages: List[dict], original_content: str,
-                                 progress_callback=None) -> str:
+                                 progress_callback=None, card_callback=None) -> str:
         """
         在专用线程内执行的实际生成逻辑（供 generate_all_cards 调用）
+        card_callback(label, content) 在每张卡片生成完成后调用，用于流式展示。
         """
         # Bootstrap 等优化器会对 program 做 deepcopy，self.api_key 可能失效。
         # 自定义 base_url+model 时用 self.api_key，否则从 config 取最新 key。
@@ -566,11 +567,16 @@ class DSPyCardGenerator:
 
             try:
                 card_a = self.generate_card_a(stage, i, total_stages, original_content)
-                all_cards.append(f"# 卡片{i}A\n\n{card_a}")
+                block = f"# 卡片{i}A\n\n{card_a}"
+                all_cards.append(block)
+                if card_callback:
+                    card_callback(f"卡片{i}A", block)
             except Exception as e:
                 # 降级：返回错误提示但继续执行
                 error_card = f"# 卡片{i}A\n\n[生成失败: {e}]\n"
                 all_cards.append(error_card)
+                if card_callback:
+                    card_callback(f"卡片{i}A", error_card)
                 if progress_callback:
                     progress_callback(i * 2 - 1, total_stages * 2,
                                     f"第{i}幕A类卡片生成失败，继续...")
@@ -583,14 +589,20 @@ class DSPyCardGenerator:
             try:
                 next_stage = stages[i] if i < total_stages else None
                 card_b = self.generate_card_b(stage, i, total_stages, next_stage, original_content)
-                all_cards.append(f"# 卡片{i}B\n\n{card_b}")
+                block = f"# 卡片{i}B\n\n{card_b}"
+                all_cards.append(block)
+                if card_callback:
+                    card_callback(f"卡片{i}B", block)
             except Exception as e:
                 # 降级：对于最后一幕，生成简单的结束卡片
                 if i == total_stages:
                     card_b = "# Context\n训练结束。\n\n# Output\n感谢您的参与。\n\n# Constraints\n- 结束"
                 else:
                     card_b = f"[生成失败: {e}]"
-                all_cards.append(f"# 卡片{i}B\n\n{card_b}")
+                block = f"# 卡片{i}B\n\n{card_b}"
+                all_cards.append(block)
+                if card_callback:
+                    card_callback(f"卡片{i}B", block)
                 if progress_callback:
                     progress_callback(i * 2, total_stages * 2,
                                     f"第{i}幕B类卡片生成失败，继续...")
@@ -599,21 +611,23 @@ class DSPyCardGenerator:
         return "\n\n---\n\n".join(all_cards)
 
     def generate_all_cards(self, stages: List[dict], original_content: str,
-                           progress_callback=None) -> str:
+                           progress_callback=None, card_callback=None) -> str:
         """
         生成所有阶段的A/B类卡片。
 
         当由非主线程调用时（如 FastAPI 请求处理线程），通过单线程执行器执行，
         避免 dspy.settings「只能由最初配置的线程修改」导致的生成失败。
         主线程调用（CLI、优化器）则直接执行。
+        card_callback(label, content) 在每张卡片生成完成后调用，用于流式展示。
         """
         if threading.current_thread() is threading.main_thread():
-            return self._generate_all_cards_impl(stages, original_content, progress_callback)
+            return self._generate_all_cards_impl(stages, original_content, progress_callback, card_callback)
         future = _dspy_executor.submit(
             self._generate_all_cards_impl,
             stages,
             original_content,
             progress_callback,
+            card_callback,
         )
         return future.result()
 

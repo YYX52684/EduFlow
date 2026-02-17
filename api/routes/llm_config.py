@@ -11,7 +11,8 @@ from typing import Optional
 
 router = APIRouter()
 
-from api.workspace import get_workspace_id, get_workspace_dirs
+from api.routes.auth import require_workspace_owned
+from api.workspace import get_workspace_file_path
 
 LLM_CONFIG_FILE = "llm_config.json"
 
@@ -24,8 +25,7 @@ PRESETS = {
 
 
 def _config_path(workspace_id: str) -> str:
-    _, _, root = get_workspace_dirs(workspace_id)
-    return os.path.join(root, LLM_CONFIG_FILE)
+    return get_workspace_file_path(workspace_id, LLM_CONFIG_FILE)
 
 
 def get_llm_config(workspace_id: Optional[str] = None) -> dict:
@@ -84,7 +84,7 @@ def require_llm_config(workspace_id: Optional[str] = None) -> dict:
 
 
 @router.get("/config")
-def get_config(workspace_id: str = Depends(get_workspace_id)):
+def get_config(workspace_id: str = Depends(require_workspace_owned)):
     """返回当前工作区 LLM 配置（用于设置页展示）。api_key 脱敏返回。"""
     path = _config_path(workspace_id)
     raw = {}
@@ -121,7 +121,7 @@ class LLMConfigUpdate(BaseModel):
 
 
 @router.post("/config")
-def save_config(body: LLMConfigUpdate, workspace_id: str = Depends(get_workspace_id)):
+def save_config(body: LLMConfigUpdate, workspace_id: str = Depends(require_workspace_owned)):
     """保存当前工作区 LLM 配置（API Key + 模型）。全系统解析、生成卡片、优化器、模拟器均使用此配置。"""
     path = _config_path(workspace_id)
     current = {}

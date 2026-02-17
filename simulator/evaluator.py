@@ -12,7 +12,6 @@
 
 import os
 import json
-import requests
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -228,13 +227,7 @@ EVALUATION_FRAMEWORK = {
 }
 
 
-def _default_evaluator_config():
-    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
-    return {
-        "api_url": DEEPSEEK_CHAT_URL,
-        "api_key": DEEPSEEK_API_KEY or "",
-        "model": DEEPSEEK_MODEL,
-    }
+from .llm_client import get_simulator_default_config, call_chat_completion
 
 
 class Evaluator:
@@ -250,7 +243,7 @@ class Evaluator:
             config: 配置字典
         """
         config = config or {}
-        defaults = _default_evaluator_config()
+        defaults = get_simulator_default_config()
         self.api_url = config.get("api_url", defaults["api_url"])
         self.api_key = config.get("api_key", defaults["api_key"])
         self.model = config.get("model", defaults["model"])
@@ -407,49 +400,25 @@ class Evaluator:
 """
     
     def _call_llm_evaluate(self, prompt: str, max_score: float) -> dict:
-        """调用LLM进行评估"""
-        headers = {
-            "Content-Type": "application/json",
-        }
-        
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        if self.service_code:
-            headers["serviceCode"] = self.service_code
-        
+        """调用 LLM 进行评估，返回解析后的评分 dict。"""
         messages = [
-            {
-                "role": "system",
-                "content": "你是一名专业的教育评估专家，请严格按照JSON格式返回评估结果。"
-            },
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": "你是一名专业的教育评估专家，请严格按照JSON格式返回评估结果。"},
+            {"role": "user", "content": prompt},
         ]
-        
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": 1000,
-            "temperature": 0.3,
-        }
-        
         try:
-            response = requests.post(
+            content = call_chat_completion(
                 self.api_url,
-                headers=headers,
-                json=payload,
-                timeout=120
+                self.api_key,
+                self.model,
+                messages,
+                max_tokens=1000,
+                temperature=0.3,
+                service_code=self.service_code,
+                timeout=120,
             )
-            response.raise_for_status()
-            
-            result = response.json()
-            content = result["choices"][0]["message"]["content"]
-            
-            # 解析JSON响应
             return self._parse_evaluation_response(content, max_score)
-            
         except Exception as e:
             print(f"  [警告] 评估调用失败: {e}")
-            # 返回默认评分
             return {
                 "score": max_score * 0.5,
                 "reasoning": f"评估过程出错: {str(e)}",
@@ -522,38 +491,18 @@ class Evaluator:
             return f"评估完成，总分为各维度得分之和。", []
     
     def _call_llm_summary(self, prompt: str) -> dict:
-        """调用LLM生成总结"""
-        headers = {
-            "Content-Type": "application/json",
-        }
-        
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        if self.service_code:
-            headers["serviceCode"] = self.service_code
-        
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
-        
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": 500,
-            "temperature": 0.5,
-        }
-        
-        response = requests.post(
+        """调用 LLM 生成总结，返回解析后的 dict（summary, recommendations）。"""
+        messages = [{"role": "user", "content": prompt}]
+        content = call_chat_completion(
             self.api_url,
-            headers=headers,
-            json=payload,
-            timeout=60
+            self.api_key,
+            self.model,
+            messages,
+            max_tokens=500,
+            temperature=0.5,
+            service_code=self.service_code,
+            timeout=60,
         )
-        response.raise_for_status()
-        
-        result = response.json()
-        content = result["choices"][0]["message"]["content"]
-        
         return self._parse_evaluation_response(content, 100)
     
     def save_report(self, report: EvaluationReport, output_dir: str = None):
@@ -588,7 +537,7 @@ class EvaluatorFactory:
         """从环境变量创建评估器"""
         from dotenv import load_dotenv
         load_dotenv()
-        defaults = _default_evaluator_config()
+        defaults = get_simulator_default_config()
         config = {
             "api_url": os.getenv("EVALUATOR_API_URL", os.getenv("SIMULATOR_API_URL", defaults["api_url"])),
             "api_key": os.getenv("EVALUATOR_API_KEY", os.getenv("SIMULATOR_API_KEY", defaults["api_key"])),
