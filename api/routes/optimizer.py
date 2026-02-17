@@ -103,13 +103,21 @@ def _run_optimizer(req: OptimizeRequest, workspace_id: str, progress_callback=No
         if req.use_auto_eval
         else f"请使用外部平台对 {cards_path} 进行评估，并将结果导出到 {export_path_rel} 后继续迭代。"
     )
-    return {
+    final_report_rel = "output/optimizer/closed_loop_final_report.md"
+    if not req.use_auto_eval:
+        final_report_abs = resolve_output_path(workspace_id, final_report_rel)
+        os.makedirs(os.path.dirname(final_report_abs) or ".", exist_ok=True)
+        with open(final_report_abs, "w", encoding="utf-8") as f:
+            f.write("# 优化运行报告\n\n本次使用外部评估。\n\n分数文件：`" + export_path_rel + "`\n")
+    out = {
         "message": "优化完成。优化后的程序已返回（后续可接入保存/加载）。",
         "cards_output_path": cards_path,
         "export_path": export_path_rel,
         "use_auto_eval": req.use_auto_eval,
         "hint": hint,
+        "evaluation_report_path": final_report_rel,
     }
+    return out
 
 
 @router.post("/run")

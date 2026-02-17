@@ -4,7 +4,9 @@ output 目录：列出当前工作区 output 下的文件、上传外部评估�
 支持读取/写入文件内容，供卡片可视化编辑使用。
 """
 import os
+from urllib.parse import quote
 from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -49,6 +51,22 @@ def read_output_file(
     if not rel.startswith("output/"):
         rel = "output/" + rel
     return {"path": rel, "content": content}
+
+
+@router.get("/download")
+def download_output_file(
+    path: str,
+    workspace_id: str = Depends(require_workspace_owned),
+):
+    """下载 output 下指定文件（不选本地目录也可用）。path 如 output/cards_xxx.md。"""
+    full_path = resolve_workspace_path(workspace_id, path, kind="output", must_exist=True)
+    filename = os.path.basename(full_path)
+    return FileResponse(
+        full_path,
+        filename=filename,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
+    )
 
 
 @router.post("/write")

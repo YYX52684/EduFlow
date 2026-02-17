@@ -143,7 +143,7 @@
       -webkit-backdrop-filter: blur(12px);
       border-right: 1px solid var(--natsume-border);
       box-shadow: 4px 0 24px rgba(74, 64, 53, 0.06);
-      z-index: 20;
+      z-index: 10;
       transform: translateX(0);
       transition: transform var(--transition-normal), box-shadow var(--transition-fast);
       overflow-x: hidden;
@@ -158,7 +158,7 @@
       bottom: 0;
       width: 4px;
       cursor: col-resize;
-      z-index: 21;
+      z-index: 11;
       background: transparent;
       transition: left var(--transition-normal), opacity var(--transition-normal);
     }
@@ -203,7 +203,7 @@
       cursor: pointer;
       align-items: center;
       justify-content: center;
-      z-index: 22;
+      z-index: 12;
       transition: color var(--transition-fast), background var(--transition-fast);
     }
     .sidebar-expand-tab:hover { color: var(--natsume-ink); background: rgba(143, 157, 143, 0.12); }
@@ -363,32 +363,51 @@
       font-size: 0.9rem;
       color: var(--natsume-ink-light);
     }
+    /* 输入框：苹果风格 — 柔和填充、细边框、大圆角，无刺眼白底（含 API Key 等 password 框） */
     input[type="file"],
     input[type="text"],
+    input[type="password"],
+    input[type="number"],
     select {
       width: 100%;
       padding: 0.6rem 0.85rem;
       font-family: inherit;
       font-size: 0.95rem;
       color: var(--natsume-ink);
-      background: var(--natsume-paper);
-      border: 1px solid var(--natsume-border);
-      border-radius: var(--btn-radius);
+      background: rgba(255, 255, 255, 0.6);
+      -webkit-appearance: none;
+      appearance: none;
+      border: 0.5px solid rgba(0, 0, 0, 0.08);
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
       transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
     }
     input:hover,
     select:hover {
-      background: #f8f4ed;
+      background: rgba(255, 255, 255, 0.75);
+      border-color: rgba(0, 0, 0, 0.1);
     }
     input:focus,
     select:focus {
       outline: none;
-      border-color: var(--natsume-green);
-      box-shadow: 0 0 0 3px rgba(143, 169, 137, 0.15);
-      background: #fff;
+      border-color: var(--natsume-green-soft);
+      box-shadow: 0 0 0 3px rgba(143, 169, 137, 0.18);
+      background: rgba(255, 255, 255, 0.85);
     }
     input::placeholder {
-      color: var(--natsume-border-strong);
+      color: var(--natsume-ink-light);
+      opacity: 0.7;
+    }
+    /* number 输入框去掉默认上下箭头（可选，保持简洁） */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      opacity: 0.6;
+    }
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b5f52' d='M6 8L2 4h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.85rem center;
+      padding-right: 2rem;
     }
     button {
       margin-top: 0.5rem;
@@ -517,18 +536,21 @@
       background: rgba(74, 64, 53, 0.25);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      z-index: 100;
+      z-index: 99999;
       align-items: center;
       justify-content: center;
       animation: fadeIn 0.25s var(--ease-out-quart);
     }
     .modal-overlay.show { display: flex; }
     .modal-overlay[aria-hidden="false"] { display: flex; }
-    /* 预览/编辑弹窗：在除去左边栏后的区域居中（主界面+右边栏被视为整体） */
+    /* 设置/预览/编辑弹窗：始终全屏遮罩并居中，且始终置于左侧栏之上（挂到 body 下避免被 main-content 层叠遮挡） */
+    #settingsModal.modal-overlay,
     #previewModal.modal-overlay,
-    #cardEditModal.modal-overlay {
-      left: max(var(--sidebar-margin, 0px), 44px);
-      transition: left var(--transition-normal);
+    #contentEditModal.modal-overlay {
+      left: 0;
+      right: 0;
+      width: 100%;
+      z-index: 100000;
     }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     /* 加载指示：内联小旋转器 + 全局长任务遮罩 */
@@ -650,6 +672,25 @@
       transition: border-color var(--transition-fast), background var(--transition-fast);
     }
     .path-drop-target.drag-over { border-color: var(--natsume-green-soft); background: rgba(143, 157, 143, 0.06); }
+    .opt-checkbox-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .opt-checkbox-wrap .opt-checkbox {
+      width: 1.1rem;
+      height: 1.1rem;
+      margin: 0;
+      accent-color: var(--natsume-leaf);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .workspace-file-list .file-list-item.file { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; }
+    .workspace-file-list .workspace-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .workspace-file-list .workspace-file-dl { font-size: 0.75rem; color: var(--natsume-green); flex-shrink: 0; }
+    .workspace-file-list .workspace-file-dl:hover { color: var(--natsume-accent); }
     .drop-zone input[type="file"] { display: none; }
     #scriptFile, #wallpaperFile { display: none !important; }
     .wallpaper-preview {
@@ -784,40 +825,39 @@
     }
     .ctx-menu-item:hover { background: rgba(143, 157, 143, 0.15); }
     #previewModal .modal-panel { max-width: min(95vw, 900px); width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 0; }
-    #cardEditModal .modal-panel {
-      max-width: min(95vw, 1100px); width: 95%;
-      min-height: 75vh; max-height: 90vh;
+    #contentEditModal .modal-panel.content-edit-panel {
+      max-width: min(95vw, 1200px); width: 95%;
+      min-height: 80vh; max-height: 92vh;
       display: flex; flex-direction: column; padding: 0;
     }
-    #cardEditModal .preview-header {
+    #contentEditModal .preview-header {
       flex-shrink: 0; padding: 0.75rem 1rem;
       border-bottom: 1px solid var(--natsume-border);
       display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
     }
-    #cardEditModal .card-edit-modal-body {
-      flex: 1; min-height: 400px; overflow: auto; padding: 1.25rem;
+    #contentEditModal .card-edit-modal-body {
+      flex: 1; min-height: 480px; overflow: auto; padding: 1.25rem;
       display: flex; flex-direction: column; gap: 0.5rem;
       background: var(--natsume-paper);
       border-radius: 0 0 var(--card-radius) var(--card-radius);
       font-family: "Noto Serif SC", "Songti SC", serif;
       font-size: 0.95rem; line-height: 1.7;
     }
-    #cardEditModal #cardEditModalTextarea {
-      font-family: "Noto Serif SC", "Songti SC", serif;
-    }
-    #cardEditModal .card-edit-modal-body pre,
-    #cardEditModal .card-edit-modal-body code {
+    #contentEditModal #contentEditModalTextarea { flex: 1; min-height: 420px; resize: vertical; }
+    #contentEditModal #contentEditModalPreview { min-height: 420px; }
+    #contentEditModal .card-edit-modal-body pre,
+    #contentEditModal .card-edit-modal-body code {
       font-family: ui-monospace, "Cascadia Code", monospace;
     }
-    .card-edit-mode-tabs { display: flex; gap: 0.25rem; }
-    .card-edit-tab {
+    .content-edit-mode-tabs { display: flex; gap: 0.25rem; }
+    .content-edit-tab {
       padding: 0.25rem 0.6rem; font-size: 0.85rem;
       background: transparent; border: 1px solid var(--natsume-border); border-radius: 6px;
       color: var(--natsume-ink-light); cursor: pointer;
       transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
     }
-    .card-edit-tab:hover { color: var(--natsume-ink); border-color: var(--natsume-green-soft); }
-    .card-edit-tab.active { background: var(--natsume-green-soft); color: var(--natsume-ink); border-color: var(--natsume-green); }
+    .content-edit-tab:hover { color: var(--natsume-ink); border-color: var(--natsume-green-soft); }
+    .content-edit-tab.active { background: var(--natsume-green-soft); color: var(--natsume-ink); border-color: var(--natsume-green); }
     #previewModal .preview-header { flex-shrink: 0; padding: 0.75rem 1rem; border-bottom: 1px solid var(--natsume-border); display: flex; align-items: center; justify-content: space-between; }
     #previewModal .preview-body { flex: 1; overflow: auto; padding: 1.25rem; background: var(--natsume-paper); border-radius: 0 0 var(--card-radius) var(--card-radius); font-size: 0.9rem; line-height: 1.6; }
     #previewModal .preview-body pre, #previewModal .preview-body code { font-family: ui-monospace, monospace; }
@@ -1096,12 +1136,12 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/></svg>
       </button>
       <div class="sidebar-workspace-row" style="display:none">工作区：<span id="currentWorkspaceLabel" class="sidebar-workspace-name"></span></div>
-      <div class="sidebar-folder-row">当前文件夹：<span id="sidebarCurrentFolder" class="breadcrumb">未择定</span></div>
-      <button type="button" id="btnPickLocalDir">择定本地目录</button>
+      <div class="sidebar-folder-row">当前文件夹：<span id="sidebarCurrentFolder" class="breadcrumb">未选择</span></div>
+      <button type="button" id="btnPickLocalDir">选择本地目录</button>
       <div id="dirPickerTip" class="file-list-item err" style="display:none; margin-top:0.35rem; font-size:0.85em;"></div>
     </div>
     <div id="localPanel" class="sidebar-panel">
-      <div id="localFileList" class="file-list">请先择定本地目录</div>
+      <div id="localFileList" class="file-list">请先选择本地目录</div>
     </div>
     <div class="sidebar-foot">
       <div id="localSelected" class="local-selected"></div>
@@ -1111,17 +1151,6 @@
   <button type="button" id="sidebarExpandTab" class="sidebar-expand-tab" title="展开侧边栏" aria-label="展开侧边栏">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="4" x2="16" y2="20"/></svg>
   </button>
-  <div class="main-content">
-  <div class="main-content-inner">
-  <header class="header">
-    <h1>EduFlow 交互控制台</h1>
-    <p class="nav">
-      <span id="authUserSpan" class="auth-user-span"></span>
-      <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
-      <button type="button" id="btnLogout" class="btn-icon" title="退出登录" style="display:none">退出</button>
-    </p>
-  </header>
-
   <div id="settingsModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel settings-panel-large">
       <nav class="settings-nav">
@@ -1153,7 +1182,6 @@
         </div>
         <div id="settingsPageWallpaper" class="settings-panel-page">
           <h3>外观</h3>
-          <p class="hint" style="margin-bottom:1rem;">色系与壁纸仅影响本机显示，不会同步到服务器。</p>
           <label>色系</label>
           <div id="themeSelector" class="theme-selector">
             <label class="theme-option"><input type="radio" name="theme" value="natsume"> 默认（Natsume）</label>
@@ -1170,8 +1198,6 @@
       </div>
     </div>
   </div>
-
-  <div id="mainConsoleView">
   <div id="previewModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel">
       <div class="preview-header">
@@ -1181,37 +1207,47 @@
       <div id="previewModalBody" class="preview-body"></div>
     </div>
   </div>
-  <div id="cardEditModal" class="modal-overlay" aria-hidden="true" aria-labelledby="cardEditModalTitle">
-    <div class="modal-panel">
+  <div id="contentEditModal" class="modal-overlay" aria-hidden="true" aria-labelledby="contentEditModalTitle">
+    <div class="modal-panel content-edit-panel">
       <div class="preview-header">
         <div style="display:flex;align-items:center;gap:0.75rem;">
-          <strong id="cardEditModalTitle">卡片编辑</strong>
-          <span class="card-edit-mode-tabs">
-            <button type="button" class="card-edit-tab active" data-mode="edit">编辑</button>
-            <button type="button" class="card-edit-tab" data-mode="preview">预览</button>
-          </span>
+          <strong id="contentEditModalTitle">编辑</strong>
         </div>
         <div style="display:flex;align-items:center;gap:0.25rem;">
-          <button type="button" id="btnCardEditSave" class="qabtn">保存</button>
-          <button type="button" id="btnCloseCardEdit" class="btn-icon">×</button>
+          <button type="button" id="btnContentEditDownload" class="qabtn" style="display:none;" title="下载当前文件">下载</button>
+          <button type="button" id="btnContentEditSave" class="qabtn">保存</button>
+          <button type="button" id="btnCloseContentEdit" class="btn-icon">×</button>
         </div>
       </div>
-      <div id="cardEditModalBody" class="card-edit-modal-body">
-        <div id="cardEditModalPreview" style="display:none;flex:1;min-height:360px;overflow:auto;"></div>
-        <textarea id="cardEditModalTextarea" class="card-editor" style="flex:1;min-height:360px;width:100%;resize:vertical;" placeholder="加载中…"></textarea>
-        <div id="cardEditModalMsg" class="msg" style="flex-shrink:0;margin-top:0.5rem;"></div>
+      <div id="contentEditModalBody" class="card-edit-modal-body">
+        <div id="contentEditModalPreview" style="display:none;flex:1;min-height:400px;overflow:auto;"></div>
+        <textarea id="contentEditModalTextarea" class="card-editor" style="flex:1;min-height:400px;width:100%;resize:vertical;" placeholder="加载中…"></textarea>
+        <div id="contentEditExtra" style="display:none;flex-shrink:0;margin-top:auto;padding-top:0.5rem;justify-content:flex-end;align-items:center;flex-direction:row;">
+          <button type="button" id="btnContentEditSaveAs" class="qabtn">保存</button>
+        </div>
+        <div id="contentEditModalMsg" class="msg" style="flex-shrink:0;margin-top:0.5rem;"></div>
       </div>
     </div>
   </div>
+  <div class="main-content">
+  <div class="main-content-inner">
+  <header class="header">
+    <h1>EduFlow 交互控制台</h1>
+    <p class="nav">
+      <span id="authUserSpan" class="auth-user-span"></span>
+      <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
+      <button type="button" id="btnLogout" class="btn-icon" title="退出登录" style="display:none">退出</button>
+    </p>
+  </header>
 
+  <div id="mainConsoleView">
   <section class="collapsible-section" data-section="1">
   <div class="section-header" role="button" tabindex="0" aria-expanded="true">
     <span class="section-chevron">▼</span>
     <h2>1. 剧本与生成</h2>
   </div>
   <div class="section-body">
-  <p>无需选择本地目录，直接拖入或点击选取剧本即可。解析完成后点击「生成卡片」，可查看/编辑卡片内容并注入智慧树。<strong>推荐流程</strong>：拖入剧本 → 生成卡片 → 查看或编辑 → 配置平台后执行注入。</p>
-  <label>拖入或点选剧本</label>
+  <label>拖入或点选原文档（剧本）</label>
   <div id="scriptDropZone" class="drop-zone">将 .md / .docx / .doc / .pdf 拖至此处，或点击选取</div>
   <input type="file" id="scriptFile" accept=".md,.docx,.doc,.pdf">
   <div class="gen-cards-row">
@@ -1230,49 +1266,6 @@
   </div>
   <div id="uploadQuickActions" class="quick-actions" style="display:none;margin-top:0.5rem;"></div>
 
-  <details id="optimizerSubsection" class="closed-loop-subsection" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--natsume-border);">
-    <summary style="cursor:pointer;font-size:1rem;font-weight:600;color:var(--natsume-ink);list-style:none;display:flex;align-items:center;gap:0.35rem;">
-      <span class="optimizer-chevron" style="display:inline-block;transition:transform 0.2s;">▶</span>
-      迭代优化（DSPy）
-    </summary>
-    <p class="hint" style="margin:0.5rem 0 0.6rem 0;font-size:0.85rem;">用 Trainset 多轮生成→仿真→评估，自动优化提示与卡片质量，耗时可长达 15–60 分钟。主流程无需此步骤。</p>
-    <label>Trainset 路径</label>
-    <input type="text" id="trainsetPath" class="path-drop-target" placeholder="output/optimizer/trainset.json">
-    <label>Devset 路径（可选）</label>
-    <input type="text" id="optimizerDevsetPath" class="path-drop-target" placeholder="">
-    <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.6rem;">
-      <label style="margin:0;"><input type="checkbox" id="optimizerUseAutoEval" checked> 闭环模式（推荐）</label>
-      <label>优化器</label>
-      <select id="optimizerType" style="width:auto;"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
-    </div>
-    <div class="btn-row-right" style="margin-top:0.5rem;">
-      <button type="button" id="btnRunOptimizer" class="btn-primary">运行优化</button>
-    </div>
-    <div id="optimizerProgressWrap" style="display:none;margin-top:0.5rem;">
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--natsume-ink-light);">
-        <span id="optimizerProgressMsg">准备中…</span>
-        <span id="optimizerProgressPct">0%</span>
-      </div>
-      <div style="height:6px;background:var(--natsume-border);border-radius:3px;overflow:hidden;margin-top:0.25rem;">
-        <div id="optimizerProgressBar" style="height:100%;width:0%;background:var(--natsume-leaf);transition:width 0.3s;"></div>
-      </div>
-    </div>
-    <details id="optimizerAdvancedDetails" style="margin-top:0.6rem;border:1px solid var(--natsume-border);border-radius:8px;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.3);">
-      <summary style="cursor:pointer;font-size:0.9rem;color:var(--natsume-ink-light);">高级：外部评估（将废弃）</summary>
-      <div style="margin-top:0.6rem;">
-        <label>导出文件路径</label>
-        <input type="text" id="optimizerExportPath" class="path-drop-target" placeholder="output/optimizer/export_score.json">
-        <div class="upload-report-wrap" style="margin-top:0.5rem;">
-          <label>上传外部评估报告</label>
-          <div id="exportReportDropZone" class="drop-zone" style="max-width:28rem;">将 .md / .json / .txt 报告拖至此处，或点击选取</div>
-          <input type="file" id="exportReportFile" accept=".md,.json,.txt" style="display:none">
-          <div id="uploadExportReportMsg" class="msg"></div>
-        </div>
-      </div>
-    </details>
-    <div id="optimizerMsg" class="msg"></div>
-    <pre id="optimizerResult" style="display:none;"></pre>
-  </details>
   </div>
   </section>
 
@@ -1282,40 +1275,39 @@
     <h2>2. 智慧树平台（配置与注入）</h2>
   </div>
   <div class="section-body">
-    <p>配置写入当前工作区后，「执行注入」将使用此配置。若已在 .env 中配置，可点击「从 .env 恢复」。</p>
+    <p>配置写入当前工作区后，「执行注入」将使用此配置。输入 URL、JWT、Cookie、开始/结束节点后点击「加载配置」即可。</p>
     <h3 style="font-size:1rem;margin:0 0 0.5rem 0;color:var(--natsume-ink);">平台配置</h3>
-    <label>从智慧树页面 URL 一键填充课程/任务 ID</label>
-    <input type="text" id="setProjectUrl" placeholder="https://hike-teaching-center.polymas.com/.../ability-training/create?trainTaskId=xxx">
-    <div class="btn-row-right">
-      <button type="button" id="btnSetProject">从 URL 设置项目</button>
-    </div>
-    <div id="setProjectMsg" class="msg"></div>
-    <label>PLATFORM_BASE_URL</label>
-    <input type="text" id="cfgBaseUrl" placeholder="https://cloudapi.polymas.com">
-    <label>PLATFORM_COOKIE</label>
-    <input type="text" id="cfgCookie" placeholder="">
-    <label>PLATFORM_AUTHORIZATION（JWT）</label>
+    <label>智慧树页面 URL（可从 URL 提取课程/任务 ID）</label>
+    <input type="text" id="cfgLoadUrl" placeholder="https://hike-teaching-center.polymas.com/.../ability-training/create?trainTaskId=xxx">
+    <label>JWT（PLATFORM_AUTHORIZATION）</label>
     <input type="text" id="cfgAuthorization" placeholder="">
-    <label>PLATFORM_COURSE_ID</label>
-    <input type="text" id="cfgCourseId" placeholder="">
-    <label>PLATFORM_TRAIN_TASK_ID</label>
-    <input type="text" id="cfgTrainTaskId" placeholder="">
-    <label>PLATFORM_START_NODE_ID（训练开始节点）</label>
+    <label>Cookie</label>
+    <input type="text" id="cfgCookie" placeholder="">
+    <label>开始节点（PLATFORM_START_NODE_ID）</label>
     <input type="text" id="cfgStartNodeId" placeholder="">
-    <label>PLATFORM_END_NODE_ID（训练结束节点）</label>
+    <label>结束节点（PLATFORM_END_NODE_ID）</label>
     <input type="text" id="cfgEndNodeId" placeholder="">
     <div class="gen-cards-row" style="margin-top:0.5rem;">
-      <button type="button" id="btnLoadConfig">加载当前配置</button>
-      <button type="button" id="btnSaveConfig">保存配置</button>
-      <button type="button" id="btnResetToEnv">从 .env 恢复</button>
+      <button type="button" id="btnLoadConfig" class="btn-primary">加载配置</button>
     </div>
+    <details id="platformConfigAdvanced" style="margin-top:0.6rem;border:1px solid var(--natsume-border);border-radius:8px;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.3);">
+      <summary style="cursor:pointer;font-size:0.9rem;color:var(--natsume-ink-light);">高级：base_url、课程 ID、任务 ID</summary>
+      <div style="margin-top:0.6rem;">
+        <label>PLATFORM_BASE_URL</label>
+        <input type="text" id="cfgBaseUrl" placeholder="https://cloudapi.polymas.com">
+        <label>PLATFORM_COURSE_ID</label>
+        <input type="text" id="cfgCourseId" placeholder="从 URL 提取或手动填写课程 ID" autocomplete="off" value="">
+        <label>PLATFORM_TRAIN_TASK_ID</label>
+        <input type="text" id="cfgTrainTaskId" placeholder="从 URL 提取或手动填写任务 ID" autocomplete="off" value="">
+      </div>
+    </details>
     <div id="configMsg" class="msg"></div>
 
     <h3 style="font-size:1rem;margin:1.25rem 0 0.5rem 0;color:var(--natsume-ink);">注入平台</h3>
     <p class="hint" style="margin-top:0;">将卡片 Markdown 推送到智慧树；请先保存上方配置。</p>
-    <label>卡片文件路径</label>
-    <input type="text" id="injectCardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md">
-    <label>任务名称（可选，为空则不更新任务配置）</label>
+    <label>卡片文件（从右侧工作区文件拖入或点击文件填入）</label>
+    <input type="text" id="injectCardsPath" class="path-drop-target" placeholder="从工作区文件列表拖入或点击文件填入">
+    <label>任务名称（可选）</label>
     <input type="text" id="injectTaskName" placeholder="">
     <label>任务描述（可选）</label>
     <input type="text" id="injectDescription" placeholder="">
@@ -1342,66 +1334,64 @@
       <button type="button" id="simSidebarClose" class="sim-sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="4" x2="16" y2="20"/></svg>
       </button>
-      <h3>仿真</h3>
+      <h3>项目与优化</h3>
     </div>
     <div class="sim-sidebar-body">
+      <div class="workspace-files-subsection" style="margin-bottom:1rem;">
+        <div class="sim-progress-title">工作区文件</div>
+        <div id="workspaceFileList" class="file-list workspace-file-list" style="max-height:180px;overflow-y:auto;"></div>
+      </div>
       <div class="sim-progress">
         <div class="sim-progress-title">项目进度</div>
         <div id="simProgressList">
           <div class="sim-progress-item" data-step="1"><span>○</span> 1. 剧本解析</div>
           <div class="sim-progress-item" data-step="2"><span>○</span> 2. 卡片生成</div>
-          <div class="sim-progress-item" data-step="3"><span>○</span> 3. 闭环验证</div>
-          <div class="sim-progress-item" data-step="4"><span>○</span> 4. 闭环优化</div>
-          <div class="sim-progress-item" data-step="5"><span>○</span> 5. 注入平台</div>
+          <div class="sim-progress-item" data-step="3"><span>○</span> 3. 闭环优化</div>
+          <div class="sim-progress-item" data-step="4"><span>○</span> 4. 注入平台</div>
         </div>
       </div>
-      <div class="closed-loop-subsection" style="margin-bottom:1rem;">
-        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单次验证（闭环 / 模拟）</h4>
-        <label>卡片文件路径</label>
-        <input type="text" id="cardsPath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="width:100%;">
+      <div class="closed-loop-subsection" style="margin-top:1rem;">
+        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">闭环优化</h4>
+        <p class="hint" style="font-size:0.85rem;">多轮生成→仿真→评估，优化卡片质量。可设置轮次，可选使用外部评估报告。</p>
+        <label style="margin-top:0.4rem;">Rounds</label>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
+          <label class="opt-checkbox-wrap" style="margin:0;"><input type="radio" name="optimizerRoundsMode" value="default" checked class="opt-checkbox"> 默认</label>
+          <label class="opt-checkbox-wrap" style="margin:0;"><input type="radio" name="optimizerRoundsMode" value="custom" class="opt-checkbox"></label>
+          <input type="number" id="optimizerMaxRoundsInput" min="1" max="99" value="1" style="width:5rem;">
+        </div>
         <label style="margin-top:0.4rem;">人设</label>
-        <select id="personaId" style="width:100%;"></select>
-        <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
-          <button id="btnClosedLoop" class="btn-primary">闭环运行</button>
-          <button id="btnClosedLoopCancel" type="button" class="btn-secondary" style="display:none;">取消</button>
-          <label style="margin:0;"><input type="checkbox" id="closedLoopSaveExport" checked> 保存为优化器导出</label>
+        <div style="display:flex;gap:0.35rem;align-items:center;">
+          <select id="personaId" style="flex:1;"></select>
+          <button type="button" id="btnEditPersona" class="btn-secondary" title="编辑/新建人设">编辑人设</button>
         </div>
-        <div id="closedLoopProgressWrap" style="display:none;margin-top:0.5rem;padding:0.5rem;background:var(--natsume-bg);border:1px solid var(--natsume-border);border-radius:8px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.85rem;color:var(--natsume-ink-light);">
-            <span id="closedLoopProgressMsg">准备中…</span>
+        <div style="margin-top:0.6rem;">
+          <label class="opt-checkbox-wrap"><input type="checkbox" id="optimizerUseExternalEval" class="opt-checkbox"> 使用外部评估报告</label>
+        </div>
+        <p class="hint" style="font-size:0.8rem;margin:0.25rem 0 0;">未勾选时默认闭环运行（仿真+评估）。</p>
+        <div id="optimizerExternalEvalWrap" style="display:none;margin-top:0.5rem;padding:0.5rem;background:var(--natsume-bg);border:1px solid var(--natsume-border);border-radius:8px;">
+          <div class="upload-report-wrap" style="margin-top:0;">
+            <label>上传外部评估报告</label>
+            <div id="exportReportDropZone" class="drop-zone" style="max-width:100%;">将 .md / .json / .txt 报告拖至此处或点击选取</div>
+            <input type="file" id="exportReportFile" accept=".md,.json,.txt" style="display:none">
+            <div id="uploadExportReportMsg" class="msg"></div>
           </div>
-          <p class="hint" style="margin:0.25rem 0 0 0;font-size:0.8rem;">可点击「取消」放弃等待（后台可能继续运行），或继续操作其他区域。</p>
         </div>
-        <div style="margin-top:0.35rem;">
-          <button id="btnSimulate" class="btn-secondary">仅运行模拟</button>
+        <label style="margin-top:0.4rem;">优化器</label>
+        <select id="optimizerType" style="width:100%;"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
+        <div class="btn-row-right" style="margin-top:0.5rem;">
+          <button type="button" id="btnRunOptimizer" class="btn-primary">运行优化</button>
         </div>
-        <div id="simMsg" class="msg"></div>
-        <pre id="simResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
-      </div>
-      <div>
-        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">按步骤仿真</h4>
-        <p class="hint" style="font-size:0.85rem;">加载卡片后分块展示，可直接运行模拟。</p>
-        <div style="display:flex;gap:0.35rem;margin-bottom:0.5rem;">
-          <input type="text" id="simModulePath" class="path-drop-target" list="cardsPathOptions" placeholder="output/cards_output_xxx.md" style="flex:1;min-width:6rem;">
-          <button type="button" id="simModuleLoad">加载</button>
+        <div id="optimizerProgressWrap" style="display:none;margin-top:0.5rem;">
+          <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--natsume-ink-light);">
+            <span id="optimizerProgressMsg">准备中…</span>
+            <span id="optimizerProgressPct">0%</span>
+          </div>
+          <div style="height:6px;background:var(--natsume-border);border-radius:3px;overflow:hidden;margin-top:0.25rem;">
+            <div id="optimizerProgressBar" style="height:100%;width:0%;background:var(--natsume-leaf);transition:width 0.3s;"></div>
+          </div>
         </div>
-        <div id="simModuleCards" class="sim-cards-container"></div>
-        <div style="margin-top:0.5rem;display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
-          <select id="simModulePersonaId" style="width:auto;"></select>
-          <button type="button" id="simModuleRun">运行模拟</button>
-        </div>
-        <div id="simModuleMsg" class="msg"></div>
-        <pre id="simModuleResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
-      </div>
-      <div class="closed-loop-subsection" style="margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--natsume-border);">
-        <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">单独评估</h4>
-        <p class="hint" style="font-size:0.85rem;">对已有会话日志做评估；闭环运行已含评估，此处用于单独跑某次日志。支持 .json 与 .txt（.txt 可为「学生: …」「NPC: …」格式）。</p>
-        <label>拖入会话日志进行评估</label>
-        <div id="evalLogDropZone" class="drop-zone" style="max-width:100%;">将 .json 或 .txt 拖至此处或点击选取</div>
-        <input type="file" id="evalLogFile" accept=".json,.txt" style="display:none">
-        <label style="margin-top:0.35rem;display:block;"><input type="checkbox" id="evalFileSaveToExport"> 保存为导出文件</label>
-        <div id="evalMsg" class="msg"></div>
-        <pre id="evalResult" style="display:none;font-size:0.8rem;max-height:100px;"></pre>
+        <div id="optimizerMsg" class="msg"></div>
+        <pre id="optimizerResult" style="display:none;font-size:0.8rem;max-height:120px;"></pre>
       </div>
     </div>
   </aside>
@@ -1517,7 +1507,7 @@
       var folderLabel = document.getElementById('sidebarCurrentFolder');
       if (!treeRoot) {
         if (folderLabel) folderLabel.textContent = '未择定';
-        el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">请先择定本地目录</div>';
+        el.innerHTML = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">请先选择本地目录</div>';
         el._treeNodes = [];
         el._fileHandles = [];
         return;
@@ -1611,7 +1601,8 @@
         var d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
         lastUploadData = d;
-        msg.textContent = '分析完成：识别出 ' + (d.stages_count || 0) + ' 个阶段。现在可以点击「生成卡片」，再依次进行学生模拟、评估和平台注入。';
+        var tc = d.trainset_count != null ? d.trainset_count : 0;
+        msg.textContent = '分析完成：识别出 ' + (d.stages_count || 0) + ' 个阶段。' + (tc ? ' Trainset 已更新（共 ' + tc + ' 条），闭环优化时将使用。' : '') + ' 现在可点击「生成卡片」。';
         if (typeof window.updateSimProgress === 'function') window.updateSimProgress({1: true});
         if (genBtn) {
           genBtn.disabled = false;
@@ -1756,27 +1747,29 @@
         bodyEl.innerHTML = '<p class="err">预览失败: ' + (e.message || e) + '</p>';
       }
     }
-    function renderCardEditPreview() {
-      var ta = document.getElementById('cardEditModalTextarea');
-      var prevEl = document.getElementById('cardEditModalPreview');
+    function renderContentEditPreview() {
+      var ta = document.getElementById('contentEditModalTextarea');
+      var prevEl = document.getElementById('contentEditModalPreview');
       if (!ta || !prevEl) return;
       var content = ta.value || '';
-      if (typeof marked !== 'undefined') {
+      var editType = ta.dataset.editType || 'card';
+      if (editType === 'persona') {
+        prevEl.innerHTML = '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-size:0.9rem;">' + (content || '（无内容）').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>';
+      } else if (typeof marked !== 'undefined') {
         marked.setOptions({ gfm: true });
         prevEl.innerHTML = marked.parse(content);
       } else {
         prevEl.textContent = content;
       }
     }
-    function setCardEditMode(mode) {
-      var ta = document.getElementById('cardEditModalTextarea');
-      var prevEl = document.getElementById('cardEditModalPreview');
-      var saveBtn = document.getElementById('btnCardEditSave');
-      document.querySelectorAll('.card-edit-tab').forEach(function(t) {
+    function setContentEditMode(mode) {
+      var ta = document.getElementById('contentEditModalTextarea');
+      var prevEl = document.getElementById('contentEditModalPreview');
+      document.querySelectorAll('.content-edit-tab').forEach(function(t) {
         t.classList.toggle('active', t.getAttribute('data-mode') === mode);
       });
       if (mode === 'preview') {
-        renderCardEditPreview();
+        renderContentEditPreview();
         if (ta) ta.style.display = 'none';
         if (prevEl) { prevEl.style.display = 'block'; prevEl.style.flex = '1'; }
       } else {
@@ -1784,25 +1777,30 @@
         if (prevEl) prevEl.style.display = 'none';
       }
     }
-    /** 打开卡片查看/编辑弹窗：根据 output 路径加载内容，可编辑并保存 */
+    /** 打开卡片查看/编辑（统一弹窗） */
     async function openCardEditModal(outputPath) {
       if (!outputPath || !outputPath.trim()) return;
       var path = outputPath.trim();
       if (!path.startsWith('output/')) path = 'output/' + path;
-      var modal = document.getElementById('cardEditModal');
-      var titleEl = document.getElementById('cardEditModalTitle');
-      var ta = document.getElementById('cardEditModalTextarea');
-      var prevEl = document.getElementById('cardEditModalPreview');
-      var msgEl = document.getElementById('cardEditModalMsg');
-      var saveBtn = document.getElementById('btnCardEditSave');
+      var modal = document.getElementById('contentEditModal');
+      var titleEl = document.getElementById('contentEditModalTitle');
+      var ta = document.getElementById('contentEditModalTextarea');
+      var prevEl = document.getElementById('contentEditModalPreview');
+      var msgEl = document.getElementById('contentEditModalMsg');
+      var saveBtn = document.getElementById('btnContentEditSave');
+      var extraWrap = document.getElementById('contentEditExtra');
       titleEl.textContent = '卡片：' + path;
       ta.value = '';
       ta.placeholder = '加载中…';
+      ta.dataset.editType = 'card';
       ta.dataset.editPath = '';
+      var dlBtn = document.getElementById('btnContentEditDownload');
+      if (dlBtn) dlBtn.style.display = 'none';
       if (prevEl) prevEl.innerHTML = '';
       if (msgEl) msgEl.textContent = '';
       if (saveBtn) saveBtn.style.display = '';
-      setCardEditMode('edit');
+      if (extraWrap) extraWrap.style.display = 'none';
+      setContentEditMode('edit');
       openModal(modal, null);
       try {
         var r = await apiFetch('/api/output/read?path=' + encodeURIComponent(path));
@@ -1811,6 +1809,11 @@
         ta.value = (d && d.content) || '';
         ta.placeholder = '在此编辑卡片内容…';
         ta.dataset.editPath = path;
+        var dlBtn = document.getElementById('btnContentEditDownload');
+        if (dlBtn) {
+          dlBtn.style.display = (path && path.indexOf('output/') === 0) ? '' : 'none';
+          dlBtn.onclick = function() { if (typeof downloadOutputFile === 'function') downloadOutputFile(path); };
+        }
       } catch (e) {
         ta.placeholder = '';
         if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
@@ -1818,21 +1821,24 @@
     }
     /** 从左侧栏文件打开查看/编辑（.md 支持预览+编辑，.docx 仅预览） */
     async function openCardEditFromFile(fileHandle, fileName) {
-      document.querySelectorAll('.card-edit-tab').forEach(function(t) { t.style.display = ''; });
-      var modal = document.getElementById('cardEditModal');
-      var titleEl = document.getElementById('cardEditModalTitle');
-      var ta = document.getElementById('cardEditModalTextarea');
-      var prevEl = document.getElementById('cardEditModalPreview');
-      var msgEl = document.getElementById('cardEditModalMsg');
-      var saveBtn = document.getElementById('btnCardEditSave');
+      document.querySelectorAll('.content-edit-tab').forEach(function(t) { t.style.display = ''; });
+      var modal = document.getElementById('contentEditModal');
+      var titleEl = document.getElementById('contentEditModalTitle');
+      var ta = document.getElementById('contentEditModalTextarea');
+      var prevEl = document.getElementById('contentEditModalPreview');
+      var msgEl = document.getElementById('contentEditModalMsg');
+      var saveBtn = document.getElementById('btnContentEditSave');
+      var extraWrap = document.getElementById('contentEditExtra');
       titleEl.textContent = fileName || '预览';
       ta.value = '';
       ta.placeholder = '加载中…';
+      ta.dataset.editType = 'card';
       ta.dataset.editPath = '';
       if (prevEl) prevEl.innerHTML = '';
       if (msgEl) msgEl.textContent = '';
       if (saveBtn) saveBtn.style.display = 'none';
-      setCardEditMode('edit');
+      if (extraWrap) extraWrap.style.display = 'none';
+      setContentEditMode('edit');
       openModal(modal, null);
       try {
         var file = await fileHandle.getFile();
@@ -1841,7 +1847,7 @@
           var text = await file.text();
           ta.value = text || '';
           ta.placeholder = '在此编辑（本地文件无法保存回原文件）';
-          setCardEditMode('preview');
+          setContentEditMode('edit');
         } else if (lower.endsWith('.docx')) {
           var buf = await file.arrayBuffer();
           if (typeof mammoth !== 'undefined') {
@@ -1849,7 +1855,7 @@
             ta.value = '';
             if (prevEl) { prevEl.innerHTML = result.value || '<p>（无内容）</p>'; prevEl.style.display = 'block'; }
             if (ta) ta.style.display = 'none';
-            document.querySelectorAll('.card-edit-tab').forEach(function(t) {
+            document.querySelectorAll('.content-edit-tab').forEach(function(t) {
               t.classList.toggle('active', t.getAttribute('data-mode') === 'preview');
               t.style.display = t.getAttribute('data-mode') === 'preview' ? '' : 'none';
             });
@@ -1894,31 +1900,123 @@
         if (path) openCardEditModal(path);
       }
     });
-    (function initCardEditModal() {
-      var modal = document.getElementById('cardEditModal');
-      document.getElementById('btnCloseCardEdit').onclick = function() { closeModal(modal); };
+    (function initContentEditModal() {
+      var modal = document.getElementById('contentEditModal');
+      var ta = document.getElementById('contentEditModalTextarea');
+      var msgEl = document.getElementById('contentEditModalMsg');
+      var saveBtn = document.getElementById('btnContentEditSave');
+      var extraWrap = document.getElementById('contentEditExtra');
+      if (!modal || !ta) return;
+      document.getElementById('btnCloseContentEdit').onclick = function() { closeModal(modal); };
       modal.onclick = function(e) { if (e.target === modal) closeModal(modal); };
-      document.querySelectorAll('.card-edit-tab').forEach(function(btn) {
-        btn.onclick = function() { setCardEditMode(this.getAttribute('data-mode')); };
+      document.querySelectorAll('.content-edit-tab').forEach(function(btn) {
+        btn.onclick = function() { setContentEditMode(btn.getAttribute('data-mode')); };
       });
-      document.getElementById('btnCardEditSave').onclick = async function() {
-        var ta = document.getElementById('cardEditModalTextarea');
-        var path = ta && ta.dataset.editPath;
-        var msgEl = document.getElementById('cardEditModalMsg');
-        if (!path) { if (msgEl) msgEl.innerHTML = '<span class="err">无有效路径</span>'; return; }
-        var content = ta.value;
-        if (msgEl) msgEl.textContent = '保存中…';
+      saveBtn.onclick = async function() {
+        var editType = ta.dataset.editType || '';
+        var content = ta.value || '';
+        if (editType === 'card') {
+          var path = ta.dataset.editPath;
+          if (!path) { if (msgEl) msgEl.innerHTML = '<span class="err">无有效路径</span>'; return; }
+          msgEl.textContent = '保存中…';
+          try {
+            var r = await apiFetch('/api/output/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: path, content: content }) });
+            var d = await safeResponseJson(r);
+            if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+            if (msgEl) msgEl.textContent = '已保存';
+            if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+          } catch (e) {
+            if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+          }
+          return;
+        }
+        if (editType === 'persona') {
+          var personaId = ta.dataset.personaId || '';
+          if (ta.dataset.readOnly === 'true') {
+            if (msgEl) msgEl.innerHTML = '<span class="err">预设人设不可覆盖，请用下方「保存」保存为新名称。</span>';
+            return;
+          }
+          if (!personaId.startsWith('custom/')) {
+            if (msgEl) msgEl.innerHTML = '<span class="err">仅可保存自定义人设</span>';
+            return;
+          }
+          msgEl.textContent = '保存中…';
+          try {
+            var r = await apiFetch('/api/personas/content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona_id: personaId, content: content }) });
+            var d = await safeResponseJson(r);
+            if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+            if (msgEl) msgEl.textContent = '已保存';
+            if (typeof loadPersonas === 'function') loadPersonas();
+          } catch (e) {
+            if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+          }
+        }
+      };
+      document.getElementById('btnContentEditSaveAs').onclick = async function() {
+        if (ta.dataset.editType !== 'persona') return;
+        var content = ta.value || '';
+        var name = '';
         try {
-          var r = await apiFetch('/api/output/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: path, content: content }) });
+          if (content.trim()) {
+            var lines = content.split('\n');
+            for (var i = 0; i < lines.length; i++) {
+              var line = lines[i].trim();
+              var colon = line.indexOf(':');
+              if (colon > 0 && line.substring(0, colon).trim().toLowerCase() === 'name') {
+                name = line.slice(colon + 1).trim().replace(/^["']|["']$/g, '');
+                break;
+              }
+            }
+          }
+        } catch (e) {}
+        name = name.trim().replace(/[\\/:*?"<>|]/g, '_').slice(0, 64) || '';
+        if (!name) { if (msgEl) msgEl.innerHTML = '<span class="err">请在编辑区 YAML 中配置 name 字段作为人设名称</span>'; return; }
+        var personaId = 'custom/' + name;
+        msgEl.textContent = '保存中…';
+        try {
+          var r = await apiFetch('/api/personas/content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona_id: personaId, content: content }) });
           var d = await safeResponseJson(r);
           if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-          if (msgEl) msgEl.textContent = '已保存';
-          if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+          if (msgEl) msgEl.textContent = '已保存为 ' + personaId;
+          if (typeof loadPersonas === 'function') loadPersonas();
         } catch (e) {
           if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
         }
       };
+      window.openPersonaEditModal = async function() {
+        var sel = document.getElementById('personaId');
+        var personaId = (sel && sel.value) ? sel.value.trim() : 'excellent';
+        document.getElementById('contentEditModalTitle').textContent = '学生人设编辑：' + personaId;
+        ta.value = '';
+        ta.placeholder = '加载中…';
+        ta.dataset.editType = 'persona';
+        ta.dataset.personaId = '';
+        ta.dataset.readOnly = 'false';
+        document.getElementById('contentEditModalPreview').innerHTML = '';
+        if (msgEl) msgEl.textContent = '';
+        if (saveBtn) saveBtn.style.display = '';
+        if (extraWrap) extraWrap.style.display = 'none';
+        setContentEditMode('edit');
+        openModal(modal, null);
+        try {
+          var r = await apiFetch('/api/personas/content?persona_id=' + encodeURIComponent(personaId));
+          var d = await safeResponseJson(r);
+          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          ta.value = (d && d.content) || '';
+          ta.placeholder = 'YAML 格式，编辑后点击保存。预设人设只读，可保存为自定义。';
+          ta.dataset.personaId = personaId;
+          ta.dataset.readOnly = d.read_only ? 'true' : 'false';
+          if (d.read_only) {
+            if (saveBtn) saveBtn.style.display = 'none';
+            if (extraWrap) extraWrap.style.display = 'flex';
+          }
+        } catch (e) {
+          ta.placeholder = '';
+          if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+        }
+      };
     })();
+    document.getElementById('btnEditPersona').onclick = function() { if (typeof window.openPersonaEditModal === 'function') window.openPersonaEditModal(); };
 
     document.getElementById('localFileList').onclick = async function(e) {
       var item = e.target.closest('.file-list-item');
@@ -2026,6 +2124,17 @@
         renderWorkspaceFileList();
       }).catch(function() {});
     }
+    function downloadOutputFile(path) {
+      if (!path || typeof apiFetch !== 'function') return;
+      apiFetch('/api/output/download?path=' + encodeURIComponent(path)).then(function(r) { return r.blob(); }).then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = path.split('/').pop() || 'download';
+        a.click();
+        URL.revokeObjectURL(url);
+      }).catch(function() {});
+    }
     function renderWorkspaceFileList() {
       var listEl = document.getElementById('workspaceFileList');
       var inp = workspaceFilesCache.input || [];
@@ -2037,7 +2146,9 @@
           out.forEach(function(f) {
             var path = (f.path || '').replace(/^output\/?/, 'output/');
             var name = f.name || path.split('/').pop();
-            html += '<div class="file-list-item file tree-depth-0" data-path="' + String(path).replace(/"/g, '&quot;') + '" data-name="' + String(name).replace(/"/g, '&quot;') + '" draggable="true"><span class="tree-icon" style="margin-left:1em">📄</span>' + String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+            var escPath = String(path).replace(/"/g, '&quot;');
+            var escName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            html += '<div class="file-list-item file tree-depth-0" data-path="' + escPath + '" data-name="' + escName + '" data-output="1" draggable="true"><span class="tree-icon" style="margin-left:1em">📄</span><span class="workspace-file-name">' + escName + '</span> <a href="#" class="workspace-file-dl" data-path="' + escPath + '" title="下载">下载</a></div>';
           });
         }
         if (inp.length) {
@@ -2045,7 +2156,9 @@
           inp.forEach(function(f) {
             var path = (f.path || '').replace(/^input\/?/, 'input/');
             var name = f.name || path.split('/').pop();
-            html += '<div class="file-list-item file tree-depth-0" data-path="' + String(path).replace(/"/g, '&quot;') + '" data-name="' + String(name).replace(/"/g, '&quot;') + '" draggable="true"><span class="tree-icon" style="margin-left:1em">📄</span>' + String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
+            var escPath = String(path).replace(/"/g, '&quot;');
+            var escName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            html += '<div class="file-list-item file tree-depth-0" data-path="' + escPath + '" data-name="' + escName + '" draggable="true"><span class="tree-icon" style="margin-left:1em">📄</span><span class="workspace-file-name">' + escName + '</span></div>';
           });
         }
       } else {
@@ -2054,6 +2167,13 @@
       if (listEl) {
         listEl.innerHTML = html || '';
         listEl.onclick = function(e) {
+          var dl = e.target.closest('.workspace-file-dl');
+          if (dl) {
+            e.preventDefault();
+            var p = dl.getAttribute('data-path');
+            if (p) downloadOutputFile(p);
+            return;
+          }
           var item = e.target.closest('.file-list-item.file[data-path]');
           if (!item) return;
           var path = item.getAttribute('data-path');
@@ -2061,6 +2181,12 @@
             lastFocusedPathInput.value = (typeof normalizePathForBackend === 'function' ? normalizePathForBackend(path) : path);
             lastFocusedPathInput = null;
           }
+        };
+        listEl.ondblclick = function(e) {
+          var item = e.target.closest('.file-list-item.file[data-path]');
+          if (!item) return;
+          var path = item.getAttribute('data-path');
+          if (path && typeof openCardEditModal === 'function') openCardEditModal(path);
         };
         listEl.ondragstart = function(e) {
           var item = e.target.closest('.file-list-item.file[data-path]');
@@ -2094,115 +2220,94 @@
       sel.innerHTML = opts.join('') || '<option value="excellent">excellent</option>';
       var cardEditSel = document.getElementById('cardEditPersonaId');
       if (cardEditSel) cardEditSel.innerHTML = sel.innerHTML;
-      var simPersonaSel = document.getElementById('simModulePersonaId');
-      if (simPersonaSel) simPersonaSel.innerHTML = sel.innerHTML;
     }
     loadPersonas();
 
     var lastLoadedPlatformConfig = {};
-    function setPlatformInputPlaceholder(id, value) {
-      var el = document.getElementById(id);
-      if (!el) return;
-      el.placeholder = value || '';
-      el.value = '';
+    function setPlatformFormValues(d) {
+      lastLoadedPlatformConfig = {
+        base_url: d.base_url || 'https://cloudapi.polymas.com',
+        cookie: d.cookie || '',
+        authorization: d.authorization || '',
+        start_node_id: d.start_node_id || '',
+        end_node_id: d.end_node_id || '',
+      };
+      var cfgLoadUrl = document.getElementById('cfgLoadUrl');
+      if (cfgLoadUrl) cfgLoadUrl.value = '';
+      var el;
+      (el = document.getElementById('cfgAuthorization')) && (el.value = lastLoadedPlatformConfig.authorization);
+      (el = document.getElementById('cfgCookie')) && (el.value = lastLoadedPlatformConfig.cookie);
+      (el = document.getElementById('cfgStartNodeId')) && (el.value = lastLoadedPlatformConfig.start_node_id);
+      (el = document.getElementById('cfgEndNodeId')) && (el.value = lastLoadedPlatformConfig.end_node_id);
+      (el = document.getElementById('cfgBaseUrl')) && (el.value = lastLoadedPlatformConfig.base_url);
+      (function(){
+        var c=document.getElementById('cfgCourseId'),t=document.getElementById('cfgTrainTaskId');
+        if(c){c.value='';c.placeholder='从 URL 提取或手动填写课程 ID';c.setAttribute('autocomplete','off');}
+        if(t){t.value='';t.placeholder='从 URL 提取或手动填写任务 ID';t.setAttribute('autocomplete','off');}
+        setTimeout(function(){ if(c)c.value=''; if(t)t.value=''; }, 0);
+      })();
     }
-    async function loadPlatformConfig() {
+    async function fetchPlatformConfig() {
+      if (!(typeof getWorkspaceId === 'function' ? getWorkspaceId() : (window.WORKSPACE_ID || ''))) return;
+      var msgEl = document.getElementById('configMsg');
       try {
-        const r = await apiFetch( '/api/platform/config');
+        const r = await apiFetch('/api/platform/config');
         const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        lastLoadedPlatformConfig = {
-          base_url: d.base_url || '',
-          cookie: d.cookie || '',
-          authorization: d.authorization || '',
-          course_id: d.course_id || '',
-          train_task_id: d.train_task_id || '',
-          start_node_id: d.start_node_id || '',
-          end_node_id: d.end_node_id || '',
-        };
-        setPlatformInputPlaceholder('cfgBaseUrl', lastLoadedPlatformConfig.base_url);
-        setPlatformInputPlaceholder('cfgCookie', lastLoadedPlatformConfig.cookie);
-        setPlatformInputPlaceholder('cfgAuthorization', lastLoadedPlatformConfig.authorization);
-        setPlatformInputPlaceholder('cfgCourseId', lastLoadedPlatformConfig.course_id);
-        setPlatformInputPlaceholder('cfgTrainTaskId', lastLoadedPlatformConfig.train_task_id);
-        setPlatformInputPlaceholder('cfgStartNodeId', lastLoadedPlatformConfig.start_node_id);
-        setPlatformInputPlaceholder('cfgEndNodeId', lastLoadedPlatformConfig.end_node_id);
-        document.getElementById('configMsg').textContent = '已加载当前配置';
+        if (r.status === 403 || r.status === 400) { if (msgEl) msgEl.textContent = ''; return; }
+        if (!r.ok) throw new Error(d.message || d.detail || JSON.stringify(d));
+        setPlatformFormValues(d);
+        if (msgEl) msgEl.textContent = '已加载当前配置';
       } catch (e) {
-        document.getElementById('configMsg').innerHTML = '<span class="err">' + e.message + '</span>';
+        var m = e.message || String(e);
+        if (msgEl && m.indexOf('无权限') === -1 && m.indexOf('FORBIDDEN') === -1 && m.indexOf('403') === -1)
+          msgEl.innerHTML = '<span class="err">' + m + '</span>';
+        else if (msgEl) msgEl.textContent = '';
       }
     }
-    document.getElementById('btnLoadConfig').onclick = loadPlatformConfig;
-    document.getElementById('btnSetProject').onclick = async () => {
-      const urlInput = document.getElementById('setProjectUrl');
-      const msg = document.getElementById('setProjectMsg');
-      const url = (urlInput && urlInput.value || '').trim();
-      if (!url) { msg.innerHTML = '<span class="err">请粘贴智慧树页面 URL</span>'; return; }
-      msg.textContent = '解析中…';
+    (function clearCourseTaskIds() {
+      var c = document.getElementById('cfgCourseId'), t = document.getElementById('cfgTrainTaskId');
+      if (c) c.value = '';
+      if (t) t.value = '';
+    })();
+    document.getElementById('btnLoadConfig').onclick = async () => {
+      const msg = document.getElementById('configMsg');
+      const url = (document.getElementById('cfgLoadUrl') && document.getElementById('cfgLoadUrl').value || '').trim();
+      const jwt = (document.getElementById('cfgAuthorization') && document.getElementById('cfgAuthorization').value || '').trim();
+      const cookie = (document.getElementById('cfgCookie') && document.getElementById('cfgCookie').value || '').trim();
+      const startNode = (document.getElementById('cfgStartNodeId') && document.getElementById('cfgStartNodeId').value || '').trim();
+      const endNode = (document.getElementById('cfgEndNodeId') && document.getElementById('cfgEndNodeId').value || '').trim();
+      const advanced = document.getElementById('platformConfigAdvanced');
+      const body = {
+        url: url || undefined,
+        authorization: jwt || undefined,
+        cookie: cookie || undefined,
+        start_node_id: startNode || undefined,
+        end_node_id: endNode || undefined,
+      };
+      if (advanced && advanced.open) {
+        const baseUrl = (document.getElementById('cfgBaseUrl') && document.getElementById('cfgBaseUrl').value || '').trim();
+        const courseId = (document.getElementById('cfgCourseId') && document.getElementById('cfgCourseId').value || '').trim();
+        const taskId = (document.getElementById('cfgTrainTaskId') && document.getElementById('cfgTrainTaskId').value || '').trim();
+        if (baseUrl) body.base_url = baseUrl;
+        if (courseId) body.course_id = courseId;
+        if (taskId) body.train_task_id = taskId;
+      }
+      msg.textContent = '加载中…';
       try {
-        const r = await apiFetch('/api/platform/set-project', {
+        const r = await apiFetch('/api/platform/load-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url, save: true }),
+          body: JSON.stringify(body),
         });
         const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        lastLoadedPlatformConfig.course_id = d.course_id || '';
-        lastLoadedPlatformConfig.train_task_id = d.train_task_id || '';
-        var courseEl = document.getElementById('cfgCourseId');
-        var taskEl = document.getElementById('cfgTrainTaskId');
-        if (courseEl) { courseEl.placeholder = lastLoadedPlatformConfig.course_id; courseEl.value = ''; }
-        if (taskEl) { taskEl.placeholder = lastLoadedPlatformConfig.train_task_id; taskEl.value = ''; }
-        msg.textContent = d.message || '已从 URL 填充课程 ID 与任务 ID，请保存配置';
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-      }
-    };
-    document.getElementById('btnSaveConfig').onclick = async (ev) => {
-      ev.preventDefault();
-      const msg = document.getElementById('configMsg');
-      msg.textContent = '保存中…';
-      msg.classList.remove('err');
-      try {
-        var getCfg = function(id, key) {
-          var v = (document.getElementById(id) && document.getElementById(id).value || '').trim();
-          return v || (lastLoadedPlatformConfig[key] || '');
-        };
-        const r = await apiFetch('/api/platform/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            base_url: getCfg('cfgBaseUrl', 'base_url'),
-            cookie: getCfg('cfgCookie', 'cookie'),
-            authorization: getCfg('cfgAuthorization', 'authorization'),
-            course_id: getCfg('cfgCourseId', 'course_id'),
-            train_task_id: getCfg('cfgTrainTaskId', 'train_task_id'),
-            start_node_id: getCfg('cfgStartNodeId', 'start_node_id'),
-            end_node_id: getCfg('cfgEndNodeId', 'end_node_id'),
-          }),
-        });
-        const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : (Array.isArray(d.detail) ? d.detail.map(x => x.msg || JSON.stringify(x)).join('; ') : JSON.stringify(d)));
-        msg.textContent = d.message || '已保存';
-      } catch (e) {
-        msg.innerHTML = '<span class="err">保存失败: ' + (e.message || String(e)) + '</span>';
-      }
-    };
-    document.getElementById('btnResetToEnv').onclick = async (ev) => {
-      ev.preventDefault();
-      const msg = document.getElementById('configMsg');
-      msg.textContent = '正在从 .env 恢复…';
-      try {
-        const r = await apiFetch('/api/platform/reset-to-env', { method: 'POST' });
-        const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = d.message || '已用 .env 覆盖工作区配置';
-        loadPlatformConfig();
+        setPlatformFormValues(d);
+        msg.textContent = d.message || '已加载配置';
       } catch (e) {
         msg.innerHTML = '<span class="err">' + (e.message || String(e)) + '</span>';
       }
     };
-    loadPlatformConfig();
+    fetchPlatformConfig();
 
     document.getElementById('btnRunOptimizer').onclick = async function() {
       const msg = document.getElementById('optimizerMsg');
@@ -2222,12 +2327,17 @@
         if (progressPct) progressPct.textContent = '0%';
       }
       try {
+        var useExternalEval = !!(document.getElementById('optimizerUseExternalEval') && document.getElementById('optimizerUseExternalEval').checked);
+        var roundsDefault = document.querySelector('input[name="optimizerRoundsMode"][value="default"]');
+        var maxRounds = (roundsDefault && roundsDefault.checked) ? null : (parseInt(document.getElementById('optimizerMaxRoundsInput').value, 10) || 1);
         const body = {
-          trainset_path: (document.getElementById('trainsetPath') && document.getElementById('trainsetPath').value || 'output/optimizer/trainset.json').trim(),
-          devset_path: (document.getElementById('optimizerDevsetPath') && document.getElementById('optimizerDevsetPath').value || '').trim() || null,
-          export_path: (document.getElementById('optimizerExportPath') && document.getElementById('optimizerExportPath').value.trim()) || null,
+          trainset_path: 'output/optimizer/trainset.json',
+          devset_path: null,
+          cards_output_path: null,
+          export_path: useExternalEval ? 'output/optimizer/export_score.json' : null,
           optimizer_type: (document.getElementById('optimizerType') && document.getElementById('optimizerType').value) || 'bootstrap',
-          use_auto_eval: !!(document.getElementById('optimizerUseAutoEval') && document.getElementById('optimizerUseAutoEval').checked),
+          use_auto_eval: !useExternalEval,
+          max_rounds: maxRounds,
           persona_id: (document.getElementById('personaId') && document.getElementById('personaId').value) || 'excellent',
         };
         const r = await apiFetch('/api/optimizer/run-stream', {
@@ -2264,10 +2374,52 @@
                 if (progressMsg) progressMsg.textContent = '完成';
                 if (progressPct) progressPct.textContent = '100%';
                 msg.textContent = d.message || '优化完成';
-                pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
+                var reportPath = d.evaluation_report_path || '';
+                var cardsPath = d.cards_output_path || '';
+                pre.textContent = (d.hint || '') + (reportPath ? '\n\n评估报告: ' + reportPath : '') + (cardsPath ? '\n生成卡片: ' + cardsPath : '') + '\n\n' + JSON.stringify(d, null, 2);
                 pre.style.display = 'block';
+                var wrap = pre.parentNode;
+                var btnsId = 'optimizerResultBtns';
+                var existingBtns = document.getElementById(btnsId);
+                if (existingBtns) existingBtns.remove();
+                var btnWrap = document.createElement('div');
+                btnWrap.id = btnsId;
+                btnWrap.style.marginTop = '0.5rem';
+                btnWrap.style.display = 'flex';
+                btnWrap.style.flexWrap = 'wrap';
+                btnWrap.style.gap = '0.5rem';
+                if (reportPath && typeof openCardEditModal === 'function') {
+                  var openReport = document.createElement('button');
+                  openReport.className = 'btn secondary';
+                  openReport.textContent = '查看评估报告';
+                  openReport.onclick = function() { openCardEditModal(reportPath); };
+                  btnWrap.appendChild(openReport);
+                }
+                if (cardsPath) {
+                  var viewCards = document.createElement('button');
+                  viewCards.className = 'btn secondary';
+                  viewCards.textContent = '查看卡片';
+                  viewCards.onclick = function() { if (typeof openCardEditModal === 'function') openCardEditModal(cardsPath); };
+                  btnWrap.appendChild(viewCards);
+                  if (typeof downloadOutputFile === 'function') {
+                    var dlCards = document.createElement('button');
+                    dlCards.className = 'btn secondary';
+                    dlCards.textContent = '下载卡片';
+                    dlCards.onclick = function() { downloadOutputFile(cardsPath); };
+                    btnWrap.appendChild(dlCards);
+                  }
+                  var useInject = document.createElement('button');
+                  useInject.className = 'btn secondary';
+                  useInject.textContent = '用于注入';
+                  useInject.onclick = function() {
+                    var inp = document.getElementById('injectCardsPath');
+                    if (inp) inp.value = cardsPath;
+                  };
+                  btnWrap.appendChild(useInject);
+                }
+                if (btnWrap.childNodes.length) wrap.insertBefore(btnWrap, pre.nextSibling);
                 if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-                if (typeof window.updateSimProgress === 'function') window.updateSimProgress({4: true});
+                if (typeof window.updateSimProgress === 'function') window.updateSimProgress({3: true});
               } else if (event === 'error') {
                 throw new Error(d.detail || data);
               }
@@ -2303,11 +2455,10 @@
         var fd = new FormData();
         fd.append('file', file);
         fd.append('subpath', 'optimizer');
+        fd.append('save_as', 'export_score.json');
         apiFetch('/api/output/upload', { method: 'POST', body: fd }).then(function(r) { return safeResponseJson(r).then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
           if (!o.r.ok) throw new Error(o.d.error || o.d.detail || JSON.stringify(o.d));
-          msg.textContent = '已上传：' + (o.d.path || '');
-          var exportPathInput = document.getElementById('optimizerExportPath');
-          if (exportPathInput && o.d.path) exportPathInput.value = o.d.path;
+          msg.textContent = '已上传至 output/optimizer/export_score.json';
           if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
         }).catch(function(e) {
           msg.classList.add('err');
@@ -2419,29 +2570,16 @@
         msg.innerHTML = '已完成生成。卡片文件：<a href="#" class="card-path-link" data-path="' + escPath + '">' + escPath + '</a>（点击可查看并编辑）';
         if (typeof window.updateSimProgress === 'function') window.updateSimProgress({2: true});
         if (d.output_path) {
-          var cardsPathInput = document.getElementById('cardsPath');
           var injectCardsPathInput = document.getElementById('injectCardsPath');
-          if (cardsPathInput) cardsPathInput.value = d.output_path;
           if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
           var qa = document.getElementById('uploadQuickActions');
           if (qa) {
-            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaInject">注入平台</button><button type="button" class="qabtn" id="qaClosedLoop">闭环运行</button><button type="button" class="qabtn" id="qaSimulate">仅模拟</button>';
+            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaInject">注入平台</button>';
             qa.style.display = 'flex';
-            var boundPath = d.output_path;
             var qaInjectBtn = document.getElementById('qaInject');
             if (qaInjectBtn) qaInjectBtn.onclick = function() {
               var injectSection = document.querySelector('section [id="injectCardsPath"]');
               if (injectSection) injectSection.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            };
-            document.getElementById('qaClosedLoop').onclick = function() {
-              if (cardsPathInput) cardsPathInput.value = boundPath;
-              if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) window.toggleSimSidebar();
-              document.getElementById('btnClosedLoop').click();
-            };
-            document.getElementById('qaSimulate').onclick = function() {
-              if (cardsPathInput) cardsPathInput.value = boundPath;
-              if (typeof window.toggleSimSidebar === 'function' && !document.getElementById('simSidebar').classList.contains('open')) window.toggleSimSidebar();
-              document.getElementById('btnSimulate').click();
             };
           }
         }
@@ -2616,7 +2754,7 @@
           };
         }
       })();
-      window._simProgressSteps = window._simProgressSteps || {1: false, 2: false, 3: false, 4: false, 5: false};
+      window._simProgressSteps = window._simProgressSteps || {1: false, 2: false, 3: false, 4: false};
       window.updateSimProgress = function(steps) {
         if (steps) {
           for (var k in steps) window._simProgressSteps[k] = !!steps[k];
@@ -2637,257 +2775,28 @@
         });
       };
     })();
-    (function setupSimModule() {
-      var cardsContainer = document.getElementById('simModuleCards');
-      var pathInput = document.getElementById('simModulePath');
-      var msgEl = document.getElementById('simModuleMsg');
-      var resultPre = document.getElementById('simModuleResult');
-      document.getElementById('simModuleLoad').onclick = async function() {
-        var path = (pathInput && pathInput.value || '').trim();
-        if (!path) { msgEl.innerHTML = '<span class="err">请输入卡片路径</span>'; return; }
-        if (!path.startsWith('output/')) path = 'output/' + path;
-        msgEl.textContent = '加载中…';
-        cardsContainer.innerHTML = '';
-        resultPre.style.display = 'none';
-        try {
-          var r = await apiFetch('/api/simulate/cards-parsed?path=' + encodeURIComponent(path));
-          var d = await safeResponseJson(r);
-          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-          var cards = d.cards || [];
-          msgEl.textContent = '已加载 ' + cards.length + ' 张卡片';
-          cards.forEach(function(c) {
-            var block = document.createElement('div');
-            block.className = 'sim-card-block';
-            var head = document.createElement('div');
-            head.className = 'sim-card-head';
-            head.innerHTML = '<span class="sim-card-id">' + (c.card_id || '') + '</span> ' + (c.stage_name || c.title || '') + ' <span style="color:var(--natsume-ink-light);font-size:0.85rem;">(' + (c.card_type || '') + ')</span>';
-            block.appendChild(head);
-            var sections = c.sections || {};
-            ['Role', 'Context', 'Interaction', 'Transition', 'Constraints', 'Prologue', 'Output'].forEach(function(key) {
-              var val = sections[key];
-              if (!val) return;
-              var sec = document.createElement('div');
-              sec.className = 'sim-card-section';
-              sec.innerHTML = '<div class="sim-card-section-title">' + key + '</div><div class="sim-card-section-body">' + String(val).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>';
-              block.appendChild(sec);
-            });
-            cardsContainer.appendChild(block);
-          });
-        } catch (e) {
-          msgEl.innerHTML = '<span class="err">' + e.message + '</span>';
-        }
-      };
-      document.getElementById('simModuleRun').onclick = async function() {
-        var path = (pathInput && pathInput.value || '').trim();
-        if (!path) { msgEl.innerHTML = '<span class="err">请先加载卡片路径</span>'; return; }
-        if (!path.startsWith('output/')) path = 'output/' + path;
-        msgEl.textContent = '模拟运行中（可能较久）…';
-        resultPre.style.display = 'none';
-        var runBtn = document.getElementById('simModuleRun');
-        if (runBtn) runBtn.disabled = true;
-        showLongTaskFeedback('模拟运行中，请稍候…');
-        try {
-          var r = await apiFetch('/api/simulate/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              cards_path: path,
-              persona_id: (document.getElementById('simModulePersonaId') && document.getElementById('simModulePersonaId').value) || 'excellent',
-              mode: 'auto',
-              run_evaluation: true,
-            }),
-          });
-          var d = await safeResponseJson(r);
-          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-          msgEl.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
-          resultPre.style.display = 'block';
-          resultPre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
-        } catch (e) {
-          msgEl.innerHTML = '<span class="err">' + e.message + '</span>';
-          resultPre.style.display = 'none';
-        } finally {
-          hideLongTaskFeedback();
-          if (runBtn) runBtn.disabled = false;
-        }
-      };
-    })();
-
     function setButtonsEnabled(ids, enabled) {
       (ids || []).forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.disabled = !enabled;
       });
     }
-    var closedLoopAbortController = null;
-    document.getElementById('btnClosedLoop').onclick = async () => {
-      const path = document.getElementById('cardsPath').value.trim();
-      const msg = document.getElementById('simMsg');
-      const pre = document.getElementById('simResult');
-      const progressWrap = document.getElementById('closedLoopProgressWrap');
-      const progressMsg = document.getElementById('closedLoopProgressMsg');
-      const cancelBtn = document.getElementById('btnClosedLoopCancel');
-      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
-      const saveExport = document.getElementById('closedLoopSaveExport') && document.getElementById('closedLoopSaveExport').checked;
-      msg.textContent = '';
-      pre.style.display = 'none';
-      setButtonsEnabled(['btnClosedLoop', 'qaClosedLoop'], false);
-      if (progressWrap) progressWrap.style.display = 'block';
-      if (progressMsg) progressMsg.textContent = '正在连接…';
-      if (cancelBtn) cancelBtn.style.display = 'inline-block';
-      closedLoopAbortController = new AbortController();
-      try {
-        const r = await apiFetch('/api/closed-loop/run-stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cards_path: path,
-            persona_id: document.getElementById('personaId').value || 'excellent',
-            save_to_export: saveExport,
-          }),
-          signal: closedLoopAbortController.signal,
-        });
-        if (!r.ok) throw new Error(r.status === 502 ? '闭环运行失败，请检查 LLM 配置' : '请求失败');
-        const reader = r.body.getReader();
-        const decoder = new TextDecoder();
-        var buf = '';
-        var d = null;
-        while (true) {
-          var chunk = await reader.read();
-          if (chunk.done) break;
-          buf += decoder.decode(chunk.value, { stream: true });
-          var parts = buf.split('\n\n');
-          buf = parts.pop() || '';
-          for (var i = 0; i < parts.length; i++) {
-            var event = null, dataStr = null;
-            parts[i].split('\n').forEach(function(line) {
-              if (line.startsWith('event: ')) event = line.slice(7).trim();
-              else if (line.startsWith('data: ')) dataStr = line.slice(6);
-            });
-            if (!event || !dataStr) continue;
-            try {
-              var data = JSON.parse(dataStr);
-              if (event === 'progress' && progressMsg) progressMsg.textContent = data.message || '运行中…';
-              else if (event === 'done') d = data;
-              else if (event === 'error') throw new Error(data.detail || dataStr);
-            } catch (parseErr) {
-              if (event === 'error') throw new Error(dataStr || parseErr.message);
-            }
-          }
-        }
-        if (!d) throw new Error('未收到完成数据');
-        msg.textContent = '闭环完成：总分 ' + (d.total_score != null ? d.total_score : '-') + (d.saved_export_path ? '，已保存导出' : '');
-        pre.style.display = 'block';
-        pre.textContent = (d.hint || '') + '\n\n' + JSON.stringify(d, null, 2);
-        if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({3: true});
-      } catch (e) {
-        if (e.name === 'AbortError') {
-          msg.textContent = '已取消等待（后台可能仍在运行）';
-        } else {
-          msg.innerHTML = '<span class="err">' + (e.message || '闭环运行失败') + '</span>';
-        }
-        pre.style.display = 'none';
-      } finally {
-        closedLoopAbortController = null;
-        setButtonsEnabled(['btnClosedLoop', 'qaClosedLoop'], true);
-        if (cancelBtn) cancelBtn.style.display = 'none';
-        if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 4000);
+    (function setupOptimizerExternalEvalToggle() {
+      var useExternal = document.getElementById('optimizerUseExternalEval');
+      var wrap = document.getElementById('optimizerExternalEvalWrap');
+      if (!useExternal || !wrap) return;
+      function toggle() {
+        wrap.style.display = useExternal.checked ? 'block' : 'none';
       }
-    };
-    (function() {
-      var btn = document.getElementById('btnClosedLoopCancel');
-      if (btn) btn.onclick = function() {
-        if (closedLoopAbortController) closedLoopAbortController.abort();
-      };
-    })();
-
-    document.getElementById('btnSimulate').onclick = async () => {
-      const path = document.getElementById('cardsPath').value.trim();
-      const msg = document.getElementById('simMsg');
-      const pre = document.getElementById('simResult');
-      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
-      msg.textContent = '模拟运行中（可能较久）...';
-      pre.style.display = 'none';
-      setButtonsEnabled(['btnClosedLoop','btnSimulate','btnRunOptimizer','qaClosedLoop','qaSimulate'], false);
-      showLongTaskFeedback('模拟运行中，请稍候…');
-      try {
-        const r = await apiFetch( '/api/simulate/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cards_path: path,
-            persona_id: document.getElementById('personaId').value || 'excellent',
-            mode: 'auto',
-            run_evaluation: true,
-          }),
-        });
-        const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
-        msg.textContent = '完成：session ' + (d.session_id || '') + '，轮次 ' + (d.dialogue && d.dialogue.length);
-        pre.style.display = 'block';
-        pre.textContent = JSON.stringify({ session_id: d.session_id, summary: d.summary, dialogue_count: (d.dialogue || []).length, evaluation: d.evaluation }, null, 2);
-      } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
-        pre.style.display = 'none';
-      } finally {
-        hideLongTaskFeedback();
-        setButtonsEnabled(['btnClosedLoop','btnSimulate','btnRunOptimizer','qaClosedLoop','qaSimulate'], true);
-      }
-    };
-
-    (function setupEvalLogDropZone() {
-      var dz = document.getElementById('evalLogDropZone');
-      var fileInput = document.getElementById('evalLogFile');
-      if (!dz || !fileInput) return;
-      dz.onclick = function() { fileInput.click(); };
-      function doEvalFromFile(file) {
-        if (!file) return;
-        var ext = (file.name || '').toLowerCase();
-        if (!ext.endsWith('.json') && !ext.endsWith('.txt')) {
-          var msg = document.getElementById('evalMsg');
-          if (msg) msg.innerHTML = '<span class="err">请选择 .json 或 .txt 会话日志</span>';
-          return;
-        }
-        var msg = document.getElementById('evalMsg');
-        var pre = document.getElementById('evalResult');
-        msg.textContent = '评估中...';
-        msg.classList.remove('err');
-        var fd = new FormData();
-        fd.append('file', file);
-        fd.append('save_to_export', (document.getElementById('evalFileSaveToExport') && document.getElementById('evalFileSaveToExport').checked) ? 'true' : 'false');
-        apiFetch('/api/evaluate/from-file', { method: 'POST', body: fd }).then(function(r) { return safeResponseJson(r).then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
-          if (!o.r.ok) throw new Error(o.d.detail || JSON.stringify(o.d));
-          msg.textContent = '总分：' + (o.d.total_score ?? '') + ' / ' + (o.d.max_score ?? 100) + '，' + (o.d.rating || '');
-          if (o.d.saved_export_path) {
-            msg.textContent += '；已保存为 ' + o.d.saved_export_path;
-            var expInp = document.getElementById('optimizerExportPath');
-            if (expInp) expInp.value = o.d.saved_export_path;
-            if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
-          }
-          pre.style.display = 'block';
-          pre.textContent = JSON.stringify(o.d, null, 2);
-        }).catch(function(e) {
-          msg.classList.add('err');
-          msg.innerHTML = '<span class="err">' + (e.message || '评估失败') + '</span>';
-          pre.style.display = 'none';
-        });
-      }
-      fileInput.onchange = function() { doEvalFromFile(this.files && this.files[0]); this.value = ''; };
-      dz.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
-      dz.ondragleave = function() { this.classList.remove('dragover'); };
-      dz.ondrop = function(e) {
-        e.preventDefault();
-        this.classList.remove('dragover');
-        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-        if (f) doEvalFromFile(f);
-      };
+      useExternal.addEventListener('change', toggle);
+      toggle();
     })();
 
     document.getElementById('btnInjectPreview').onclick = async () => {
       const path = document.getElementById('injectCardsPath').value.trim();
       const msg = document.getElementById('injectMsg');
       const pre = document.getElementById('injectResult');
-      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      if (!path) { msg.innerHTML = '<span class="err">请从右侧工作区文件列表拖入或点击文件填入卡片</span>'; return; }
       msg.textContent = '预览中...';
       try {
         const r = await apiFetch( '/api/inject/preview', {
@@ -2913,7 +2822,7 @@
       const overwrite = !!(document.getElementById('injectOverwrite') && document.getElementById('injectOverwrite').checked);
       const msg = document.getElementById('injectMsg');
       const pre = document.getElementById('injectResult');
-      if (!path) { msg.innerHTML = '<span class="err">请输入卡片文件路径</span>'; return; }
+      if (!path) { msg.innerHTML = '<span class="err">请从右侧工作区文件列表拖入或点击文件填入卡片</span>'; return; }
       msg.textContent = '注入中...';
       showLongTaskFeedback('注入平台中，请稍候…');
       try {
@@ -2934,7 +2843,7 @@
           throw new Error(d.detail || JSON.stringify(d));
         }
         msg.textContent = d.message || (d.success ? '注入成功' : '注入完成，请查看详情');
-        if (d.success && typeof window.updateSimProgress === 'function') window.updateSimProgress({5: true});
+        if (d.success && typeof window.updateSimProgress === 'function') window.updateSimProgress({4: true});
         if (!d.success) msg.innerHTML = '<span class="err">' + (msg.textContent) + '</span>';
         pre.style.display = 'block';
         pre.textContent = JSON.stringify(d, null, 2);
