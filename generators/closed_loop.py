@@ -196,7 +196,7 @@ def make_auto_metric(
             print("  [metric] 运行仿真+评估（闭环模式）...")
 
         try:
-            _, report = run_simulate_and_evaluate(
+            log, report = run_simulate_and_evaluate(
                 cards_path=path,
                 output_dir=sim_output,
                 api_key=api_key,
@@ -215,9 +215,30 @@ def make_auto_metric(
             return 0.0
 
         # 写入导出文件供 external_metric 解析（与 evaluate API 的 export 格式一致）
-        os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
+        export_dir = os.path.dirname(os.path.abspath(export_path))
+        os.makedirs(export_dir or ".", exist_ok=True)
         with open(export_path, "w", encoding="utf-8") as f:
             json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+
+        # 闭环专用：写入「最终评估报告」Markdown（含本次模拟日志路径与打分），每轮覆盖，跑完闭环后即最后一场
+        logs_dir = os.path.join(sim_output, "logs")
+        log_md_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.md")
+        log_json_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.json")
+        final_report_path = os.path.join(export_dir, "closed_loop_final_report.md")
+        with open(final_report_path, "w", encoding="utf-8") as f:
+            f.write(report.to_markdown())
+            f.write("\n\n---\n\n## 本次模拟会话日志\n\n")
+            f.write(f"- **会话ID**: {log.session_id}\n")
+            f.write(f"- **日志(Markdown)**: `{log_md_rel}`（工作区 output 下）\n")
+            f.write(f"- **日志(JSON)**: `{log_json_rel}`\n")
+            log_md_abs = os.path.join(logs_dir, f"session_{log.session_id}.md")
+            if os.path.isfile(log_md_abs):
+                f.write("\n### 会话日志摘要\n\n```\n")
+                with open(log_md_abs, "r", encoding="utf-8") as lf:
+                    f.write(lf.read()[:8000].replace("```", "` ` `"))
+                if os.path.getsize(log_md_abs) > 8000:
+                    f.write("\n... (已截断)\n")
+                f.write("\n```\n")
 
         if prompt_user:
             print(f"  [metric] 评估完成，总分: {report.total_score}，已写入: {export_path}")
