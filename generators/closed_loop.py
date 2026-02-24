@@ -14,19 +14,13 @@ from .external_metric import load_config_from_dict
 
 
 def _build_llm_config(api_key: str, model_type: str) -> Tuple[dict, dict]:
-    """根据 model_type 构建仿真器与评估器的 LL跑-M 配置。"""
+    """根据 model_type 构建仿真器与评估器的 LLM 配置。"""
     model_type = (model_type or "deepseek").lower()
     if model_type == "doubao":
         from config import DOUBAO_BASE_URL, DOUBAO_MODEL, DOUBAO_SERVICE_CODE
         base_url = (DOUBAO_BASE_URL or "").rstrip("/")
         api_url = f"{base_url}/chat/completions" if base_url else ""
-        sim_config = {
-            "api_url": api_url,
-            "api_key": api_key,
-            "model": DOUBAO_MODEL or "Doubao-1.5-pro-32k",
-            "service_code": DOUBAO_SERVICE_CODE or "",
-        }
-        eval_config = {
+        one = {
             "api_url": api_url,
             "api_key": api_key,
             "model": DOUBAO_MODEL or "Doubao-1.5-pro-32k",
@@ -34,17 +28,12 @@ def _build_llm_config(api_key: str, model_type: str) -> Tuple[dict, dict]:
         }
     else:
         from config import DEEPSEEK_CHAT_URL, DEEPSEEK_MODEL
-        sim_config = {
+        one = {
             "api_url": DEEPSEEK_CHAT_URL or "https://api.deepseek.com/v1/chat/completions",
             "api_key": api_key,
             "model": DEEPSEEK_MODEL or "deepseek-chat",
         }
-        eval_config = {
-            "api_url": DEEPSEEK_CHAT_URL or "https://api.deepseek.com/v1/chat/completions",
-            "api_key": api_key,
-            "model": DEEPSEEK_MODEL or "deepseek-chat",
-        }
-    return sim_config, eval_config
+    return one, one
 
 
 def run_simulate_and_evaluate(

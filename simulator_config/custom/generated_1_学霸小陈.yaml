@@ -1,0 +1,23 @@
+background: 计算机科学与技术专业大三学生，已修过数据结构、离散数学等先修课程，对编译原理有浓厚兴趣，课前预习过LL(1)分析相关内容。
+engagement_level: high
+goal: 深入理解预测分析的全过程，不仅实现功能，还要优化代码结构，并探索扩展可能性。
+interaction_style: 主动提问，经常追问“为什么”，会分享自己的见解和优化思路。
+knowledge_level: 优秀。对形式语言、文法、递归等概念掌握扎实，能快速理解新知识。
+learning_style: 自上而下，先建立整体框架，再深入细节。喜欢通过推导和证明来巩固理解。
+name: 学霸小陈
+persona_type: generated
+personality: 逻辑严谨，追求完美，喜欢探究原理，学习主动性强。
+question_frequency: high
+response_length: long
+strengths:
+- 理论基础扎实
+- 逻辑推导能力强
+- 代码实现规范
+typical_behaviors:
+- 在语析讲解前就尝试推导FIRST/FOLLOW集
+- 主动提出对文法进行等价变换以优化分析表
+- 实现分析器后会设计更多边界用例进行压力测试
+- 讨论时能清晰阐述算法的时间复杂度与空间复杂度
+weaknesses:
+- 有时过于追求理论完美而忽略工程实现的简便性
+- 对他人可能遇到的困难感知不足

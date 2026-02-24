@@ -19,6 +19,56 @@ from api.exceptions import BadRequestError
 
 CFG_KEYS = ["base_url", "cookie", "authorization", "course_id", "train_task_id", "start_node_id", "end_node_id"]
 
+# 注入等操作要求必填的配置项及其显示名（用于错误提示）
+PLATFORM_REQUIRED_KEYS = ["cookie", "authorization", "course_id", "train_task_id", "start_node_id", "end_node_id"]
+PLATFORM_REQUIRED_DISPLAY = {
+    "cookie": "PLATFORM_COOKIE",
+    "authorization": "PLATFORM_AUTHORIZATION",
+    "course_id": "PLATFORM_COURSE_ID",
+    "train_task_id": "PLATFORM_TRAIN_TASK_ID",
+    "start_node_id": "PLATFORM_START_NODE_ID",
+    "end_node_id": "PLATFORM_END_NODE_ID",
+}
+
+
+def check_platform_config_keys(cfg: dict) -> tuple[bool, list[str]]:
+    """检查配置是否包含注入所需的全部项。返回 (是否完整, 缺失项的显示名列表)。"""
+    missing = []
+    for k in PLATFORM_REQUIRED_KEYS:
+        if not (cfg.get(k) and str(cfg.get(k)).strip()):
+            missing.append(PLATFORM_REQUIRED_DISPLAY.get(k, k))
+    return (len(missing) == 0, missing)
+
+
+def extract_course_and_task_from_url(url: str) -> tuple[Optional[str], Optional[str]]:
+    """从智慧树页面 URL 提取 course_id 和 train_task_id。返回 (course_id, train_task_id)。"""
+    course_match = re.search(r"agent-course-full/([^/]+)", url)
+    task_match = re.search(r"trainTaskId=([^&]+)", url)
+    cid = course_match.group(1) if course_match else None
+    tid = task_match.group(1) if task_match else None
+    return (cid, tid)
+
+
+def _workspace_config_path(workspace_id: str) -> str:
+    return get_workspace_file_path(workspace_id, "platform_config.json")
+
+
+def _read_workspace_config(path: str) -> dict:
+    """读取工作区 platform_config.json，不存在或读失败返回空 dict。"""
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_workspace_config(path: str, data: dict) -> None:
+    """将 dict 写入工作区 platform_config.json。"""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 
 def get_merged_platform_config(workspace_id: str) -> dict:
     """
@@ -26,35 +76,22 @@ def get_merged_platform_config(workspace_id: str) -> dict:
     注入、校验等需要「最终生效配置」时使用此函数。
     """
     merged = dict(PLATFORM_CONFIG)
-    path = get_workspace_file_path(workspace_id, "platform_config.json")
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                ws = json.load(f)
-            for k in CFG_KEYS:
-                v = ws.get(k)
-                if v is not None and str(v).strip():
-                    merged[k] = str(v).strip()
-        except Exception:
-            pass
+    path = _workspace_config_path(workspace_id)
+    ws = _read_workspace_config(path)
+    for k in CFG_KEYS:
+        v = ws.get(k)
+        if v is not None and str(v).strip():
+            merged[k] = str(v).strip()
     return merged
-
-
-def _workspace_config_path(workspace_id: str) -> str:
-    return get_workspace_file_path(workspace_id, "platform_config.json")
 
 
 @router.get("/config")
 def get_platform_config(workspace_id: str = Depends(require_workspace_owned)):
     """返回当前工作区智慧树平台配置；无则回退到服务端 .env。"""
     path = _workspace_config_path(workspace_id)
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                return {k: cfg.get(k, "") for k in CFG_KEYS}
-        except Exception:
-            pass
+    cfg = _read_workspace_config(path)
+    if cfg:
+        return {k: cfg.get(k, "") for k in CFG_KEYS}
     return {k: PLATFORM_CONFIG.get(k, "") for k in CFG_KEYS}
 
 
@@ -72,13 +109,7 @@ class PlatformConfigUpdate(BaseModel):
 def save_platform_config(body: PlatformConfigUpdate, workspace_id: str = Depends(require_workspace_owned)):
     """保存到当前工作区，仅更新提交的字段。"""
     path = _workspace_config_path(workspace_id)
-    current = {}
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                current = json.load(f)
-        except Exception:
-            pass
+    current = _read_workspace_config(path)
     updates = body.model_dump(exclude_none=True)
     if not updates:
         return {"message": "无变更"}
@@ -86,8 +117,7 @@ def save_platform_config(body: PlatformConfigUpdate, workspace_id: str = Depends
         if k in updates:
             v = updates[k]
             current[k] = (v or "").strip() if v is not None else ""
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(current, f, ensure_ascii=False, indent=2)
+    _write_workspace_config(path, current)
     return {"message": "已保存，本工作区注入将使用此配置"}
 
 
@@ -110,11 +140,7 @@ class LoadConfigRequest(BaseModel):
 
 def _extract_ids_from_url(url: str) -> tuple:
     """从 URL 提取 course_id 和 train_task_id。"""
-    course_match = re.search(r"agent-course-full/([^/]+)", url)
-    task_match = re.search(r"trainTaskId=([^&]+)", url)
-    cid = course_match.group(1) if course_match else None
-    tid = task_match.group(1) if task_match else None
-    return (cid, tid)
+    return extract_course_and_task_from_url(url)
 
 
 @router.post("/load-config")
@@ -126,17 +152,11 @@ def load_platform_config(
     从 URL 提取 course_id/train_task_id，合并后保存到工作区。
     """
     path = _workspace_config_path(workspace_id)
-    current = {}
-    if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                current = json.load(f)
-        except Exception:
-            pass
-    # 确保所有 key 存在
+    current = _read_workspace_config(path)
+    # 确保所有 key 存在；不从未保存时用 .env 填充，只保留已有工作区配置或空字符串
     for k in CFG_KEYS:
         if k not in current:
-            current[k] = PLATFORM_CONFIG.get(k, "") or ""
+            current[k] = ""
     # 若提供 URL，提取 course_id、train_task_id
     if body.url and body.url.strip():
         cid, tid = _extract_ids_from_url(body.url.strip())
@@ -161,8 +181,7 @@ def load_platform_config(
         current["train_task_id"] = (body.train_task_id or "").strip()
     if not current.get("base_url"):
         current["base_url"] = "https://cloudapi.polymas.com"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(current, f, ensure_ascii=False, indent=2)
+    _write_workspace_config(path, current)
     return {**current, "message": "已加载并保存配置"}
 
 
@@ -186,16 +205,9 @@ def set_project_from_url(body: SetProjectRequest, workspace_id: str = Depends(re
     result = {"course_id": course_id, "train_task_id": train_task_id}
     if body.save:
         path = _workspace_config_path(workspace_id)
-        current = {}
-        if os.path.isfile(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    current = json.load(f)
-            except Exception:
-                pass
+        current = _read_workspace_config(path)
         current["course_id"] = course_id
         current["train_task_id"] = train_task_id
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(current, f, ensure_ascii=False, indent=2)
+        _write_workspace_config(path, current)
         result["message"] = "已写入当前工作区配置"
     return result

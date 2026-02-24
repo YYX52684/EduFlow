@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from parsers import parse_markdown, parse_docx, parse_doc, parse_pdf
+from parsers import get_parser_for_extension
 from .content_splitter import ContentSplitter
 
 from config import DEEPSEEK_API_KEY
@@ -44,24 +44,11 @@ EVAL_ALIGNMENT_HINTS = {
 }
 
 
-def _get_parser_for_path(file_path: str):
-    """根据文件扩展名返回解析器函数。"""
-    ext = os.path.splitext(file_path)[1].lower()
-    parsers = {
-        ".md": parse_markdown,
-        ".docx": parse_docx,
-        ".doc": parse_doc,
-        ".pdf": parse_pdf,
-    }
-    if ext not in parsers:
-        raise ValueError(f"不支持的文件格式: {ext}。支持: .md / .docx / .doc / .pdf")
-    return parsers[ext]
-
-
 def _parse_content(file_path: str) -> str:
     """解析单个文件得到原始文本内容。"""
     path = os.path.abspath(file_path)
-    parser = _get_parser_for_path(path)
+    ext = os.path.splitext(path)[1].lower()
+    parser = get_parser_for_extension(ext)
     return parser(path)
 
 

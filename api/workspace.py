@@ -78,6 +78,108 @@ def get_workspace_file_path(workspace_id: str, filename: str) -> str:
     return os.path.join(workspace_root, filename)
 
 
+def safe_relative(path: str, base: str) -> Optional[str]:
+    """返回 path 相对 base 的路径（正斜杠），若 path 不在 base 下则返回 None。"""
+    try:
+        r = os.path.relpath(path, base)
+        if r.startswith("..") or os.path.isabs(r):
+            return None
+        return r.replace("\\", "/")
+    except Exception:
+        return None
+
+
+def list_dir_files(
+    root_dir: str,
+    path_prefix: str,
+    allowed_ext: Optional[set] = None,
+) -> list:
+    """
+    递归列出 root_dir 下文件，返回 [{"path": path_prefix+rel, "name": name}, ...]。
+    allowed_ext 为 None 时不过滤扩展名；否则只保留扩展名在 allowed_ext 中的文件。
+    """
+    if not os.path.isdir(root_dir):
+        return []
+    out = []
+    for root, _, names in os.walk(root_dir):
+        for name in sorted(names) if allowed_ext is None else names:
+            ext = os.path.splitext(name)[1].lower()
+            if allowed_ext is not None and ext not in allowed_ext:
+                continue
+            full = os.path.join(root, name)
+            rel = safe_relative(full, root_dir)
+            if rel:
+                out.append({"path": path_prefix + rel.replace("\\", "/"), "name": name})
+    out.sort(key=lambda x: x["path"])
+    return out
+
+
+def list_dir_files_with_mtime(
+    root_dir: str,
+    path_prefix: str,
+    allowed_ext: Optional[set] = None,
+) -> list:
+    """
+    递归列出 root_dir 下文件，返回 [{"path", "name", "mtime"}, ...]。
+    mtime 为修改时间戳（秒，用于按时间排序）。
+    """
+    if not os.path.isdir(root_dir):
+        return []
+    out = []
+    for root, _, names in os.walk(root_dir):
+        for name in sorted(names) if allowed_ext is None else names:
+            ext = os.path.splitext(name)[1].lower()
+            if allowed_ext is not None and ext not in allowed_ext:
+                continue
+            full = os.path.join(root, name)
+            rel = safe_relative(full, root_dir)
+            if rel:
+                try:
+                    mtime = os.path.getmtime(full)
+                except OSError:
+                    mtime = 0
+                out.append({
+                    "path": path_prefix + rel.replace("\\", "/"),
+                    "name": name,
+                    "mtime": int(mtime),
+                })
+    out.sort(key=lambda x: x["path"])
+    return out
+
+
+def save_upload_to_dir(
+    root_dir: str,
+    content: bytes,
+    filename: str,
+    subpath: str,
+    allowed_ext: set,
+    path_prefix: str,
+    save_as: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    将上传内容写入 root_dir 下 subpath（可为空）。返回 (path_prefix+rel, None) 成功，
+    (None, error_msg) 表示扩展名不允许等错误。
+    save_as 非空时用其 basename 作为保存文件名。
+    """
+    name = (filename or "file").strip() or "file"
+    name = os.path.basename(name)
+    if save_as and str(save_as).strip():
+        name = os.path.basename(str(save_as).strip())
+    ext = os.path.splitext(name)[1].lower()
+    if ext not in allowed_ext:
+        return (None, f"仅支持 {', '.join(sorted(allowed_ext))} 格式")
+    subpath = (subpath or "").strip().replace("\\", "/").strip("/")
+    if path_prefix and subpath.startswith(path_prefix):
+        subpath = subpath[len(path_prefix) :].strip("/")
+    target_dir = os.path.join(root_dir, subpath) if subpath else root_dir
+    os.makedirs(target_dir, exist_ok=True)
+    target_path = os.path.join(target_dir, name)
+    with open(target_path, "wb") as f:
+        f.write(content)
+    rel = safe_relative(target_path, root_dir) or name
+    return (path_prefix + rel.replace("\\", "/"), None)
+
+
 def _safe_relative_path(part: str) -> bool:
     """校验为安全相对路径成分（无 .. 且非空）。"""
     if not part or part.strip() != part:
@@ -172,6 +274,14 @@ def get_project_dirs(workspace_id: str) -> tuple[str, str, str]:
     os.makedirs(pin, exist_ok=True)
     os.makedirs(pout, exist_ok=True)
     return pin, pout, workspace_root
+
+
+def normalize_output_rel(path: str) -> str:
+    """将 path 规范化为带 output/ 前缀的相对路径（正斜杠）。"""
+    rel = path.strip().replace("\\", "/").lstrip("/")
+    if not rel.startswith("output/"):
+        rel = "output/" + rel
+    return rel
 
 
 def resolve_workspace_path(

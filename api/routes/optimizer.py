@@ -17,6 +17,7 @@ from typing import Optional
 router = APIRouter()
 
 from config import DSPY_OPTIMIZER_CONFIG
+from generators.dspy_optimizer import build_export_config, run_optimize_dspy
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs, resolve_output_path
 from api.routes.llm_config import require_llm_config
@@ -67,17 +68,9 @@ def _run_optimizer(req: OptimizeRequest, workspace_id: str, progress_callback=No
         if not os.path.isfile(devset_abs):
             raise NotFoundError("devset 文件不存在", details={"path": req.devset_path})
 
-    _ext = os.path.splitext(export_abs)[1].lower()
-    _parser = "md" if _ext in (".md", ".markdown") else cfg.get("parser", "json")
-    export_config = {
-        "parser": _parser,
-        "json_score_key": cfg.get("json_score_key", "total_score"),
-        "csv_score_column": cfg.get("csv_score_column"),
-    }
+    export_config = build_export_config(export_abs, cfg)
     if req.optimizer_type not in ("bootstrap", "mipro"):
         raise BadRequestError("optimizer_type 须为 bootstrap 或 mipro", details={"value": req.optimizer_type})
-
-    from generators.dspy_optimizer import run_optimize_dspy
 
     kwargs = {
         "trainset_path": trainset_abs,

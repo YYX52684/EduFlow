@@ -6,6 +6,7 @@
   window.AUTH_TOKEN_KEY = 'eduflow_token';
   window.WALLPAPER_OVERLAY = 'linear-gradient(rgba(245, 240, 230, 0.88), rgba(245, 240, 230, 0.9)), ';
   window.lastUploadData = null;
+  window.lastScriptFile = null;
 
   var FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
   function getFocusables(container) {

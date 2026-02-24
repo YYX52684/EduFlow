@@ -1,0 +1,24 @@
+background: 软件工程专业大三学生，编程实践能力不错，但理论课程成绩中等，对形式化推导感到有些吃力，需要按部就班的指导。
+engagement_level: normal
+goal: 跟上实训节奏，完成所有任务要求，实现一个能正确工作的语法分析器。
+interaction_style: 跟随引导，遇到卡点会提问，但问题通常集中在“怎么做”而非“为什么”。
+knowledge_level: 普通。能理解基本概念，但需要具体例子辅助，对集合运算和递归消除的细节容易混淆。
+learning_style: 循序渐进，依赖清晰的步骤和示例。喜欢先模仿，再理解。
+name: 踏实努力的小张
+persona_type: generated
+personality: 认真踏实，有耐心，但缺乏自信，遇到复杂问题容易犹豫。
+question_frequency: normal
+response_length: medium
+strengths:
+- 动手实践意愿强
+- 能严格按照指导步骤操作
+- 调试代码有耐心
+typical_behaviors:
+- 在消除左递归时，需要反复对照示例才能完成
+- 计算FOLLOW集时会遗漏产生式右部末尾的情况
+- 实现递归下降函数时，对函数调用的嵌套层次感到困惑
+- 测试时发现错误，第一反应是检查代码细节而非分析文法
+weaknesses:
+- 理论知识迁移能力较弱
+- 容易在细节处卡住
+- 缺乏对知识体系的整体把握
