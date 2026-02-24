@@ -99,8 +99,10 @@
     if (!ok) return;
     var us = document.getElementById('authUserSpan');
     var logoutBtn = document.getElementById('btnLogout');
+    var historyFilesBtn = document.getElementById('btnHistoryFiles');
     if (window.AUTH_USER && us) { us.textContent = window.AUTH_USER.username; }
     if (logoutBtn) { logoutBtn.style.display = 'inline-block'; logoutBtn.onclick = function() { clearAuthToken(); location.reload(); }; }
+    if (historyFilesBtn) { historyFilesBtn.style.display = 'inline-block'; }
     syncWorkspaceFromUrl();
   })();
 })();

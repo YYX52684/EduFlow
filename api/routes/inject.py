@@ -14,27 +14,9 @@ router = APIRouter()
 from config import PLATFORM_ENDPOINTS
 from api_platform import PlatformAPIClient, CardInjector
 from api.routes.auth import require_workspace_owned
-from api.routes.platform_config import get_merged_platform_config
+from api.routes.platform_config import get_merged_platform_config, check_platform_config_keys
 from api.workspace import resolve_workspace_path
 from api.exceptions import ConfigError, NotFoundError, PlatformAPIError
-
-
-def _check_platform_config(cfg: Dict[str, Any]) -> Tuple[bool, List[str]]:
-    """返回 (是否完整, 缺失项列表)"""
-    missing = []
-    if not cfg.get("cookie"):
-        missing.append("PLATFORM_COOKIE")
-    if not cfg.get("authorization"):
-        missing.append("PLATFORM_AUTHORIZATION")
-    if not cfg.get("course_id"):
-        missing.append("PLATFORM_COURSE_ID")
-    if not cfg.get("train_task_id"):
-        missing.append("PLATFORM_TRAIN_TASK_ID")
-    if not cfg.get("start_node_id"):
-        missing.append("PLATFORM_START_NODE_ID")
-    if not cfg.get("end_node_id"):
-        missing.append("PLATFORM_END_NODE_ID")
-    return (len(missing) == 0, missing)
 
 
 def _create_client(cfg: Dict[str, Any]) -> PlatformAPIClient:
@@ -99,7 +81,7 @@ def inject_run(req: InjectRunRequest, workspace_id: str = Depends(require_worksp
     """执行注入：将卡片推送到智慧树平台。使用当前工作区平台配置。"""
     md_path = resolve_workspace_path(workspace_id, req.cards_path, kind="output", must_exist=True)
     cfg = get_merged_platform_config(workspace_id)
-    ok, missing = _check_platform_config(cfg)
+    ok, missing = check_platform_config_keys(cfg)
     if not ok:
         raise ConfigError(
             f"平台配置不完整，缺少: {', '.join(missing)}。请在本页「平台配置」中填写并保存。",

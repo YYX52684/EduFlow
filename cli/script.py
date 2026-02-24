@@ -11,7 +11,7 @@ from config import (
     DEEPSEEK_API_KEY,
     EVALUATION_CONFIG,
 )
-from api.workspace import get_workspace_dirs
+from api.workspace import get_project_dirs
 from parsers import (
     parse_docx_with_structure,
     parse_doc_with_structure,
@@ -31,7 +31,7 @@ def run_script(args):
     调用前调用方应已校验 args.input 存在。
     """
     if args.workspace:
-        _input_dir, _output_dir, _ = get_workspace_dirs(args.workspace.strip())
+        _input_dir, _output_dir, _ = get_project_dirs(args.workspace.strip())
     else:
         _input_dir, _output_dir = INPUT_DIR, OUTPUT_DIR
 

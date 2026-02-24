@@ -6,21 +6,14 @@ import sys
 # 本模块被 main.py 或 run_web 等入口加载时，项目根已在 sys.path
 from config import PLATFORM_CONFIG, PLATFORM_ENDPOINTS
 from api_platform import PlatformAPIClient
+from api.routes.platform_config import check_platform_config_keys
 
 # 延迟导入 parsers，避免 CLI 未用脚本时加载
 def get_parser_for_file(file_path: str):
     """根据文件扩展名返回对应的解析器函数。"""
-    from parsers import parse_markdown, parse_docx, parse_doc, parse_pdf
+    from parsers import get_parser_for_extension
     ext = os.path.splitext(file_path)[1].lower()
-    parsers = {
-        ".md": parse_markdown,
-        ".docx": parse_docx,
-        ".doc": parse_doc,
-        ".pdf": parse_pdf,
-    }
-    if ext not in parsers:
-        raise ValueError(f"不支持的文件格式: {ext}。支持的格式: {', '.join(parsers.keys())}")
-    return parsers[ext]
+    return get_parser_for_extension(ext)
 
 
 def progress_callback(current: int, total: int, message: str):
@@ -36,19 +29,7 @@ def progress_callback(current: int, total: int, message: str):
 
 def check_platform_config() -> bool:
     """检查平台配置是否完整，缺失时打印警告并返回 False。"""
-    missing = []
-    if not PLATFORM_CONFIG.get("cookie"):
-        missing.append("PLATFORM_COOKIE")
-    if not PLATFORM_CONFIG.get("authorization"):
-        missing.append("PLATFORM_AUTHORIZATION")
-    if not PLATFORM_CONFIG.get("course_id"):
-        missing.append("PLATFORM_COURSE_ID")
-    if not PLATFORM_CONFIG.get("train_task_id"):
-        missing.append("PLATFORM_TRAIN_TASK_ID")
-    if not PLATFORM_CONFIG.get("start_node_id"):
-        missing.append("PLATFORM_START_NODE_ID (训练开始节点)")
-    if not PLATFORM_CONFIG.get("end_node_id"):
-        missing.append("PLATFORM_END_NODE_ID (训练结束节点)")
+    ok, missing = check_platform_config_keys(PLATFORM_CONFIG)
     if missing:
         print("\n[警告] 以下配置项缺失:")
         for item in missing:

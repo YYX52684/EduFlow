@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 import os
 import tempfile
-from fastapi import APIRouter, UploadFile, File, Depends, Header
+from typing import Optional
+
+from fastapi import APIRouter, UploadFile, File, Depends
 from pydantic import BaseModel
-from parsers import parse_markdown, parse_docx, parse_docx_with_structure, parse_doc_with_structure, parse_pdf
+from parsers import get_parser_for_extension
 from generators import ContentSplitter
 from generators.trainset_builder import append_trainset_example
 from api.routes.auth import require_workspace_owned
@@ -14,34 +16,58 @@ from api.exceptions import BadRequestError, LLMError
 router = APIRouter()
 
 
-def _get_parser_for_ext(ext: str):
-    ext = (ext or "").lower()
-    parsers = {".md": parse_markdown, ".docx": parse_docx, ".doc": None, ".pdf": parse_pdf}
-    if ext not in parsers:
-        raise ValueError(f"不支持的文件格式: {ext}。支持: .md / .docx / .doc / .pdf")
-    return parsers[ext]
+def _parse_file_to_content(path: str, suffix: str) -> str:
+    """根据路径与扩展名解析文件，返回纯文本内容。"""
+    parser = get_parser_for_extension(suffix)
+    return parser(path)
+
+
+def _stages_to_trainset_format(stages: list) -> list:
+    """将 ContentSplitter 的 stages 转为 trainset 所需格式。"""
+    return [
+        {
+            "id": s.get("id"),
+            "title": s.get("title"),
+            "description": s.get("description"),
+            "role": s.get("role"),
+            "task": s.get("task"),
+            "key_points": s.get("key_points", []),
+            "content_excerpt": s.get("content_excerpt") or "",
+        }
+        for s in stages
+    ]
+
+
+def _maybe_append_trainset(
+    workspace_id: str,
+    full_content: str,
+    stages_for_trainset: list,
+    source_file: str,
+) -> Optional[int]:
+    """若工作区有效且 stages 非空，则追加到 trainset.json，返回条数；否则返回 None。"""
+    if not workspace_id or not stages_for_trainset:
+        return None
+    try:
+        _, output_dir, _ = get_project_dirs(workspace_id)
+        trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
+        return append_trainset_example(
+            full_content, stages_for_trainset, trainset_path,
+            source_file=source_file,
+        )
+    except Exception:
+        return None
 
 
 @router.post("/upload")
 async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = Depends(require_workspace_owned)):
     """上传剧本文件，解析内容并分析结构；需登录且写入当前用户工作区。"""
-    suffix = os.path.splitext(file.filename or "")[1].lower()
-    if not suffix:
-        suffix = ".md"
+    suffix = os.path.splitext(file.filename or "")[1].lower() or ".md"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         content = await file.read()
         tmp.write(content)
         path = tmp.name
     try:
-        if suffix == ".docx":
-            full_content, _ = parse_docx_with_structure(path)
-        elif suffix == ".doc":
-            full_content, _ = parse_doc_with_structure(path)
-        else:
-            parser = _get_parser_for_ext(suffix)
-            if parser is None:
-                raise ValueError("不支持的文件格式")
-            full_content = parser(path)
+        full_content = _parse_file_to_content(path, suffix)
         llm = get_llm_config(workspace_id) if workspace_id else {}
         splitter = ContentSplitter(
             api_key=llm.get("api_key") or None,
@@ -50,18 +76,7 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = D
         )
         result = splitter.analyze(full_content)
         stages = result.get("stages", [])
-        stages_for_trainset = [
-            {
-                "id": s.get("id"),
-                "title": s.get("title"),
-                "description": s.get("description"),
-                "role": s.get("role"),
-                "task": s.get("task"),
-                "key_points": s.get("key_points", []),
-                "content_excerpt": s.get("content_excerpt") or "",
-            }
-            for s in stages
-        ]
+        stages_for_trainset = _stages_to_trainset_format(stages)
         out = {
             "filename": file.filename,
             "full_content_length": len(full_content),
@@ -71,18 +86,10 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = D
         }
         if result.get("_truncated_note"):
             out["truncated_note"] = result["_truncated_note"]
-        if workspace_id and stages_for_trainset:
-            try:
-                _, output_dir, _ = get_project_dirs(workspace_id)
-                trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
-                count = append_trainset_example(
-                    full_content, stages_for_trainset, trainset_path,
-                    source_file=file.filename or "",
-                )
-                out["trainset_path"] = "output/optimizer/trainset.json"
-                out["trainset_count"] = count
-            except Exception:
-                pass
+        count = _maybe_append_trainset(workspace_id, full_content, stages_for_trainset, file.filename or "")
+        if count is not None:
+            out["trainset_path"] = "output/optimizer/trainset.json"
+            out["trainset_count"] = count
         return out
     except Exception as e:
         raise LLMError("上传解析或分析失败", details={"reason": str(e)})
@@ -105,18 +112,11 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(require
         raise BadRequestError("路径不合法，应为 input/ 下路径", details={"path": path})
     full = resolve_workspace_path(workspace_id, path, kind="input", must_exist=True)
     suffix = os.path.splitext(full)[1].lower()
-    if suffix not in (".md", ".docx", ".doc", ".pdf"):
-        raise BadRequestError("仅支持 .md / .docx / .doc / .pdf", details={"path": req.path})
     try:
-        if suffix == ".docx":
-            full_content, _ = parse_docx_with_structure(full)
-        elif suffix == ".doc":
-            full_content, _ = parse_doc_with_structure(full)
-        else:
-            parser = _get_parser_for_ext(suffix)
-            if parser is None:
-                raise BadRequestError("不支持的文件格式", details={"suffix": suffix})
-            full_content = parser(full)
+        full_content = _parse_file_to_content(full, suffix)
+    except ValueError as e:
+        raise BadRequestError(str(e), details={"path": req.path})
+    try:
         llm = require_llm_config(workspace_id)
         splitter = ContentSplitter(
             api_key=llm.get("api_key") or None,
@@ -125,18 +125,7 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(require
         )
         result = splitter.analyze(full_content)
         stages = result.get("stages", [])
-        stages_for_trainset = [
-            {
-                "id": s.get("id"),
-                "title": s.get("title"),
-                "description": s.get("description"),
-                "role": s.get("role"),
-                "task": s.get("task"),
-                "key_points": s.get("key_points", []),
-                "content_excerpt": s.get("content_excerpt") or "",
-            }
-            for s in stages
-        ]
+        stages_for_trainset = _stages_to_trainset_format(stages)
         out = {
             "filename": os.path.basename(full),
             "path": path,
@@ -147,13 +136,8 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(require
         }
         if result.get("_truncated_note"):
             out["truncated_note"] = result["_truncated_note"]
-        if stages_for_trainset:
-            _, output_dir, _ = get_project_dirs(workspace_id)
-            trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
-            count = append_trainset_example(
-                full_content, stages_for_trainset, trainset_path,
-                source_file=full,
-            )
+        count = _maybe_append_trainset(workspace_id, full_content, stages_for_trainset, full)
+        if count is not None:
             out["trainset_path"] = "output/optimizer/trainset.json"
             out["trainset_count"] = count
         return out

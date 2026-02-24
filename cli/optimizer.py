@@ -10,7 +10,7 @@ from config import (
     DEEPSEEK_API_KEY,
     DOUBAO_API_KEY,
 )
-from api.workspace import get_workspace_dirs
+from api.workspace import get_project_dirs
 
 
 def run_build_trainset(input_path: str, output_path: str, verbose: bool = False):
@@ -52,21 +52,15 @@ def run_optimize_dspy(
     if not DSPY_AVAILABLE:
         print("错误: 未安装 dspy-ai，请运行 pip install dspy-ai")
         sys.exit(1)
-    from generators.dspy_optimizer import run_optimize_dspy
+    from generators.dspy_optimizer import run_optimize_dspy, build_export_config
 
     if not args.trainset:
         parser.error("--optimize-dspy 需要提供 --trainset（trainset JSON 路径）")
     cfg = DSPY_OPTIMIZER_CONFIG
-    _opt_out = get_workspace_dirs(args.workspace.strip())[1] if args.workspace else OUTPUT_DIR
+    _opt_out = get_project_dirs(args.workspace.strip())[1] if args.workspace else OUTPUT_DIR
     output_cards = args.cards_output or cfg.get("cards_output_path", os.path.join(_opt_out, "optimizer", "cards_for_eval.md"))
     export_path = args.export_file or cfg.get("export_file_path", os.path.join(_opt_out, "optimizer", "export_score.json"))
-    _ext = os.path.splitext(export_path)[1].lower()
-    _parser = "md" if _ext in (".md", ".markdown") else cfg.get("parser", "json")
-    export_config = {
-        "parser": _parser,
-        "json_score_key": cfg.get("json_score_key", "total_score"),
-        "csv_score_column": cfg.get("csv_score_column"),
-    }
+    export_config = build_export_config(export_path, cfg)
     print("=" * 60)
     print("DSPy 生成器优化")
     print("=" * 60)

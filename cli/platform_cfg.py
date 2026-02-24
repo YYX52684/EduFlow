@@ -4,6 +4,8 @@ import os
 import re
 import sys
 
+from api.routes.platform_config import extract_course_and_task_from_url
+
 
 def set_project_from_url(url: str):
     """从智慧树页面 URL 提取课程 ID 和训练任务 ID，并更新 .env。"""
@@ -11,10 +13,7 @@ def set_project_from_url(url: str):
     print("从URL提取项目配置")
     print("=" * 60)
     print(f"\nURL: {url}\n")
-    course_match = re.search(r"agent-course-full/([^/]+)", url)
-    course_id = course_match.group(1) if course_match else None
-    task_match = re.search(r"trainTaskId=([^&]+)", url)
-    train_task_id = task_match.group(1) if task_match else None
+    course_id, train_task_id = extract_course_and_task_from_url(url)
     if not course_id:
         print("[错误] 无法从URL提取课程ID")
         print("请确保URL包含 agent-course-full/<课程ID> 部分")

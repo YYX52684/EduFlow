@@ -10,6 +10,18 @@ import time
 from typing import List, Dict, Any, Optional, Callable
 
 import dspy
+
+
+def build_export_config(export_path: str, cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """根据导出文件路径与 DSPY_OPTIMIZER_CONFIG 构建 get_score_from_export 所需的 export_config。"""
+    cfg = cfg or {}
+    ext = os.path.splitext(export_path)[1].lower()
+    parser = "md" if ext in (".md", ".markdown") else cfg.get("parser", "json")
+    return {
+        "parser": parser,
+        "json_score_key": cfg.get("json_score_key", "total_score"),
+        "csv_score_column": cfg.get("csv_score_column"),
+    }
 from .dspy_card_generator import DSPyCardGenerator, CardAGeneratorModule, CardBGeneratorModule
 from .external_metric import get_score_from_export, load_config_from_dict
 
