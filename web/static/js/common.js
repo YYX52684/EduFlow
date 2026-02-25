@@ -91,23 +91,38 @@
   window.showLongTaskFeedback = showLongTaskFeedback;
   window.hideLongTaskFeedback = hideLongTaskFeedback;
 
+  /** 统一按钮加载态：传入 button 元素与 true/false，会切换 .is-loading 并 disabled */
+  function setButtonLoading(btn, loading) {
+    if (!btn) return;
+    if (loading) {
+      btn.classList.add('is-loading');
+      btn.disabled = true;
+    } else {
+      btn.classList.remove('is-loading');
+      btn.disabled = false;
+    }
+  }
+  window.setButtonLoading = setButtonLoading;
+
   function getAuthToken() { try { return localStorage.getItem(window.AUTH_TOKEN_KEY) || ''; } catch (e) { return ''; } }
   function setAuthToken(t) { try { localStorage.setItem(window.AUTH_TOKEN_KEY, t || ''); } catch (e) {} }
   function clearAuthToken() { try { localStorage.removeItem(window.AUTH_TOKEN_KEY); } catch (e) {} }
   function showAuthScreen() { var el = document.getElementById('authScreen'); if (el) el.classList.remove('hidden'); }
   function hideAuthScreen() { var el = document.getElementById('authScreen'); if (el) el.classList.add('hidden'); }
+  /** 校验当前 token 是否有效，不强制显示登录屏（登录为可选功能） */
   async function checkAuth() {
     var token = getAuthToken();
-    if (!token) { showAuthScreen(); return false; }
+    if (!token) { return false; }
     var base = (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
     var url = base.replace(/\/$/, '') + '/api/auth/me';
     try {
       var r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
-      if (r.status === 401) { clearAuthToken(); showAuthScreen(); return false; }
+      if (r.status === 401) { clearAuthToken(); return false; }
       var d = await r.json();
-      if (d && d.user) { window.AUTH_USER = d.user; window.AUTH_WORKSPACE_ID = d.workspace_id || ''; hideAuthScreen(); return true; }
+      if (d && d.user) { window.AUTH_USER = d.user; window.AUTH_WORKSPACE_ID = d.workspace_id || ''; return true; }
     } catch (e) {}
-    clearAuthToken(); showAuthScreen(); return false;
+    clearAuthToken();
+    return false;
   }
   window.getAuthToken = getAuthToken;
   window.setAuthToken = setAuthToken;

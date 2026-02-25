@@ -37,6 +37,15 @@ env/
 # Auth DB (user accounts and workspace ownership)
 data/
 
+# 项目文档（仅本地保留，不提交到仓库）
+docs/
+
+# 项目文档（仅本地，不提交到仓库）
+docs/
+
+# 项目文档（仅本地保留，不提交到仓库）
+docs/
+
 # Environment variables
 .env
 .env.local

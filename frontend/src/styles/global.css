@@ -1,0 +1,238 @@
+/* EduFlow React SPA 全局样式（轻量版）
+ * 目标：在不复制旧版巨大 CSS 的前提下，提供一个干净、现代的基础外观。
+ */
+
+:root {
+  --bg: #fdf9f3;
+  --paper: #ffffff;
+  --ink: #4a4a4a;
+  --ink-light: #6b5f52;
+  --accent: #8fa989;
+  --accent-strong: #7a9a74;
+  --border: #e4ddd0;
+  --radius-card: 16px;
+  --radius-btn: 999px;
+  --shadow-soft: 0 10px 30px rgba(74, 64, 53, 0.08);
+  --transition-fast: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Noto Sans SC", sans-serif;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(143, 169, 137, 0.06), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(232, 141, 103, 0.06), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.app-root {
+  width: 100%;
+  max-width: 1120px;
+  margin: 24px;
+  padding: 20px 24px 28px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+@media (max-width: 768px) {
+  .app-root {
+    margin: 12px;
+    padding: 16px 14px 20px;
+    border-radius: 18px;
+  }
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.app-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-light);
+}
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-main {
+  padding-top: 18px;
+}
+
+.page-section {
+  background: var(--paper);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  padding: 18px 20px 20px;
+  margin-bottom: 16px;
+}
+
+.page-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.page-section-title h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.page-section-desc {
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+  color: var(--ink-light);
+}
+
+.btn {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  padding: 7px 16px;
+  border-radius: var(--radius-btn);
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(143, 169, 137, 0.4);
+}
+
+.btn-primary:hover {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(143, 169, 137, 0.45);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ink-light);
+}
+
+.btn-ghost:hover {
+  background: rgba(143, 169, 137, 0.08);
+  color: var(--ink);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: rgba(143, 169, 137, 0.12);
+  color: var(--ink-light);
+}
+
+.field-label {
+  display: block;
+  margin: 10px 0 4px;
+  font-size: 0.85rem;
+  color: var(--ink-light);
+}
+
+.field-input,
+.field-select {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.field-input:focus,
+.field-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(143, 169, 137, 0.25);
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--ink-light);
+}
+
+.text-danger {
+  color: #b2523c;
+}
+
+.text-success {
+  color: var(--accent-strong);
+}
+
+.stack-v {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stack-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-muted {
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--ink-light);
+  background: rgba(253, 249, 243, 0.8);
+}
+

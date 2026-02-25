@@ -1,0 +1,14 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "B",
+]
+ignore = [
+  "E501",  # 行过长由 black 控制
+]
+

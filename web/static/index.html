@@ -19,17 +19,18 @@
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-  <div id="authScreen" class="auth-screen">
+  <div id="authScreen" class="auth-screen hidden" aria-label="登录或注册">
     <div class="auth-panel">
       <h1 class="auth-logo">EduFlow</h1>
       <p class="auth-hint">登录后使用您的专属工作区，历史记录将保留。</p>
       <div id="authTabs" class="auth-tabs">
         <button type="button" class="auth-tab active" data-tab="login">登录</button>
         <button type="button" class="auth-tab" data-tab="register">注册</button>
+        <button type="button" class="auth-tab" data-tab="forgot">找回密码</button>
       </div>
       <form id="loginForm" class="auth-form">
-        <label for="loginUsername">用户名</label>
-        <input type="text" id="loginUsername" name="username" autocomplete="username" required placeholder="请输入用户名">
+        <label for="loginIdentifier">手机号 / 邮箱 / 用户名</label>
+        <input type="text" id="loginIdentifier" name="identifier" autocomplete="username" required placeholder="手机号、邮箱或用户名">
         <label for="loginPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="请输入密码">
@@ -37,10 +38,16 @@
         </div>
         <div id="loginMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">登录</button>
+        <p class="auth-link-row"><a href="#" id="linkForgotPassword">忘记密码？</a></p>
       </form>
       <form id="registerForm" class="auth-form" style="display:none">
-        <label for="registerUsername">用户名</label>
-        <input type="text" id="registerUsername" name="username" autocomplete="username" required placeholder="字母、数字、中文、._-">
+        <p class="auth-hint" style="margin-bottom:0.5rem">手机号或邮箱至少填一项。</p>
+        <label for="registerPhone">手机号</label>
+        <input type="tel" id="registerPhone" name="phone" autocomplete="tel" placeholder="11 位中国大陆手机号">
+        <label for="registerEmail">邮箱</label>
+        <input type="email" id="registerEmail" name="email" autocomplete="email" placeholder="用于登录与找回密码">
+        <label for="registerUsername">用户名（选填）</label>
+        <input type="text" id="registerUsername" name="username" autocomplete="username" placeholder="字母、数字、中文、._-">
         <label for="registerPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="registerPassword" name="password" autocomplete="new-password" required placeholder="至少 6 位">
@@ -54,6 +61,33 @@
         <div id="registerMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">注册</button>
       </form>
+      <form id="forgotForm" class="auth-form" style="display:none">
+        <label for="forgotIdentifier">手机号或邮箱</label>
+        <input type="text" id="forgotIdentifier" name="identifier" autocomplete="username" placeholder="请输入注册时使用的手机号或邮箱">
+        <div id="forgotMsg" class="auth-msg err"></div>
+        <div id="forgotSuccess" class="auth-msg ok" style="display:none"></div>
+        <div id="forgotResetLink" class="auth-reset-link" style="display:none"></div>
+        <button type="submit" class="auth-submit">发送重置链接</button>
+        <p class="auth-link-row"><a href="#" id="linkBackToLogin">返回登录</a></p>
+      </form>
+      <form id="resetForm" class="auth-form" style="display:none">
+        <p class="auth-hint">请设置新密码，链接有效期为 1 小时。</p>
+        <input type="hidden" id="resetToken" name="token">
+        <label for="resetNewPassword">新密码</label>
+        <div class="auth-pwd-wrap">
+          <input type="password" id="resetNewPassword" name="new_password" autocomplete="new-password" required placeholder="至少 6 位">
+          <button type="button" class="auth-pwd-eye" id="resetPwdEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <label for="resetNewPasswordAgain">再次输入新密码</label>
+        <div class="auth-pwd-wrap">
+          <input type="password" id="resetNewPasswordAgain" name="new_password_again" autocomplete="new-password" required placeholder="请再输入一次">
+          <button type="button" class="auth-pwd-eye" id="resetPwdAgainEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+        <div id="resetMsg" class="auth-msg err"></div>
+        <button type="submit" class="auth-submit">确认并重置密码</button>
+        <p class="auth-link-row"><a href="#" id="linkResetBackToLogin">返回登录</a></p>
+      </form>
+      <p class="auth-link-row auth-skip"><a href="#" id="linkSkipAuth">暂不登录，继续使用</a></p>
     </div>
   </div>
   <aside id="localSidebar" class="local-sidebar">
@@ -153,6 +187,34 @@
       </div>
     </div>
   </div>
+  <div id="wallpaperEditorModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-panel wallpaper-editor-panel">
+      <div class="preview-header">
+        <strong>调整壁纸位置与缩放</strong>
+        <button type="button" id="btnCloseWallpaperEditor" class="btn-icon" title="关闭">×</button>
+      </div>
+      <div class="wallpaper-editor-body">
+        <div id="wallpaperEditorViewport" class="wallpaper-editor-viewport">
+          <span id="wallpaperEditorLoading" class="wallpaper-editor-loading">加载中…</span>
+          <canvas id="wallpaperEditorCanvas"></canvas>
+        </div>
+        <div class="wallpaper-editor-controls">
+          <span class="wallpaper-editor-label">缩放</span>
+          <button type="button" id="btnWallpaperZoomOut" class="qabtn" title="缩小">-</button>
+          <input type="range" id="wallpaperZoomRange" min="50" max="250" value="100">
+          <button type="button" id="btnWallpaperZoomIn" class="qabtn" title="放大">+</button>
+          <span class="wallpaper-editor-zoom-value" id="wallpaperZoomValue">100%</span>
+        </div>
+        <div class="wallpaper-editor-hint hint">
+          在上方区域拖动图片以调整位置，或使用缩放控制栏放大/缩小，然后点击「使用此区域」。
+        </div>
+        <div class="wallpaper-editor-actions">
+          <button type="button" id="btnWallpaperApply" class="btn-primary">使用此区域作为壁纸</button>
+          <button type="button" id="btnWallpaperCancel" class="btn-secondary">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div id="previewModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel">
       <div class="preview-header">
@@ -189,7 +251,8 @@
   <header class="header">
     <h1>EduFlow 交互控制台</h1>
     <p class="nav">
-      <span id="authUserSpan" class="auth-user-span"></span>
+      <span id="authUserSpan" class="auth-user-span" style="display:none"></span>
+      <button type="button" id="btnShowAuth" class="btn-icon" title="登录或注册，管理工作区与历史文件">登录 / 管理工作区</button>
       <button type="button" id="btnSettings" class="btn-icon" title="网页设置">⚙ 设置</button>
       <button type="button" id="btnHistoryFiles" class="btn-icon" title="历史生成文件" style="display:none">📁 历史生成文件</button>
       <button type="button" id="btnLogout" class="btn-icon" title="退出登录" style="display:none">退出</button>

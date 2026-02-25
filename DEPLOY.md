@@ -280,7 +280,18 @@ docker logs -f eduflow
 docker restart eduflow
 ```
 
-代码更新：在项目目录 `git pull`，然后重启服务。
+**代码更新（你刚推到 GitHub 后，在服务器上这样更新网站）：**
+
+1. SSH 登录阿里云 ECS：`ssh root@你的公网IP`（或你的用户名）。
+2. 进入项目目录：`cd /opt/EduFlow`（若你当时克隆到了别的路径，改成那个路径）。
+3. 拉取最新代码：`git pull origin main`（若主分支叫 `master` 则用 `git pull origin master`）。
+4. 若有新依赖：先激活虚拟环境 `source venv/bin/activate`，再执行 `pip install -r requirements.txt`。
+5. 重启服务使新代码生效：
+   - **用 systemd 时**：`sudo systemctl restart eduflow`
+   - **用 Docker 时**：`docker restart eduflow`
+6. 检查状态：`sudo systemctl status eduflow` 或 `docker ps`，再在浏览器访问你的网站确认。
+
+以后每次在本地改完并 `git push` 到 GitHub，在服务器上重复步骤 2～5 即可更新网站内容。
 
 ### 5. 可选：文档与仓库
 

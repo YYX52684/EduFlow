@@ -343,3 +343,114 @@ def resolve_output_path(
     if not path.startswith("output/"):
         path = "output/" + path
     return resolve_workspace_path(workspace_id, path, kind="output", must_exist=must_exist)
+
+
+class WorkspaceManager:
+    """
+    工作区管理器。
+
+    封装与工作区相关的路径解析与读写操作，统一保证所有路径都落在
+    `workspaces/{workspace_id}/...` 之下，并支持项目(course/project) 子目录。
+
+    典型用法：
+        wm = WorkspaceManager(workspace_id)
+        cards_abs = wm.resolve_output_path("output/cards.md")
+        wm.write_output_text("output/optimizer/trainset.json", json_text)
+    """
+
+    def __init__(self, workspace_id: str):
+        self.workspace_id = workspace_id
+
+    # --- 目录相关 ---
+
+    def get_workspace_dirs(self) -> tuple[str, str, str]:
+        """返回 (input_dir, output_dir, workspace_root)。"""
+        return get_workspace_dirs(self.workspace_id)
+
+    def get_project_dirs(self) -> tuple[str, str, str]:
+        """返回当前项目的 (project_input_dir, project_output_dir, workspace_root)。"""
+        return get_project_dirs(self.workspace_id)
+
+    # --- 路径解析 ---
+
+    def resolve_workspace_path(
+        self,
+        relative_path: str,
+        kind: str = "output",
+        must_exist: bool = False,
+    ) -> str:
+        """解析工作区内相对路径到绝对路径。"""
+        return resolve_workspace_path(
+            self.workspace_id,
+            relative_path,
+            kind=kind,
+            must_exist=must_exist,
+        )
+
+    def resolve_input_path(self, relative_path: str, must_exist: bool = False) -> str:
+        """解析到当前项目 input 目录下的绝对路径。"""
+        return resolve_input_path(self.workspace_id, relative_path, must_exist=must_exist)
+
+    def resolve_output_path(self, relative_path: str, must_exist: bool = False) -> str:
+        """解析到当前项目 output 目录下的绝对路径。"""
+        return resolve_output_path(self.workspace_id, relative_path, must_exist=must_exist)
+
+    # --- 便捷读写 ---
+
+    def _ensure_parent_dir(self, abs_path: str) -> None:
+        """确保父目录存在。"""
+        parent = os.path.dirname(abs_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+    def write_output_text(
+        self,
+        relative_path: str,
+        content: str,
+        encoding: str = "utf-8",
+    ) -> str:
+        """
+        将文本写入当前项目 output 下的文件。
+
+        Args:
+            relative_path: 如 "output/optimizer/trainset.json" 或 "optimizer/trainset.json"
+            content: 要写入的文本内容
+
+        Returns:
+            写入文件的绝对路径。
+        """
+        abs_path = self.resolve_output_path(relative_path, must_exist=False)
+        self._ensure_parent_dir(abs_path)
+        with open(abs_path, "w", encoding=encoding) as f:
+            f.write(content)
+        return abs_path
+
+    def read_output_text(
+        self,
+        relative_path: str,
+        encoding: str = "utf-8",
+        must_exist: bool = True,
+    ) -> str:
+        """读取当前项目 output 下的文本文件内容。"""
+        abs_path = self.resolve_output_path(relative_path, must_exist=must_exist)
+        with open(abs_path, "r", encoding=encoding) as f:
+            return f.read()
+
+    def open_output(
+        self,
+        relative_path: str,
+        mode: str = "w",
+        encoding: str = "utf-8",
+    ):
+        """
+        以给定模式打开当前项目 output 下的文件并返回文件对象。
+
+        仅用于需要流式写入的大文件场景；一般推荐使用 write_output_text。
+        """
+        abs_path = self.resolve_output_path(relative_path, must_exist=False)
+        # 二进制模式不传 encoding
+        if "b" in mode:
+            self._ensure_parent_dir(abs_path)
+            return open(abs_path, mode)
+        self._ensure_parent_dir(abs_path)
+        return open(abs_path, mode, encoding=encoding)
