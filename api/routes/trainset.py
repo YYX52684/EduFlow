@@ -11,7 +11,7 @@ from typing import Optional
 router = APIRouter()
 
 from api.routes.auth import require_workspace_owned
-from api.workspace import get_project_dirs, resolve_input_path, resolve_output_path, resolve_workspace_path
+from api.workspace import WorkspaceManager, get_project_dirs, resolve_input_path, resolve_output_path, resolve_workspace_path
 from api.routes.llm_config import require_llm_config
 from api.exceptions import BadRequestError, ConfigError, NotFoundError, LLMError
 from generators.trainset_builder import (
@@ -31,10 +31,11 @@ class BuildTrainsetRequest(BaseModel):
 def build_trainset(req: BuildTrainsetRequest, workspace_id: str = Depends(require_workspace_owned)):
     """从剧本文件或目录构建 trainset，保存为 JSON。使用工作区 LLM 配置。"""
     llm = require_llm_config(workspace_id)
-    abs_input = resolve_input_path(workspace_id, req.input_path)
+    wm = WorkspaceManager(workspace_id)
+    abs_input = wm.resolve_input_path(req.input_path)
     if not os.path.exists(abs_input):
         raise NotFoundError("数据来源不存在", details={"path": req.input_path})
-    abs_output = resolve_output_path(workspace_id, req.output_path)
+    abs_output = wm.resolve_output_path(req.output_path)
     try:
         examples = build_trainset_from_path(
             abs_input,
@@ -61,7 +62,8 @@ class ValidateTrainsetRequest(BaseModel):
 @router.post("/validate")
 def validate_trainset(req: ValidateTrainsetRequest, workspace_id: str = Depends(require_workspace_owned)):
     """校验 trainset JSON 结构与评估标准对齐。"""
-    abs_path = resolve_output_path(workspace_id, req.trainset_path, must_exist=True)
+    wm = WorkspaceManager(workspace_id)
+    abs_path = wm.resolve_output_path(req.trainset_path, must_exist=True)
     try:
         valid, messages = check_trainset_file(abs_path, strict=False, check_eval_alignment=True)
     except Exception as e:

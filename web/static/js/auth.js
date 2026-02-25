@@ -8,24 +8,59 @@
   function hideAuthScreen() { if (window.hideAuthScreen) window.hideAuthScreen(); }
   function syncWorkspaceFromUrl() { if (window.syncWorkspaceFromUrl) window.syncWorkspaceFromUrl(); }
 
+  function getApiBase() {
+    return (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
+  }
+
   (function initAuthUI() {
     var authScreen = document.getElementById('authScreen');
     if (!authScreen) return;
     var loginForm = document.getElementById('loginForm');
     var registerForm = document.getElementById('registerForm');
+    var forgotForm = document.getElementById('forgotForm');
+    var resetForm = document.getElementById('resetForm');
     var loginMsg = document.getElementById('loginMsg');
     var registerMsg = document.getElementById('registerMsg');
+    var forgotMsg = document.getElementById('forgotMsg');
+    var forgotSuccess = document.getElementById('forgotSuccess');
+    var forgotResetLink = document.getElementById('forgotResetLink');
+    var resetMsg = document.getElementById('resetMsg');
+
+    function showTab(tab) {
+      document.querySelectorAll('.auth-tab').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+      });
+      var show = { login: loginForm, register: registerForm, forgot: forgotForm };
+      if (loginForm) loginForm.style.display = tab === 'login' ? 'block' : 'none';
+      if (registerForm) registerForm.style.display = tab === 'register' ? 'block' : 'none';
+      if (forgotForm) forgotForm.style.display = tab === 'forgot' ? 'block' : 'none';
+      if (resetForm) resetForm.style.display = 'none';
+      if (loginMsg) loginMsg.textContent = '';
+      if (registerMsg) registerMsg.textContent = '';
+      if (forgotMsg) forgotMsg.textContent = '';
+      if (forgotSuccess) { forgotSuccess.style.display = 'none'; forgotSuccess.textContent = ''; }
+      if (forgotResetLink) { forgotResetLink.style.display = 'none'; forgotResetLink.innerHTML = ''; }
+    }
+
     document.querySelectorAll('.auth-tab').forEach(function(btn) {
       btn.onclick = function() {
-        document.querySelectorAll('.auth-tab').forEach(function(b) { b.classList.remove('active'); });
-        btn.classList.add('active');
         var t = btn.getAttribute('data-tab');
-        loginForm.style.display = t === 'login' ? 'block' : 'none';
-        registerForm.style.display = t === 'register' ? 'block' : 'none';
-        if (loginMsg) loginMsg.textContent = '';
-        if (registerMsg) registerMsg.textContent = '';
+        showTab(t);
       };
     });
+
+    var linkForgot = document.getElementById('linkForgotPassword');
+    if (linkForgot) linkForgot.onclick = function(e) { e.preventDefault(); showTab('forgot'); };
+    var linkBackToLogin = document.getElementById('linkBackToLogin');
+    if (linkBackToLogin) linkBackToLogin.onclick = function(e) { e.preventDefault(); showTab('login'); };
+    var linkSkipAuth = document.getElementById('linkSkipAuth');
+    if (linkSkipAuth) linkSkipAuth.onclick = function(e) { e.preventDefault(); hideAuthScreen(); };
+    var linkResetBackToLogin = document.getElementById('linkResetBackToLogin');
+    if (linkResetBackToLogin) linkResetBackToLogin.onclick = function(e) {
+      e.preventDefault();
+      history.replaceState(null, '', window.location.pathname || '/');
+      showTab('login');
+    };
     function togglePwdEye(btn, input) {
       if (!input) return;
       var isText = input.type === 'text';
@@ -42,17 +77,90 @@
     var regAgainEye = document.getElementById('regPwdAgainEye');
     if (regEye && regPwd) { regEye.onclick = function() { togglePwdEye(regEye, regPwd); }; }
     if (regAgainEye && regPwdAgain) { regAgainEye.onclick = function() { togglePwdEye(regAgainEye, regPwdAgain); }; }
+    var resetPwd = document.getElementById('resetNewPassword');
+    var resetPwdAgain = document.getElementById('resetNewPasswordAgain');
+    var resetEye = document.getElementById('resetPwdEye');
+    var resetAgainEye = document.getElementById('resetPwdAgainEye');
+    if (resetEye && resetPwd) resetEye.onclick = function() { togglePwdEye(resetEye, resetPwd); };
+    if (resetAgainEye && resetPwdAgain) resetAgainEye.onclick = function() { togglePwdEye(resetAgainEye, resetPwdAgain); };
+
+    if (forgotForm) {
+      forgotForm.onsubmit = async function(e) {
+        e.preventDefault();
+        var id = document.getElementById('forgotIdentifier').value.trim();
+        if (forgotMsg) forgotMsg.textContent = '';
+        if (forgotSuccess) forgotSuccess.style.display = 'none';
+        if (forgotResetLink) forgotResetLink.style.display = 'none';
+        if (!id) { if (forgotMsg) forgotMsg.textContent = '请输入手机号或邮箱'; return; }
+        var base = getApiBase().replace(/\/$/, '');
+        try {
+          var r = await fetch(base + '/api/auth/forgot-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier: id })
+          });
+          var d = await r.json();
+          if (d && d.message) {
+            if (forgotSuccess) { forgotSuccess.textContent = d.message; forgotSuccess.style.display = 'block'; }
+            if (d.reset_url) {
+              if (forgotResetLink) {
+                forgotResetLink.innerHTML = '<a href="' + d.reset_url + '" target="_blank" rel="noopener">' + d.reset_url + '</a>';
+                forgotResetLink.style.display = 'block';
+              }
+            } else if (d.reset_token) {
+              var origin = window.location.origin || '';
+              // 使用查询参数形式，当前页路径 + ?reset_token=...
+              var url = origin + (window.location.pathname || '/') + '?reset_token=' + encodeURIComponent(d.reset_token);
+              if (forgotResetLink) {
+                forgotResetLink.innerHTML = '重置链接（请勿泄露）：<br><a href="' + url + '">' + url + '</a>';
+                forgotResetLink.style.display = 'block';
+              }
+            }
+          }
+          if (d && d.error && forgotMsg) forgotMsg.textContent = d.message || '请求失败';
+        } catch (err) { if (forgotMsg) forgotMsg.textContent = '网络错误'; }
+      };
+    }
+
+    if (resetForm) {
+      resetForm.onsubmit = async function(e) {
+        e.preventDefault();
+        var tokenEl = document.getElementById('resetToken');
+        var token = (tokenEl && tokenEl.value) ? tokenEl.value.trim() : '';
+        var p = document.getElementById('resetNewPassword').value;
+        var pAgain = document.getElementById('resetNewPasswordAgain').value;
+        if (resetMsg) resetMsg.textContent = '';
+        if (p !== pAgain) { if (resetMsg) resetMsg.textContent = '两次输入的密码不一致'; return; }
+        if (p.length < 6) { if (resetMsg) resetMsg.textContent = '密码至少 6 位'; return; }
+        if (!token) { if (resetMsg) resetMsg.textContent = '重置链接已失效，请重新申请'; return; }
+        var base = getApiBase().replace(/\/$/, '');
+        try {
+          var r = await fetch(base + '/api/auth/reset-password', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: token, new_password: p })
+          });
+          var d = await r.json();
+          if (d && d.message && !d.error) {
+            if (resetMsg) { resetMsg.textContent = ''; resetMsg.classList.remove('err'); resetMsg.classList.add('ok'); resetMsg.textContent = '密码已重置，正在跳转登录…'; }
+            history.replaceState(null, '', window.location.pathname || '/');
+            setTimeout(function() { showTab('login'); window.location.reload(); }, 800);
+            return;
+          }
+          if (resetMsg) resetMsg.textContent = (d && d.message) ? d.message : '重置失败';
+        } catch (err) { if (resetMsg) resetMsg.textContent = '网络错误'; }
+      };
+    }
+
     if (loginForm) {
       loginForm.onsubmit = async function(e) {
         e.preventDefault();
-        var u = document.getElementById('loginUsername').value.trim();
+        var id = document.getElementById('loginIdentifier').value.trim();
         var p = document.getElementById('loginPassword').value;
         if (loginMsg) loginMsg.textContent = '';
-        var base = (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
+        var base = getApiBase().replace(/\/$/, '');
         try {
-          var r = await fetch(base.replace(/\/$/, '') + '/api/auth/login', {
+          var r = await fetch(base + '/api/auth/login', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: u, password: p })
+            body: JSON.stringify({ identifier: id, password: p })
           });
           var d = await r.json();
           if (d && d.token && d.workspace_id) {
@@ -67,19 +175,29 @@
     if (registerForm) {
       registerForm.onsubmit = async function(e) {
         e.preventDefault();
+        var phone = document.getElementById('registerPhone').value.trim();
+        var email = document.getElementById('registerEmail').value.trim();
         var u = document.getElementById('registerUsername').value.trim();
         var p = document.getElementById('registerPassword').value;
         var pAgain = document.getElementById('registerPasswordAgain').value;
         if (registerMsg) registerMsg.textContent = '';
+        if (!phone && !email) {
+          if (registerMsg) registerMsg.textContent = '请填写手机号或邮箱至少一项。';
+          return;
+        }
         if (p !== pAgain) {
           if (registerMsg) registerMsg.textContent = '两次输入的密码不一致，请重新输入。';
           return;
         }
-        var base = (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
+        var base = getApiBase().replace(/\/$/, '');
+        var body = { password: p };
+        if (phone) body.phone = phone;
+        if (email) body.email = email;
+        if (u) body.username = u;
         try {
-          var r = await fetch(base.replace(/\/$/, '') + '/api/auth/register', {
+          var r = await fetch(base + '/api/auth/register', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: u, password: p })
+            body: JSON.stringify(body)
           });
           var d = await r.json();
           if (d && d.token && d.workspace_id) {
@@ -91,18 +209,55 @@
         } catch (err) { if (registerMsg) registerMsg.textContent = '网络错误'; }
       };
     }
+
+    function getResetTokenFromUrl() {
+      var search = location.search || '';
+      var hash = location.hash || '';
+      // 先从查询参数中找 ?reset_token=...，兼容 /?reset_token=xxx
+      var m = search.match(/[?&]reset_token=([^&]+)/);
+      if (!m) {
+        // 兼容历史的 #reset_token=... 形式
+        m = hash.match(/(?:#|[&?])reset_token=([^&]+)/);
+      }
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    var urlResetToken = getResetTokenFromUrl();
+    if (urlResetToken && resetForm) {
+      var tokenInput = document.getElementById('resetToken');
+      if (tokenInput) tokenInput.value = urlResetToken;
+      if (loginForm) loginForm.style.display = 'none';
+      if (registerForm) registerForm.style.display = 'none';
+      if (forgotForm) forgotForm.style.display = 'none';
+      resetForm.style.display = 'block';
+      document.querySelectorAll('.auth-tab').forEach(function(b) { b.classList.remove('active'); });
+    }
   })();
 
-  (async function ensureAuthThenRun() {
-    if (!getAuthToken()) { showAuthScreen(); return; }
-    var ok = await window.checkAuth();
-    if (!ok) return;
+  /** 根据是否已登录更新头部：登录按钮 / 用户名、历史文件、退出 */
+  function updateAuthHeader(authenticated) {
     var us = document.getElementById('authUserSpan');
     var logoutBtn = document.getElementById('btnLogout');
     var historyFilesBtn = document.getElementById('btnHistoryFiles');
-    if (window.AUTH_USER && us) { us.textContent = window.AUTH_USER.username; }
-    if (logoutBtn) { logoutBtn.style.display = 'inline-block'; logoutBtn.onclick = function() { clearAuthToken(); location.reload(); }; }
-    if (historyFilesBtn) { historyFilesBtn.style.display = 'inline-block'; }
-    syncWorkspaceFromUrl();
+    var showAuthBtn = document.getElementById('btnShowAuth');
+    if (showAuthBtn) showAuthBtn.style.display = authenticated ? 'none' : 'inline-block';
+    if (us) us.style.display = authenticated ? 'inline' : 'none';
+    if (us && window.AUTH_USER) us.textContent = window.AUTH_USER.username || '';
+    if (logoutBtn) {
+      logoutBtn.style.display = authenticated ? 'inline-block' : 'none';
+      logoutBtn.onclick = function() { clearAuthToken(); location.reload(); };
+    }
+    if (historyFilesBtn) historyFilesBtn.style.display = authenticated ? 'inline-block' : 'none';
+  }
+
+  (async function initAuthOptional() {
+    var ok = await window.checkAuth();
+    updateAuthHeader(!!ok);
+    if (ok) syncWorkspaceFromUrl();
+    var showAuthBtn = document.getElementById('btnShowAuth');
+    if (showAuthBtn) showAuthBtn.onclick = function() { showAuthScreen(); };
+    var authScreen = document.getElementById('authScreen');
+    if (authScreen) {
+      authScreen.onclick = function(e) { if (e.target === authScreen) hideAuthScreen(); };
+    }
   })();
 })();

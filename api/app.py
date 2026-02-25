@@ -16,7 +16,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routes import health, frameworks, personas, script, cards, simulate, evaluate, inject, platform_config, input_files, output_files, trainset, optimizer, closed_loop, projects, llm_config, auth
+from .routes import (
+    health,
+    frameworks,
+    personas,
+    script,
+    cards,
+    simulate,
+    evaluate,
+    inject,
+    platform_config,
+    input_files,
+    output_files,
+    trainset,
+    optimizer,
+    closed_loop,
+    projects,
+    llm_config,
+    auth,
+)
 from .exceptions import EduFlowError
 from .middleware import RequestIDMiddleware, get_request_id
 
@@ -41,7 +59,12 @@ app.add_middleware(
 
 @app.exception_handler(EduFlowError)
 def eduflow_error_handler(request: Request, exc: EduFlowError):
-    """业务异常 → 统一 JSON 错误体，并带上 request_id。"""
+    """业务异常 → 统一 JSON 错误体，并带上 request_id。
+
+    兼顾两类调用方：
+    - 新前端 / 集成方：读取 success=false 与 error.{code,message,details};
+    - 旧前端 / 现有测试：继续使用顶层 error/code/message 字段。
+    """
     request_id = get_request_id(request)
     logger.warning(
         "request_error request_id=%s path=%s method=%s code=%s message=%s",
@@ -51,9 +74,19 @@ def eduflow_error_handler(request: Request, exc: EduFlowError):
         exc.code,
         exc.message,
     )
-    body = exc.to_dict()
-    body["request_id"] = request_id
-    return JSONResponse(status_code=exc.status_code, content=body)
+    base = exc.to_dict()
+    envelope = {
+        "success": False,
+        "error_detail": {
+            "code": base.get("code", "ERROR"),
+            "message": base.get("message", ""),
+            "details": base.get("details", {}),
+        },
+        "request_id": request_id,
+    }
+    # 兼容旧字段：error/code/message/details 继续保留在顶层
+    envelope.update(base)
+    return JSONResponse(status_code=exc.status_code, content=envelope)
 
 
 @app.exception_handler(Exception)
@@ -68,6 +101,12 @@ def unhandled_exception_handler(request: Request, exc: Exception):
         str(exc),
     )
     body = {
+        "success": False,
+        "error_detail": {
+            "code": "INTERNAL_ERROR",
+            "message": "服务器内部错误，请稍后重试。",
+            "details": {},
+        },
         "error": True,
         "code": "INTERNAL_ERROR",
         "message": "服务器内部错误，请稍后重试。",
@@ -95,12 +134,18 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(llm_config.router, prefix="/api/llm", tags=["llm"])
 
 web_dir = os.path.join(_ROOT, "web", "static")
-index_path = os.path.join(web_dir, "index.html")
+legacy_index_path = os.path.join(web_dir, "index.html")
+
+frontend_dist_dir = os.path.join(_ROOT, "frontend", "dist")
+spa_index_path = os.path.join(frontend_dist_dir, "index.html")
 
 
 def _serve_index():
-    if os.path.isfile(index_path):
-        return FileResponse(index_path)
+    """根据是否已构建新前端，优先返回 React SPA 的 index.html。"""
+    if os.path.isfile(spa_index_path):
+        return FileResponse(spa_index_path)
+    if os.path.isfile(legacy_index_path):
+        return FileResponse(legacy_index_path)
     return {"message": "EduFlow API", "docs": "/docs"}
 
 
@@ -117,3 +162,10 @@ def workspace_page(rest: str):
 
 if os.path.isdir(web_dir):
     app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
+# 若已构建新的 React SPA，挂载其静态资源目录（Vite 默认输出到 frontend/dist）
+if os.path.isdir(frontend_dist_dir):
+    assets_dir = os.path.join(frontend_dist_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+

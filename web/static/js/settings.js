@@ -73,19 +73,110 @@
 
   var wallpaperDZ = document.getElementById('wallpaperDropZone');
   var wallpaperInput = document.getElementById('wallpaperFile');
+  var wallpaperEditorModal = document.getElementById('wallpaperEditorModal');
+  var wallpaperEditorViewport = document.getElementById('wallpaperEditorViewport');
+  var wallpaperEditorCanvas = document.getElementById('wallpaperEditorCanvas');
+  var wallpaperZoomRange = document.getElementById('wallpaperZoomRange');
+  var wallpaperZoomValue = document.getElementById('wallpaperZoomValue');
+  var wallpaperImg = null;
+  var wallpaperState = {
+    scale: 1,
+    minScale: 1,
+    maxScale: 3,
+    offsetX: 0,
+    offsetY: 0,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    startOffsetX: 0,
+    startOffsetY: 0
+  };
+
+  function drawWallpaperEditor() {
+    if (!wallpaperImg || !wallpaperEditorCanvas || !wallpaperEditorViewport) return;
+    var ctx = wallpaperEditorCanvas.getContext('2d');
+    if (!ctx) return;
+    var dpr = window.devicePixelRatio || 1;
+    var vw = wallpaperEditorViewport.clientWidth || 480;
+    var vh = wallpaperEditorViewport.clientHeight || 270;
+    var needResize = (wallpaperEditorCanvas.width !== vw * dpr) || (wallpaperEditorCanvas.height !== vh * dpr);
+    if (needResize) {
+      wallpaperEditorCanvas.width = vw * dpr;
+      wallpaperEditorCanvas.height = vh * dpr;
+      wallpaperEditorCanvas.style.width = vw + 'px';
+      wallpaperEditorCanvas.style.height = vh + 'px';
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, vw, vh);
+    ctx.save();
+    ctx.translate(wallpaperState.offsetX, wallpaperState.offsetY);
+    ctx.scale(wallpaperState.scale, wallpaperState.scale);
+    ctx.drawImage(wallpaperImg, 0, 0);
+    ctx.restore();
+  }
+
+  function initWallpaperEditor(dataUrl) {
+    if (!wallpaperEditorCanvas || !wallpaperEditorViewport) return;
+    wallpaperEditorViewport.classList.remove('loaded');
+    wallpaperImg = new Image();
+    wallpaperImg.onload = function() {
+      function layoutAndDraw() {
+        var vw = wallpaperEditorViewport.clientWidth || 480;
+        var vh = wallpaperEditorViewport.clientHeight || 270;
+        var scaleX = vw / wallpaperImg.width;
+        var scaleY = vh / wallpaperImg.height;
+        var minScale = Math.max(scaleX, scaleY);
+        wallpaperState.minScale = minScale;
+        wallpaperState.maxScale = minScale * 3;
+        wallpaperState.scale = minScale;
+        wallpaperState.offsetX = (vw - wallpaperImg.width * wallpaperState.scale) / 2;
+        wallpaperState.offsetY = (vh - wallpaperImg.height * wallpaperState.scale) / 2;
+        if (wallpaperZoomRange) {
+          wallpaperZoomRange.min = 100;
+          wallpaperZoomRange.max = 300;
+          wallpaperZoomRange.value = 100;
+        }
+        if (wallpaperZoomValue) wallpaperZoomValue.textContent = '100%';
+        drawWallpaperEditor();
+        wallpaperEditorViewport.classList.add('loaded');
+      }
+      requestAnimationFrame(function() { requestAnimationFrame(layoutAndDraw); });
+    };
+    wallpaperImg.src = dataUrl;
+  }
+
+  function updateWallpaperScaleFromSlider() {
+    if (!wallpaperZoomRange) return;
+    var pct = parseFloat(wallpaperZoomRange.value || '100');
+    if (isNaN(pct)) pct = 100;
+    var factor = pct / 100;
+    var scale = wallpaperState.minScale * factor;
+    if (scale < wallpaperState.minScale * 0.5) scale = wallpaperState.minScale * 0.5;
+    if (scale > wallpaperState.maxScale) scale = wallpaperState.maxScale;
+    wallpaperState.scale = scale;
+    if (wallpaperZoomValue) {
+      var disp = Math.round((scale / wallpaperState.minScale) * 100);
+      wallpaperZoomValue.textContent = disp + '%';
+    }
+    drawWallpaperEditor();
+  }
+
   function setWallpaperFromFile(file) {
     if (!file || !file.type.startsWith('image/')) return;
+    if (!wallpaperEditorModal || !window.openModal) return;
+    window.openModal(wallpaperEditorModal, null);
     var r = new FileReader();
     r.onload = function() {
       try {
-        localStorage.setItem(window.WALLPAPER_KEY, r.result);
-        window.applyWallpaper(r.result);
-        updateWallpaperPreview();
-      } catch (e) { alert('壁纸过大或无法保存，请换一张较小的图片'); }
+        initWallpaperEditor(r.result);
+      } catch (e) {
+        alert('无法加载壁纸，请换一张图片');
+        if (window.closeModal) window.closeModal(wallpaperEditorModal);
+      }
     };
     r.readAsDataURL(file);
   }
-  if (wallpaperDZ) wallpaperDZ.onclick = function() { wallpaperInput.click(); };
+  if (wallpaperDZ) wallpaperDZ.onclick = function() { if (wallpaperInput) wallpaperInput.click(); };
   if (wallpaperInput) wallpaperInput.onchange = function() { setWallpaperFromFile(this.files[0]); this.value = ''; };
   if (wallpaperDZ) {
     wallpaperDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
@@ -110,6 +201,80 @@
       radio.onchange = function() { window.applyTheme(this.value); };
     });
   })();
+
+  if (wallpaperEditorCanvas && wallpaperEditorViewport) {
+    wallpaperEditorCanvas.onmousedown = function(e) {
+      wallpaperState.dragging = true;
+      wallpaperState.dragStartX = e.clientX;
+      wallpaperState.dragStartY = e.clientY;
+      wallpaperState.startOffsetX = wallpaperState.offsetX;
+      wallpaperState.startOffsetY = wallpaperState.offsetY;
+      wallpaperEditorViewport.classList.add('dragging');
+    };
+    window.addEventListener('mousemove', function(e) {
+      if (!wallpaperState.dragging) return;
+      var dx = e.clientX - wallpaperState.dragStartX;
+      var dy = e.clientY - wallpaperState.dragStartY;
+      wallpaperState.offsetX = wallpaperState.startOffsetX + dx;
+      wallpaperState.offsetY = wallpaperState.startOffsetY + dy;
+      drawWallpaperEditor();
+    });
+    window.addEventListener('mouseup', function() {
+      if (!wallpaperState.dragging) return;
+      wallpaperState.dragging = false;
+      wallpaperEditorViewport.classList.remove('dragging');
+    });
+  }
+
+  if (wallpaperZoomRange) {
+    wallpaperZoomRange.oninput = updateWallpaperScaleFromSlider;
+  }
+  var btnZoomOut = document.getElementById('btnWallpaperZoomOut');
+  var btnZoomIn = document.getElementById('btnWallpaperZoomIn');
+  if (btnZoomOut && wallpaperZoomRange) {
+    btnZoomOut.onclick = function() {
+      var v = parseFloat(wallpaperZoomRange.value || '100');
+      if (isNaN(v)) v = 100;
+      wallpaperZoomRange.value = String(Math.max(50, v - 10));
+      updateWallpaperScaleFromSlider();
+    };
+  }
+  if (btnZoomIn && wallpaperZoomRange) {
+    btnZoomIn.onclick = function() {
+      var v = parseFloat(wallpaperZoomRange.value || '100');
+      if (isNaN(v)) v = 100;
+      wallpaperZoomRange.value = String(Math.min(300, v + 10));
+      updateWallpaperScaleFromSlider();
+    };
+  }
+
+  function applyWallpaperFromEditor() {
+    if (!wallpaperEditorCanvas) return;
+    try {
+      var dataUrl = wallpaperEditorCanvas.toDataURL('image/jpeg', 0.9);
+      localStorage.setItem(window.WALLPAPER_KEY, dataUrl);
+      window.applyWallpaper(dataUrl);
+      updateWallpaperPreview();
+      if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+    } catch (e) {
+      alert('壁纸过大或无法保存，请换一张较小的图片');
+    }
+  }
+  var btnWallpaperApply = document.getElementById('btnWallpaperApply');
+  var btnWallpaperCancel = document.getElementById('btnWallpaperCancel');
+  var btnCloseWallpaperEditor = document.getElementById('btnCloseWallpaperEditor');
+  if (btnWallpaperApply) btnWallpaperApply.onclick = applyWallpaperFromEditor;
+  if (btnWallpaperCancel) btnWallpaperCancel.onclick = function() {
+    if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+  };
+  if (btnCloseWallpaperEditor) btnCloseWallpaperEditor.onclick = function() {
+    if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+  };
+  if (wallpaperEditorModal) {
+    wallpaperEditorModal.onclick = function(e) {
+      if (e.target === wallpaperEditorModal && window.closeModal) window.closeModal(wallpaperEditorModal);
+    };
+  }
 
   document.addEventListener('dblclick', function(e) {
     if (document.body.classList.contains('ui-hidden')) {

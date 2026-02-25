@@ -143,16 +143,25 @@
       }
     }
 
-    (function showDirPickerTipIfInsecure() {
-      if (typeof window.isSecureContext !== 'boolean' || window.isSecureContext) return;
+    (function showDirPickerTipIfUnsupported() {
       var tip = document.getElementById('dirPickerTip');
+      var btn = document.getElementById('btnPickLocalDir');
+      if (!tip) return;
+      if (typeof showDirectoryPicker !== 'function') {
+        tip.textContent = '选择目录仅支持 Chrome、Edge 等 Chromium 内核浏览器，当前浏览器不支持。请使用右侧拖拽或选文件上传。';
+        tip.style.display = 'block';
+        if (btn) { btn.disabled = true; btn.title = '当前浏览器不支持，请用 Chrome/Edge 或右侧拖拽上传'; }
+        return;
+      }
+      if (typeof window.isSecureContext !== 'boolean' || window.isSecureContext) return;
       tip.textContent = '当前为 HTTP 访问，「选择目录」不可用（浏览器安全策略要求 HTTPS 或 localhost）。请用右侧拖拽/选文件上传；配置 HTTPS 后即可使用选择目录（本机：python run_web.py --https；服务器：Nginx + 证书，见 DEPLOY.md）。';
       tip.style.display = 'block';
+      if (btn) { btn.disabled = true; btn.title = '需 HTTPS 或 localhost 访问后可用'; }
     })();
 
     document.getElementById('btnPickLocalDir').onclick = async function() {
       if (typeof showDirectoryPicker !== 'function') {
-        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">当前环境不支持选择目录（浏览器要求 HTTPS 或 localhost），请用右侧拖拽或选文件上传</div>';
+        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">当前浏览器不支持选择目录（请使用 Chrome 或 Edge）。请用右侧拖拽或选文件上传。</div>';
         return;
       }
       try {
