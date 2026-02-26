@@ -26,6 +26,9 @@ ENV/
 env/
 .venv/
 
+# Cursor（规则、计划等仅本地保留，不提交到 GitHub）
+.cursor/
+
 # IDE
 .idea/
 .vscode/

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <h1>EduFlow 卡片注入</h1>
+  <div id="tab-status" class="tab-status"></div>
+  <details id="eduflow-details" class="llm-details">
+    <summary>EduFlow 后端（默认使用 eduflows.cn，DSPy 生成）</summary>
+    <div class="llm-fields">
+      <label>API 地址（可选，默认已配置）</label>
+      <input type="text" id="eduflow-api-url" placeholder="https://eduflows.cn" />
+      <p class="hint">默认使用 eduflows.cn。仅当本地部署时需修改。</p>
+    </div>
+  </details>
+  <details id="llm-details" class="llm-details">
+    <summary>LLM 直连配置（EduFlow 不可用时）</summary>
+    <div class="llm-fields">
+      <label>API 地址</label>
+      <input type="text" id="llm-url" placeholder="http://llm-service.polymas.com/api/openai/v1" />
+      <label>API Key</label>
+      <input type="password" id="llm-key" placeholder="与 .env 中 LLM_API_KEY 一致" autocomplete="off" />
+      <label>模型</label>
+      <input type="text" id="llm-model" placeholder="Doubao-1.5-pro-32k" />
+      <label>Service Code（可选）</label>
+      <input type="text" id="llm-service-code" placeholder="SI_Ability" />
+    </div>
+  </details>
+  <div class="drop-zone" id="drop-zone">
+    <p>拖入 .md / .docx / .pdf 剧本文件，或点击选择</p>
+    <input type="file" id="file-input" accept=".md,.docx,.pdf" hidden />
+  </div>
+  <div id="file-status" class="status"></div>
+  <button type="button" id="btn-generate" class="btn btn-primary" disabled>生成卡片</button>
+  <div id="generate-status" class="status"></div>
+  <div id="generate-progress" class="progress" style="display:none;">
+    <div class="progress-text" id="progress-text">加载中...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+  <div id="cards-ready" class="cards-ready" style="display:none;">
+    <p id="cards-summary"></p>
+    <details class="cards-preview-wrap">
+      <summary>预览生成的卡片</summary>
+      <pre id="cards-preview" class="cards-preview"></pre>
+    </details>
+    <button type="button" id="btn-inject" class="btn btn-primary">注入平台</button>
+  </div>
+  <div id="inject-status" class="status"></div>
+  <script src="sidepanel.js"></script>
+</body>
+</html>

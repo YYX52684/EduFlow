@@ -87,6 +87,8 @@ EVALUATION_CONFIG = {
 
 # 豆包API配置（公司内网）
 DOUBAO_API_KEY = os.getenv("LLM_API_KEY")
+# 用户未在「设置」中填写 API Key 时使用的默认免费 Key（仅服务端，不暴露给前端）
+DEFAULT_FREE_DOUBAO_API_KEY = os.getenv("DEFAULT_FREE_DOUBAO_API_KEY")
 DOUBAO_BASE_URL = "http://llm-service.polymas.com/api/openai/v1"
 DOUBAO_MODEL = os.getenv("LLM_MODEL", "Doubao-1.5-pro-32k")
 DOUBAO_SERVICE_CODE = os.getenv("LLM_SERVICE_CODE", "SI_Ability")

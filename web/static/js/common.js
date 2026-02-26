@@ -144,7 +144,7 @@
     }
     var wl = document.getElementById('currentWorkspaceLabel');
     if (wl) wl.textContent = getWorkspaceId();
-    if (typeof window.refreshWorkspaceFileList === 'function') window.refreshWorkspaceFileList();
+    if (getAuthToken() && typeof window.refreshWorkspaceFileList === 'function') window.refreshWorkspaceFileList();
   }
   function getWorkspaceId() { return window.WORKSPACE_ID || ''; }
   window.syncWorkspaceFromUrl = syncWorkspaceFromUrl;
