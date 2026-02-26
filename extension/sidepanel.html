@@ -8,24 +8,11 @@
   <h1>EduFlow 卡片注入</h1>
   <div id="tab-status" class="tab-status"></div>
   <details id="eduflow-details" class="llm-details">
-    <summary>EduFlow 后端（默认使用 eduflows.cn，DSPy 生成）</summary>
+    <summary>EduFlow 后端（DSPy 生成）</summary>
     <div class="llm-fields">
       <label>API 地址（可选，默认已配置）</label>
       <input type="text" id="eduflow-api-url" placeholder="https://eduflows.cn" />
-      <p class="hint">默认使用 eduflows.cn。仅当本地部署时需修改。</p>
-    </div>
-  </details>
-  <details id="llm-details" class="llm-details">
-    <summary>LLM 直连配置（EduFlow 不可用时）</summary>
-    <div class="llm-fields">
-      <label>API 地址</label>
-      <input type="text" id="llm-url" placeholder="http://llm-service.polymas.com/api/openai/v1" />
-      <label>API Key</label>
-      <input type="password" id="llm-key" placeholder="与 .env 中 LLM_API_KEY 一致" autocomplete="off" />
-      <label>模型</label>
-      <input type="text" id="llm-model" placeholder="Doubao-1.5-pro-32k" />
-      <label>Service Code（可选）</label>
-      <input type="text" id="llm-service-code" placeholder="SI_Ability" />
+      <p class="hint">默认 eduflows.cn。若本地运行网站，建议改为 http://localhost:端口，可获得与网站相同的 DSPy 生成质量。</p>
     </div>
   </details>
   <div class="drop-zone" id="drop-zone">

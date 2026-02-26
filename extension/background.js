@@ -44,6 +44,8 @@ async function handleMessage(msg) {
       return llmCall(msg.payload);
     case "EXTRACT_NODES_FROM_PAGE":
       return extractNodesFromPage(sender);
+    case "LLM_CALL":
+      return { success: false, error: "插件已移除 LLM 直连，请使用 EduFlow 后端（DSPy）" };
     default:
       return { success: false, error: `Unknown message type: ${msg.type}` };
   }
