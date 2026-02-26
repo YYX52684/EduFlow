@@ -58,6 +58,13 @@ def get_llm_config(workspace_id: Optional[str] = None) -> dict:
     api_key = (cfg.get("api_key") or "").strip()
     if not api_key:
         api_key = (env_key_db if model_type == "doubao" else env_key_ds) or ""
+    # 用户未设置时，使用 .env 中已有的豆包 Key（LLM_API_KEY）作为默认，不向用户暴露
+    if not api_key and env_key_db:
+        api_key = (env_key_db or "").strip()
+        if api_key:
+            model_type = "doubao"
+            base_url = PRESETS["doubao"][0]
+            model_name = PRESETS["doubao"][1]
 
     return {
         "api_key": api_key,
@@ -85,7 +92,7 @@ def require_llm_config(workspace_id: Optional[str] = None) -> dict:
 
 @router.get("/config")
 def get_config(workspace_id: str = Depends(require_workspace_owned)):
-    """返回当前工作区 LLM 配置（用于设置页展示）。api_key 脱敏返回。"""
+    """返回当前工作区 LLM 配置（用于设置页展示）。api_key 脱敏返回，默认免费 Key 不暴露。"""
     path = _config_path(workspace_id)
     raw = {}
     if os.path.isfile(path):
@@ -94,16 +101,20 @@ def get_config(workspace_id: str = Depends(require_workspace_owned)):
                 raw = json.load(f)
         except Exception:
             pass
-    # 未保存时从 env 补全展示
-    from dotenv import load_dotenv
-    load_dotenv()
-    model_type = (raw.get("model_type") or os.getenv("MODEL_TYPE") or "deepseek").strip().lower()
-    if model_type not in PRESETS:
-        model_type = "deepseek"
-    base_url = (raw.get("base_url") or "").strip() or PRESETS[model_type][0]
-    model = (raw.get("model") or "").strip() or PRESETS[model_type][1]
-    api_key = (raw.get("api_key") or "").strip()
-    mask = (api_key[:8] + "…" + api_key[-4:]) if len(api_key) > 12 else ("已设置" if api_key else "")
+    raw_key = (raw.get("api_key") or "").strip()
+    llm = get_llm_config(workspace_id)
+    model_type = (llm.get("model_type") or "deepseek").strip().lower()
+    base_url = (llm.get("base_url") or "").rstrip("/") or PRESETS.get(model_type, PRESETS["deepseek"])[0]
+    model = (llm.get("model") or "").strip() or PRESETS.get(model_type, PRESETS["deepseek"])[1]
+    api_key = (llm.get("api_key") or "").strip()
+    env_key_db = (os.getenv("LLM_API_KEY") or "").strip()
+    using_default_free = bool(not raw_key and api_key and env_key_db and api_key == env_key_db)
+    if using_default_free:
+        mask = "默认体验（豆包）"
+    elif api_key:
+        mask = (api_key[:8] + "…" + api_key[-4:]) if len(api_key) > 12 else "已设置"
+    else:
+        mask = ""
     return {
         "model_type": model_type,
         "base_url": base_url,

@@ -1,0 +1,67 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  padding: 12px 14px;
+  color: #1a1a1a;
+  min-width: 280px;
+}
+h1 { font-size: 16px; margin: 0 0 12px 0; }
+.tab-status {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.tab-status.ok { background: #ecfdf5; color: #047857; }
+.tab-status.warn { background: #fffbeb; color: #b45309; }
+.llm-details {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+}
+.llm-details summary { cursor: pointer; font-size: 13px; }
+.llm-fields { margin-top: 8px; }
+.llm-fields label { display: block; margin: 6px 0 2px 0; font-size: 12px; color: #6b7280; }
+.llm-fields .hint { font-size: 12px; color: #6b7280; margin: 4px 0 0 0; }
+.llm-fields input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+.drop-zone {
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: #4f46e5; background: #f5f3ff; }
+.drop-zone p { margin: 0; font-size: 13px; color: #6b7280; }
+.btn { padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; border: none; width: 100%; }
+.btn-primary { background: #4f46e5; color: white; }
+.btn-primary:hover:not(:disabled) { background: #4338ca; }
+.btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+.status { margin-top: 8px; padding: 8px; border-radius: 6px; font-size: 13px; min-height: 1.2em; }
+.status.info { background: #eff6ff; color: #1e40af; }
+.status.success { background: #ecfdf5; color: #047857; }
+.status.error { background: #fef2f2; color: #b91c1c; }
+.progress { margin-top: 8px; }
+.progress-text { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+.progress-bar { height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: #4f46e5; transition: width 0.2s; width: 0%; }
+.cards-ready { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+.cards-ready p { margin: 0 0 10px 0; font-size: 13px; }
+.cards-preview-wrap { margin: 10px 0; }
+.cards-preview-wrap summary { cursor: pointer; font-size: 13px; color: #4f46e5; }
+.cards-preview {
+  margin-top: 6px; padding: 10px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+  font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto;
+}
+#btn-inject { margin-top: 8px; }

@@ -51,15 +51,11 @@ if _is_production:
         raise RuntimeError(
             "生产环境必须设置 JWT_SECRET，且不能使用默认值。请在 .env 中配置：JWT_SECRET=<随机长字符串>。"
         )
-elif JWT_SECRET == _JWT_DEFAULT:
-    import logging
-    logging.getLogger(__name__).warning(
-        "JWT_SECRET 未配置，当前使用默认值，仅适合开发。生产环境请设置 EDUFLOW_ENV=production 并在 .env 中配置 JWT_SECRET。"
-    )
+# 开发环境可使用默认密钥；生产环境必须在 .env 中配置 JWT_SECRET（见上方 production 分支）
 
 
 class RegisterBody(BaseModel):
-    """手机号、邮箱至少填其一；用户名可选（不填则自动生成）。"""
+    """仅支持邮箱注册；phone/username 保留为可选以兼容旧客户端，注册逻辑中不使用。"""
     phone: Optional[str] = None
     email: Optional[str] = None
     username: Optional[str] = None
@@ -73,7 +69,7 @@ class LoginBody(BaseModel):
 
 
 class ForgotPasswordBody(BaseModel):
-    """手机号或邮箱。"""
+    """邮箱（后端仍按 identifier 查用户）。"""
     identifier: str
 
 
@@ -159,32 +155,20 @@ def _check_email_format(email: str) -> None:
 
 @router.post("/register")
 def register(body: RegisterBody):
-    """注册：手机号或邮箱至少填其一，创建用户并分配工作区，返回 token 与 workspace_id。"""
-    phone = (body.phone or "").strip() or None
+    """注册：仅支持邮箱，创建用户并分配工作区，返回 token 与 workspace_id。"""
     email = (body.email or "").strip() or None
-    username = (body.username or "").strip() or None
     password = body.password or ""
-    if not phone and not email and not username:
-        raise ValidationError("请填写手机号、邮箱或用户名至少一项")
-    if phone:
-        _check_phone_format(phone)
-        if get_user_by_identifier(phone):
-            raise BadRequestError("该手机号已被注册")
-    if email:
-        _check_email_format(email)
-        if get_user_by_identifier(email):
-            raise BadRequestError("该邮箱已被注册")
-    if username:
-        if not _username_ok(username):
-            raise ValidationError("用户名仅允许字母、数字、中文、._-，且不超过 64 字符")
-        if get_user_by_username(username):
-            raise BadRequestError("用户名已被使用")
+    if not email:
+        raise ValidationError("请填写邮箱")
+    _check_email_format(email)
+    if get_user_by_identifier(email):
+        raise BadRequestError("该邮箱已被注册")
     if len(password) < 6:
         raise ValidationError("密码至少 6 位")
     password_hash = pwd_ctx.hash(password)
     try:
         user_id, workspace_id = create_user(
-            password_hash, username=username or None, phone=phone, email=email
+            password_hash, username=None, phone=None, email=email
         )
     except ValueError as e:
         raise BadRequestError(str(e))
@@ -202,14 +186,14 @@ def register(body: RegisterBody):
 
 @router.post("/login")
 def login(body: LoginBody):
-    """登录：手机号 / 邮箱 / 用户名 + 密码，返回 token 与 workspace_id。"""
+    """登录：identifier 为邮箱或用户名（后端均支持），返回 token 与 workspace_id。"""
     identifier = (body.identifier or "").strip()
     password = body.password or ""
     if not identifier or not password:
-        raise ValidationError("请输入手机号/邮箱/用户名和密码")
+        raise ValidationError("请输入邮箱和密码")
     user = get_user_by_identifier(identifier)
     if not user or not pwd_ctx.verify(password, user["password_hash"]):
-        raise UnauthorizedError("手机号/邮箱/用户名或密码错误")
+        raise UnauthorizedError("邮箱或密码错误")
     workspace_id = get_user_workspace(user["id"])
     display_name = (user.get("username") or user.get("phone") or user.get("email") or user["id"])[:64]
     token = _issue_token(user["id"], display_name)
@@ -228,9 +212,9 @@ def forgot_password(body: ForgotPasswordBody):
     """
     identifier = (body.identifier or "").strip()
     if not identifier:
-        raise ValidationError("请输入手机号或邮箱")
+        raise ValidationError("请输入邮箱")
     user = get_user_by_identifier(identifier)
-    out: dict = {"message": "若该账号存在，您将收到重置链接。请查收邮件或短信或联系管理员。"}
+    out: dict = {"message": "若该账号存在，您将收到重置链接。请查收邮件或联系管理员。"}
     if user:
         token = create_password_reset_token(user["id"])
         base_url = os.getenv("EDUFLOW_PUBLIC_URL", "").strip() or os.getenv("BASE_URL", "").strip()

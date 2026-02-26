@@ -29,8 +29,8 @@
         <button type="button" class="auth-tab" data-tab="forgot">找回密码</button>
       </div>
       <form id="loginForm" class="auth-form">
-        <label for="loginIdentifier">手机号 / 邮箱 / 用户名</label>
-        <input type="text" id="loginIdentifier" name="identifier" autocomplete="username" required placeholder="手机号、邮箱或用户名">
+        <label for="loginIdentifier">邮箱</label>
+        <input type="text" id="loginIdentifier" name="identifier" autocomplete="username" required placeholder="用于登录的邮箱">
         <label for="loginPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="请输入密码">
@@ -41,13 +41,8 @@
         <p class="auth-link-row"><a href="#" id="linkForgotPassword">忘记密码？</a></p>
       </form>
       <form id="registerForm" class="auth-form" style="display:none">
-        <p class="auth-hint" style="margin-bottom:0.5rem">手机号或邮箱至少填一项。</p>
-        <label for="registerPhone">手机号</label>
-        <input type="tel" id="registerPhone" name="phone" autocomplete="tel" placeholder="11 位中国大陆手机号">
         <label for="registerEmail">邮箱</label>
-        <input type="email" id="registerEmail" name="email" autocomplete="email" placeholder="用于登录与找回密码">
-        <label for="registerUsername">用户名（选填）</label>
-        <input type="text" id="registerUsername" name="username" autocomplete="username" placeholder="字母、数字、中文、._-">
+        <input type="email" id="registerEmail" name="email" autocomplete="email" required placeholder="用于登录与找回密码">
         <label for="registerPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="registerPassword" name="password" autocomplete="new-password" required placeholder="至少 6 位">
@@ -62,8 +57,8 @@
         <button type="submit" class="auth-submit">注册</button>
       </form>
       <form id="forgotForm" class="auth-form" style="display:none">
-        <label for="forgotIdentifier">手机号或邮箱</label>
-        <input type="text" id="forgotIdentifier" name="identifier" autocomplete="username" placeholder="请输入注册时使用的手机号或邮箱">
+        <label for="forgotIdentifier">邮箱</label>
+        <input type="text" id="forgotIdentifier" name="identifier" autocomplete="username" placeholder="请输入注册时使用的邮箱">
         <div id="forgotMsg" class="auth-msg err"></div>
         <div id="forgotSuccess" class="auth-msg ok" style="display:none"></div>
         <div id="forgotResetLink" class="auth-reset-link" style="display:none"></div>
@@ -87,7 +82,7 @@
         <button type="submit" class="auth-submit">确认并重置密码</button>
         <p class="auth-link-row"><a href="#" id="linkResetBackToLogin">返回登录</a></p>
       </form>
-      <p class="auth-link-row auth-skip"><a href="#" id="linkSkipAuth">暂不登录，继续使用</a></p>
+      <p class="auth-link-row auth-skip"><button type="button" id="btnSkipAuth" class="auth-skip-btn">暂不登录，继续使用</button></p>
     </div>
   </div>
   <aside id="localSidebar" class="local-sidebar">
@@ -363,7 +358,10 @@
     </div>
     <div class="sim-sidebar-body">
       <div class="workspace-files-subsection" style="margin-bottom:1rem;">
-        <div class="sim-progress-title">工作区文件</div>
+        <div class="sim-progress-title" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+          <span>工作区文件</span>
+          <button type="button" id="btnRefreshWorkspaceFiles" class="btn-secondary" style="font-size:0.8rem;padding:0.2rem 0.5rem;" title="刷新列表">刷新</button>
+        </div>
         <div id="workspaceFileList" class="file-list workspace-file-list" style="max-height:180px;overflow-y:auto;"></div>
       </div>
       <div class="sim-progress">
@@ -434,4 +432,6 @@
   <script src="/static/js/settings.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
+</html>
+
 </html>

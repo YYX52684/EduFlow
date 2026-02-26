@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { apiPostJson, ApiError } from "../utils/api";
+import { ApiError, apiPostJson } from "../utils/api";
 
 type Tab = "login" | "register";
 
@@ -43,13 +43,11 @@ export const AuthPage = () => {
   async function handleRegister(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const phone = String(form.get("phone") || "").trim();
     const email = String(form.get("email") || "").trim();
-    const username = String(form.get("username") || "").trim();
     const password = String(form.get("password") || "");
     const passwordAgain = String(form.get("password_again") || "");
-    if (!phone && !email) {
-      setMessage("请填写手机号或邮箱至少一项。");
+    if (!email) {
+      setMessage("请填写邮箱。");
       return;
     }
     if (password !== passwordAgain) {
@@ -59,11 +57,10 @@ export const AuthPage = () => {
     setPending(true);
     setMessage(null);
     try {
-      const body: Record<string, unknown> = { password };
-      if (phone) body.phone = phone;
-      if (email) body.email = email;
-      if (username) body.username = username;
-      const data = await apiPostJson<LoginResponse>("/auth/register", body);
+      const data = await apiPostJson<LoginResponse>("/auth/register", {
+        email,
+        password,
+      });
       localStorage.setItem("eduflow_token", data.token);
       setMessage("注册成功，正在刷新页面…");
       setTimeout(() => window.location.reload(), 600);
@@ -119,13 +116,13 @@ export const AuthPage = () => {
       {tab === "login" ? (
         <form onSubmit={handleLogin} className="stack-v" style={{ maxWidth: 420 }}>
           <label className="field-label" htmlFor="login-identifier">
-            手机号 / 邮箱 / 用户名
+            邮箱
           </label>
           <input
             id="login-identifier"
             name="identifier"
             className="field-input"
-            placeholder="手机号、邮箱或用户名"
+            placeholder="用于登录的邮箱"
             autoComplete="username"
             required
           />
@@ -164,19 +161,8 @@ export const AuthPage = () => {
           style={{ maxWidth: 420 }}
         >
           <p className="hint">
-            手机号或邮箱至少填一项，注册成功后会自动登录。
+            使用邮箱注册，注册成功后会自动登录。
           </p>
-          <label className="field-label" htmlFor="reg-phone">
-            手机号
-          </label>
-          <input
-            id="reg-phone"
-            name="phone"
-            className="field-input"
-            placeholder="11 位中国大陆手机号"
-            autoComplete="tel"
-          />
-
           <label className="field-label" htmlFor="reg-email">
             邮箱
           </label>
@@ -187,17 +173,7 @@ export const AuthPage = () => {
             className="field-input"
             placeholder="用于登录与找回密码"
             autoComplete="email"
-          />
-
-          <label className="field-label" htmlFor="reg-username">
-            用户名（选填）
-          </label>
-          <input
-            id="reg-username"
-            name="username"
-            className="field-input"
-            placeholder="字母、数字、中文、._-"
-            autoComplete="username"
+            required
           />
 
           <label className="field-label" htmlFor="reg-password">

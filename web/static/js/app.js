@@ -781,8 +781,8 @@
     var workspaceFilesCache = { input: [], output: [] };
     function refreshWorkspaceFileList() {
       Promise.all([
-        apiFetch('/api/input/files').then(function(r) { return safeResponseJson(r); }),
-        apiFetch('/api/output/files').then(function(r) { return safeResponseJson(r); })
+        apiFetch('/api/input/files').then(function(r) { if (r.status === 401 && window.showAuthScreen) window.showAuthScreen(); return safeResponseJson(r); }),
+        apiFetch('/api/output/files').then(function(r) { if (r.status === 401 && window.showAuthScreen) window.showAuthScreen(); return safeResponseJson(r); })
       ]).then(function(results) {
         var inputList = (results[0] && results[0].files) ? results[0].files : [];
         var outputList = (results[1] && results[1].files) ? results[1].files : [];
@@ -865,6 +865,8 @@
       }
       updatePathDatalists();
     }
+    var btnRefreshWorkspaceFiles = document.getElementById('btnRefreshWorkspaceFiles');
+    if (btnRefreshWorkspaceFiles) btnRefreshWorkspaceFiles.onclick = refreshWorkspaceFileList;
     function updatePathDatalists() {
       var out = workspaceFilesCache.output || [];
       var cardsDl = document.getElementById('cardsPathOptions');
@@ -875,7 +877,6 @@
         }).join('');
       }
     }
-    refreshWorkspaceFileList();
 
     (function initHistoryFilesModal() {
       var modal = document.getElementById('historyFilesModal');
@@ -973,7 +974,10 @@
       }
 
       function loadHistoryFiles() {
-        apiFetch('/api/output/files?with_mtime=1').then(function(r) { return safeResponseJson(r); }).then(function(d) {
+        apiFetch('/api/output/files?with_mtime=1').then(function(r) {
+          if (r.status === 401 && window.showAuthScreen) window.showAuthScreen();
+          return safeResponseJson(r);
+        }).then(function(d) {
           historyFilesCache = (d && d.files) ? d.files : [];
           renderAll();
         }).catch(function() {
@@ -1047,6 +1051,7 @@
       var msgEl = document.getElementById('configMsg');
       try {
         const r = await apiFetch('/api/platform/config');
+        if (r.status === 401) { if (msgEl) msgEl.textContent = ''; if (window.showAuthScreen) window.showAuthScreen(); return; }
         const d = await safeResponseJson(r);
         if (r.status === 403 || r.status === 400) { if (msgEl) msgEl.textContent = ''; return; }
         if (!r.ok) throw new Error(d.message || d.detail || JSON.stringify(d));
@@ -1102,7 +1107,13 @@
         msg.innerHTML = '<span class="err">' + (e.message || String(e)) + '</span>';
       }
     };
-    fetchPlatformConfig();
+    (function initPlatformConfigOnDemand() {
+      var fetched = false;
+      function maybeFetch() { if (!fetched) { fetched = true; fetchPlatformConfig(); } }
+      ['cfgLoadUrl', 'cfgAuthorization', 'cfgCookie', 'cfgStartNodeId', 'cfgEndNodeId'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) el.addEventListener('focus', maybeFetch, { once: true });
+      });
+    })();
 
     document.getElementById('btnRunOptimizer').onclick = async function() {
       const msg = document.getElementById('optimizerMsg');

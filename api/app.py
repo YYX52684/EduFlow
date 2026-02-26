@@ -34,6 +34,7 @@ from .routes import (
     projects,
     llm_config,
     auth,
+    extension,
 )
 from .exceptions import EduFlowError
 from .middleware import RequestIDMiddleware, get_request_id
@@ -132,6 +133,7 @@ app.include_router(optimizer.router, prefix="/api/optimizer", tags=["optimizer"]
 app.include_router(closed_loop.router, prefix="/api/closed-loop", tags=["closed-loop"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(llm_config.router, prefix="/api/llm", tags=["llm"])
+app.include_router(extension.router, prefix="/api/extension", tags=["extension"])
 
 web_dir = os.path.join(_ROOT, "web", "static")
 legacy_index_path = os.path.join(web_dir, "index.html")

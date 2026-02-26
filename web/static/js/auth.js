@@ -53,8 +53,16 @@
     if (linkForgot) linkForgot.onclick = function(e) { e.preventDefault(); showTab('forgot'); };
     var linkBackToLogin = document.getElementById('linkBackToLogin');
     if (linkBackToLogin) linkBackToLogin.onclick = function(e) { e.preventDefault(); showTab('login'); };
-    var linkSkipAuth = document.getElementById('linkSkipAuth');
-    if (linkSkipAuth) linkSkipAuth.onclick = function(e) { e.preventDefault(); hideAuthScreen(); };
+    var btnSkipAuth = document.getElementById('btnSkipAuth');
+    if (btnSkipAuth) {
+      btnSkipAuth.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        try { sessionStorage.setItem('eduflow_skip_auth', '1'); } catch (err) {}
+        hideAuthScreen();
+        syncWorkspaceFromUrl();
+      };
+    }
     var linkResetBackToLogin = document.getElementById('linkResetBackToLogin');
     if (linkResetBackToLogin) linkResetBackToLogin.onclick = function(e) {
       e.preventDefault();
@@ -91,7 +99,7 @@
         if (forgotMsg) forgotMsg.textContent = '';
         if (forgotSuccess) forgotSuccess.style.display = 'none';
         if (forgotResetLink) forgotResetLink.style.display = 'none';
-        if (!id) { if (forgotMsg) forgotMsg.textContent = '请输入手机号或邮箱'; return; }
+        if (!id) { if (forgotMsg) forgotMsg.textContent = '请输入邮箱'; return; }
         var base = getApiBase().replace(/\/$/, '');
         try {
           var r = await fetch(base + '/api/auth/forgot-password', {
@@ -175,14 +183,12 @@
     if (registerForm) {
       registerForm.onsubmit = async function(e) {
         e.preventDefault();
-        var phone = document.getElementById('registerPhone').value.trim();
         var email = document.getElementById('registerEmail').value.trim();
-        var u = document.getElementById('registerUsername').value.trim();
         var p = document.getElementById('registerPassword').value;
         var pAgain = document.getElementById('registerPasswordAgain').value;
         if (registerMsg) registerMsg.textContent = '';
-        if (!phone && !email) {
-          if (registerMsg) registerMsg.textContent = '请填写手机号或邮箱至少一项。';
+        if (!email) {
+          if (registerMsg) registerMsg.textContent = '请填写邮箱。';
           return;
         }
         if (p !== pAgain) {
@@ -190,10 +196,7 @@
           return;
         }
         var base = getApiBase().replace(/\/$/, '');
-        var body = { password: p };
-        if (phone) body.phone = phone;
-        if (email) body.email = email;
-        if (u) body.username = u;
+        var body = { email: email, password: p };
         try {
           var r = await fetch(base + '/api/auth/register', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

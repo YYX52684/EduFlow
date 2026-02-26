@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "EduFlow 智慧树卡片注入",
+  "version": "1.0.0",
+  "description": "在智慧树能力训练配置页，选择剧本文件即可自动生成并注入教学卡片，零配置",
+  "permissions": ["cookies", "storage", "activeTab", "sidePanel", "scripting"],
+  "host_permissions": [
+    "https://hike-teaching-center.polymas.com/*",
+    "https://cloudapi.polymas.com/*",
+    "http://llm-service.polymas.com/*",
+    "https://api.deepseek.com/*",
+    "https://eduflows.cn/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*/*"
+  ],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [{
+    "matches": [
+      "https://hike-teaching-center.polymas.com/*ability-training*",
+      "https://hike-teaching-center.polymas.com/*ability*training*"
+    ],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }],
+  "action": {"default_title": "EduFlow 智慧树卡片注入"},
+  "side_panel": {"default_path": "sidepanel.html"},
+  "web_accessible_resources": [{"resources": ["lib/*"], "matches": []}]
+}
