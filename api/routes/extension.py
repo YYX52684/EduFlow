@@ -54,8 +54,8 @@ async def upload_and_generate(file: UploadFile = File(...)):
             return {"error": "未能分析出有效阶段，请检查剧本内容"}
 
         frameworks = list_frameworks()
-        framework_id = CARD_GENERATOR_TYPE
-        if not framework_id or not any(m["id"] == framework_id for m in frameworks):
+        framework_id = "dspy" if any(m["id"] == "dspy" for m in frameworks) else (CARD_GENERATOR_TYPE or "default")
+        if not any(m["id"] == framework_id for m in frameworks):
             framework_id = frameworks[0]["id"] if frameworks else "default"
 
         GeneratorClass, _ = get_framework(framework_id)

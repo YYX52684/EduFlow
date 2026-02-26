@@ -7,6 +7,7 @@ DSPy 优化 API。
 - 具体业务逻辑委托给 `api.services.optimizer_service`。
 """
 import json
+import os
 import threading
 import queue
 import asyncio
