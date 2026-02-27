@@ -65,7 +65,7 @@ pytest tests/ -v
 
 5. **配置环境变量**
 
-复制 `.env.example` 为 `.env`，并填写配置（`.env` 含 API Key，**不要提交到 Git**；给同事时可私下发一份或让她按说明自建）：
+复制 `.env.example` 为 `.env`，并填写配置：
 
 ```env
 # LLM API配置（必填）
@@ -175,74 +175,5 @@ python main.py --inject-only "output/cards_output_xxx.md"
 ### 4. Web 交互（可选）
 
 在项目根目录启动 Web 服务后，用浏览器操作：上传剧本分析、生成卡片、模拟测试、评估与注入等。
-
-```bash
-# 本机使用（默认 HTTP）
-python run_web.py
-```
-
-- 打开浏览器会跳转到 **工作区地址**（如 `http://localhost:8000/w/abc123`），每人一个工作区，上传与生成的文件、平台配置均隔离在 `workspaces/<工作区ID>/` 下，互不影响。
-- 本机访问：`http://localhost:8000/` 或 `http://127.0.0.1:8000/`，API 文档：`http://localhost:8000/docs`。
-
-**开放给同事使用**：三种方式（本机局域网、服务器部署、同事本地跑）及步骤见 **[docs/开放给同事使用.md](docs/开放给同事使用.md)**。
-
-**分享给同事（同一局域网）：**
-
-- 启动后终端会打印 **同事访问地址**（如 `http://192.168.x.x:8000`），同事用该地址打开即可（会得到自己的 `/w/xxx` 工作区）。
-- 若同事需要用到 **「选择目录」** 上传（浏览器安全策略要求 HTTPS 或 localhost），请用 HTTPS 启动：
-  ```bash
-  pip install cryptography   # 首次使用 --https 时需安装
-  python run_web.py --https
-  ```
-  同事访问 `https://你的IP:8000`，浏览器提示证书不受信任时点「高级」→「继续访问」即可。
-- 若本机有防火墙，需放行 8000 端口或允许 Python 访问网络。
-
-**正式网站部署（大家共用一个站点、工作互不影响）：**
-
-- 将服务部署到一台服务器（公司内网或云主机），所有人访问同一网址（如 `https://eduflow.公司.com`）。
-- 每人首次打开会得到唯一的工作区 URL（如 `https://eduflow.公司.com/w/abc123`），收藏该地址即可；上传、生成、平台配置均只在该工作区内，互不干扰。
-- **详细步骤**（直接运行、Docker、Nginx + HTTPS）见 **[DEPLOY.md](DEPLOY.md)**。
-
-**同事各自本地跑一份：**
-
-- 你把项目推到 Git，同事 `git clone` 后在本机执行上述安装与配置（含 `.env`），再运行 `python run_web.py`。数据在本机，与服务器或你本机完全独立。
-
-更多说明见 [docs/operations.md](docs/operations.md) 第十一节。
-
-### 5. Docker 部署（可选）
-
-```bash
-# 构建镜像（项目根目录）
-docker build -t eduflow .
-
-# 运行：需提供 .env 或环境变量（至少 DEEPSEEK_API_KEY）
-docker run -p 8000:8000 --env-file .env -v "$(pwd)/workspaces:/app/workspaces" eduflow
-```
-
-- 访问 `http://localhost:8000/` 或 `http://<服务器IP>:8000/`。挂载 `workspaces` 可将工作区数据持久化到宿主机。
-
-## 卡片编辑与试玩
-
-在 Web 内直接编辑卡片 Markdown，无需导出到平台即可试玩：加载 output 下卡片 → 在编辑器中修改 → 保存或**一键试玩**（用当前内容直接跑仿真）。减少「导出→平台→体验→再改」的往返。
-
-## 闭环优化
-
-闭环优化实现「生成 → 仿真 → 评估」自动迭代，无需外部平台人工评估：
-
-1. **单次闭环**：对已有卡片运行「仿真 + 评估」，并保存为优化器导出文件
-   - Web：第 3 步点击「闭环运行」
-   - API：`POST /api/closed-loop/run`，body: `{ "cards_path": "...", "save_to_export": true }`
-
-2. **优化器闭环模式**：DSPy 优化时每轮自动仿真+评估
-   - CLI：`python run_optimizer.py --auto-eval`
-   - Web：第 6 步勾选「闭环模式（仿真+评估替代外部评估）」
-
-## 注意事项
-
-- 生成的卡片以语音形式与学生沟通，内容会自动控制在合适的长度
-- 严禁在卡片中使用括号描写（心理、动作等），会影响语音体验
-- 建议先使用 `--preview` 预览分析结果，再进行完整生成
-
-## 许可证
 
 MIT License
