@@ -85,17 +85,17 @@ EVALUATION_CONFIG = {
     "target_total_score": int(os.getenv("EVALUATION_TARGET_SCORE", "100")),
 }
 
-# 豆包API配置（公司内网）
+# 豆包API配置（公司内网，作为默认主力模型）
 DOUBAO_API_KEY = os.getenv("LLM_API_KEY")
 # 用户未在「设置」中填写 API Key 时使用的默认免费 Key（仅服务端，不暴露给前端）
 DEFAULT_FREE_DOUBAO_API_KEY = os.getenv("DEFAULT_FREE_DOUBAO_API_KEY")
-DOUBAO_BASE_URL = "http://llm-service.polymas.com/api/openai/v1"
+DOUBAO_BASE_URL = "https://llm-service.polymas.com/api/openai/v1"
 DOUBAO_MODEL = os.getenv("LLM_MODEL", "Doubao-1.5-pro-32k")
 DOUBAO_SERVICE_CODE = os.getenv("LLM_SERVICE_CODE", "SI_Ability")
 
 # 模型选择配置
-# 可选值: "deepseek" (DeepSeek API), "doubao" (豆包API)
-DEFAULT_MODEL_TYPE = os.getenv("MODEL_TYPE", "deepseek")
+# 可选值: "doubao" (豆包API，默认), "deepseek" (DeepSeek API)
+DEFAULT_MODEL_TYPE = os.getenv("MODEL_TYPE", "doubao")
 
 # 卡片类型可扩展：解析允许的类型字母、执行顺序、会话角色（dialogue=对话卡，transition=过渡卡）
 CARD_TYPES = os.getenv("CARD_TYPES", "AB")  # 允许的卡片类型字母，如 "AB" 或 "ABC"
@@ -105,21 +105,11 @@ CARD_TYPE_ROLE = {
 }  # 可从环境变量扩展，如 CARD_TYPE_ROLE_C=dialogue；首期仅 A/B 生效
 CARD_SEQUENCE_ORDER = os.getenv("CARD_SEQUENCE_ORDER", "AB").strip() or "AB"  # 每阶段内卡片类型顺序
 
-# DSPy 优化 + 外部评估指标配置
+# DSPy 优化配置（闭环仿真 + 内部评估）
 OPTIMIZER_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output", "optimizer")
 os.makedirs(OPTIMIZER_OUTPUT_DIR, exist_ok=True)
 
 DSPY_OPTIMIZER_CONFIG = {
-    # 闭环模式（默认）：True 时以仿真+评估替代外部平台人工评估
-    "use_auto_eval": os.getenv("DSPY_USE_AUTO_EVAL", "true").lower() in ("true", "1", "yes"),
-    # 导出文件路径（外部平台评估结果）
-    "export_file_path": os.getenv("DSPY_EXPORT_FILE", os.path.join(OPTIMIZER_OUTPUT_DIR, "export_score.json")),
-    # 解析器: json | csv | custom
-    "parser": os.getenv("DSPY_EXPORT_PARSER", "json"),
-    # JSON 分数字段名
-    "json_score_key": os.getenv("DSPY_JSON_SCORE_KEY", "total_score"),
-    # CSV 分数列名（可选）
-    "csv_score_column": os.getenv("DSPY_CSV_SCORE_COLUMN") or None,
     # 生成卡片输出路径（每轮优化写入）
     "cards_output_path": os.getenv("DSPY_CARDS_OUTPUT", os.path.join(OPTIMIZER_OUTPUT_DIR, "cards_for_eval.md")),
     # 优化器类型: bootstrap | mipro

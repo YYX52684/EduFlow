@@ -52,7 +52,8 @@ def generate_personas(
             if verbose:
                 print(f"  优势: {', '.join(persona.strengths[:3])}")
                 print(f"  不足: {', '.join(persona.weaknesses[:2])}")
-        saved_paths = generator.save_personas(personas, output_dir)
+        source_basename = os.path.splitext(os.path.basename(input_path))[0]
+        saved_paths = generator.save_personas(personas, output_dir, source_basename=source_basename)
         print("\n" + "-" * 40)
         print("已保存角色配置文件:")
         print("-" * 40)

@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 router = APIRouter()
 
 from simulator import evaluate_session
-from simulator.evaluator import EvaluatorFactory
+from simulator.evaluator import EvaluatorFactory, Evaluator
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs, get_workspace_dirs, resolve_workspace_path
 from api.exceptions import BadRequestError, LLMError
@@ -91,6 +91,21 @@ def _write_export_files(report, output_dir: str) -> str:
     return "output/optimizer/export_score.json"
 
 
+def _create_workspace_evaluator(workspace_id: str) -> Evaluator:
+    """基于当前工作区 LLM 配置创建评估器，使评估与仿真/生成使用同一模型。"""
+    from api.routes.llm_config import require_llm_config, build_chat_completions_url
+
+    llm = require_llm_config(workspace_id)
+    api_url = build_chat_completions_url(llm.get("base_url") or "")
+    config = {
+        "api_url": api_url,
+        "api_key": llm.get("api_key") or "",
+        "model": llm.get("model") or "",
+        "service_code": "",
+    }
+    return Evaluator(config)
+
+
 @router.post("/evaluate")
 def evaluate(req: EvaluateByPathRequest, workspace_id: str = Depends(require_workspace_owned)):
     """根据当前工作区内会话日志路径评估，返回报告。可选保存为导出文件供优化器使用。"""
@@ -100,7 +115,15 @@ def evaluate(req: EvaluateByPathRequest, workspace_id: str = Depends(require_wor
         _, output_dir, _ = get_workspace_dirs(workspace_id)
         out_dir = os.path.join(output_dir, req.output_dir)
     try:
-        report = evaluate_session(path, output_dir=out_dir)
+        # 加载日志并使用当前工作区 LLM 配置评估
+        with open(path, "r", encoding="utf-8") as f:
+            log_data = json.load(f)
+        dialogue = log_data.get("dialogue", [])
+        session_id = log_data.get("session_id", "unknown")
+        evaluator = _create_workspace_evaluator(workspace_id)
+        report = evaluator.evaluate(dialogue, session_id=session_id)
+        if out_dir:
+            evaluator.save_report(report, out_dir)
         result = report.to_dict()
         if req.save_to_export:
             _, project_output, _ = get_project_dirs(workspace_id)
@@ -127,7 +150,7 @@ async def evaluate_from_file(
     except BadRequestError:
         raise
     try:
-        evaluator = EvaluatorFactory.create_from_env()
+        evaluator = _create_workspace_evaluator(workspace_id)
         report = evaluator.evaluate(dialogue, session_id=session_id)
         result = report.to_dict()
         if save_to_export:
@@ -140,10 +163,13 @@ async def evaluate_from_file(
 
 
 @router.post("/evaluate/from-dialogue")
-def evaluate_from_dialogue(req: EvaluateByBodyRequest):
-    """根据请求体中的 dialogue 与 session_id 直接评估。"""
+def evaluate_from_dialogue(
+    req: EvaluateByBodyRequest,
+    workspace_id: str = Depends(require_workspace_owned),
+):
+    """根据请求体中的 dialogue 与 session_id 直接评估。需登录并具备当前工作区访问权限。"""
     try:
-        evaluator = EvaluatorFactory.create_from_env()
+        evaluator = _create_workspace_evaluator(workspace_id)
         report = evaluator.evaluate(req.dialogue, session_id=req.session_id)
         return report.to_dict()
     except Exception as e:

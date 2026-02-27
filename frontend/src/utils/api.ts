@@ -139,3 +139,92 @@ export function apiPostJson<T = unknown>(
   });
 }
 
+/** SSE 流式请求：POST JSON body，解析 event/data 行，回调 onProgress/onDone/onError */
+export async function apiPostSSE(
+  path: string,
+  payload: unknown,
+  callbacks: {
+    onProgress?: (data: { percent?: number; message?: string; phase?: string }) => void;
+    onDone?: (data: unknown) => void;
+    onError?: (detail: string) => void;
+  },
+): Promise<void> {
+  const token = getAuthToken();
+  const wid = getWorkspaceIdFromPath(window.location.pathname || "/");
+  const encodedWid = encodeWorkspaceIdForHeader(wid);
+
+  const url = path.startsWith("/api")
+    ? path
+    : path.startsWith("/")
+      ? `/api${path}`
+      : `/api/${path}`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(encodedWid || wid ? { "X-Workspace-Id": encodedWid || wid } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    let json: { detail?: string; message?: string } | null = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      // ignore
+    }
+    const msg = json?.detail || json?.message || text || `请求失败 (${resp.status})`;
+    callbacks.onError?.(msg);
+    throw new ApiError(resp.status, json as ApiErrorBody | null, msg);
+  }
+
+  const reader = resp.body?.getReader();
+  if (!reader) {
+    callbacks.onError?.("无响应体");
+    return;
+  }
+
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const chunks = buf.split("\n\n");
+    buf = chunks.pop() || "";
+
+    for (const chunk of chunks) {
+      let event: string | null = null;
+      let data: string | null = null;
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7).trim();
+        else if (line.startsWith("data: ")) data = line.slice(6);
+      }
+      if (!event || !data) continue;
+      try {
+        const d = JSON.parse(data) as Record<string, unknown>;
+        if (event === "progress") {
+          callbacks.onProgress?.(d as { percent?: number; message?: string; phase?: string });
+        } else if (event === "done") {
+          callbacks.onDone?.(d);
+          return;
+        } else if (event === "error") {
+          callbacks.onError?.((d.detail as string) || data);
+          return;
+        }
+      } catch (e) {
+        if (event === "error") {
+          callbacks.onError?.(data || "未知错误");
+          return;
+        }
+        // 非 error 事件的 JSON 解析失败则忽略
+      }
+    }
+  }
+}
+

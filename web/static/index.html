@@ -85,27 +85,6 @@
       <p class="auth-link-row auth-skip"><button type="button" id="btnSkipAuth" class="auth-skip-btn">暂不登录，继续使用</button></p>
     </div>
   </div>
-  <aside id="localSidebar" class="local-sidebar">
-    <div class="sidebar-head">
-      <button type="button" id="sidebarCollapseBtn" class="sidebar-collapse-btn" title="收起侧边栏" aria-label="收起侧边栏">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/></svg>
-      </button>
-      <div class="sidebar-workspace-row" style="display:none">工作区：<span id="currentWorkspaceLabel" class="sidebar-workspace-name"></span></div>
-      <div class="sidebar-folder-row">当前文件夹：<span id="sidebarCurrentFolder" class="breadcrumb">未选择</span></div>
-      <button type="button" id="btnPickLocalDir">选择本地目录</button>
-      <div id="dirPickerTip" class="file-list-item err" style="display:none; margin-top:0.35rem; font-size:0.85em;"></div>
-    </div>
-    <div id="localPanel" class="sidebar-panel">
-      <div id="localFileList" class="file-list">请先选择本地目录</div>
-    </div>
-    <div class="sidebar-foot">
-      <div id="localSelected" class="local-selected"></div>
-    </div>
-  </aside>
-  <div id="sidebarResizeHandle" class="sidebar-resize-handle" title="拖拽调整宽度"></div>
-  <button type="button" id="sidebarExpandTab" class="sidebar-expand-tab" title="展开侧边栏" aria-label="展开侧边栏">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="16" y1="4" x2="16" y2="20"/></svg>
-  </button>
   <div id="historyFilesModal" class="modal-overlay" aria-hidden="true">
     <div class="modal-panel history-files-panel">
       <div class="preview-header">
@@ -145,7 +124,7 @@
         <button type="button" id="btnCloseSettings" class="modal-close btn-icon">×</button>
         <div id="settingsPageLlm" class="settings-panel-page active">
           <h3>API 与模型</h3>
-          <p class="hint">解析剧本、生成卡片、Trainset 构建与迭代优化均使用此处配置。请填写您自己的 API Key。</p>
+          <p class="hint">解析剧本、生成卡片与迭代优化均使用此处配置。请填写您自己的 API Key。</p>
           <label>API Key</label>
           <input type="password" id="llmApiKey" placeholder="留空则保持已保存的值" autocomplete="off">
           <span id="llmApiKeyMasked" class="hint"></span>
@@ -298,7 +277,7 @@
     <p>配置写入当前工作区后，「执行注入」将使用此配置。输入 URL、JWT、Cookie、开始/结束节点后点击「加载配置」即可。</p>
     <h3 style="font-size:1rem;margin:0 0 0.5rem 0;color:var(--natsume-ink);">平台配置</h3>
     <label>智慧树页面 URL（可从 URL 提取课程/任务 ID）</label>
-    <input type="text" id="cfgLoadUrl" placeholder="https://hike-teaching-center.polymas.com/.../ability-training/create?trainTaskId=xxx">
+    <input type="text" id="cfgLoadUrl" placeholder="能力训练界面URL">
     <label>JWT（PLATFORM_AUTHORIZATION）</label>
     <input type="text" id="cfgAuthorization" placeholder="">
     <label>Cookie</label>
@@ -310,30 +289,16 @@
     <div class="gen-cards-row" style="margin-top:0.5rem;">
       <button type="button" id="btnLoadConfig" class="btn-primary">加载配置</button>
     </div>
-    <details id="platformConfigAdvanced" style="margin-top:0.6rem;border:1px solid var(--natsume-border);border-radius:8px;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.3);">
-      <summary style="cursor:pointer;font-size:0.9rem;color:var(--natsume-ink-light);">高级：base_url、课程 ID、任务 ID</summary>
-      <div style="margin-top:0.6rem;">
-        <label>PLATFORM_BASE_URL</label>
-        <input type="text" id="cfgBaseUrl" placeholder="https://cloudapi.polymas.com">
-        <label>PLATFORM_COURSE_ID</label>
-        <input type="text" id="cfgCourseId" placeholder="从 URL 提取或手动填写课程 ID" autocomplete="off" value="">
-        <label>PLATFORM_TRAIN_TASK_ID</label>
-        <input type="text" id="cfgTrainTaskId" placeholder="从 URL 提取或手动填写任务 ID" autocomplete="off" value="">
-      </div>
-    </details>
     <div id="configMsg" class="msg"></div>
 
     <h3 style="font-size:1rem;margin:1.25rem 0 0.5rem 0;color:var(--natsume-ink);">注入平台</h3>
-    <p class="hint" style="margin-top:0;">将卡片 Markdown 推送到智慧树；请先保存上方配置。</p>
-    <label>卡片文件（从右侧工作区文件拖入或点击文件填入）</label>
+    <p class="hint" style="margin-top:0;"></p>
+    <label>卡片文件</label>
     <input type="text" id="injectCardsPath" class="path-drop-target" placeholder="从工作区文件列表拖入或点击文件填入">
     <label>任务名称（可选）</label>
     <input type="text" id="injectTaskName" placeholder="">
     <label>任务描述（可选）</label>
     <input type="text" id="injectDescription" placeholder="">
-    <label style="display:flex;align-items:center;gap:0.4rem;">
-      <input type="checkbox" id="injectOverwrite"> 覆写平台现有卡片（若已存在则默认阻止）
-    </label>
     <div class="gen-cards-row" style="margin-top:0.5rem;">
       <button id="btnInjectPreview">预览注入</button>
       <button id="btnInjectRun">执行注入</button>
@@ -388,18 +353,7 @@
           <button type="button" id="btnEditPersona" class="btn-secondary" title="编辑当前人设">编辑人设</button>
           <button type="button" id="btnAddNewPersona" class="btn-secondary" title="添加新人设">添加新人设</button>
         </div>
-        <div style="margin-top:0.6rem;">
-          <label class="opt-checkbox-wrap"><input type="checkbox" id="optimizerUseExternalEval" class="opt-checkbox"> 使用外部评估报告</label>
-        </div>
-        <p class="hint" style="font-size:0.8rem;margin:0.25rem 0 0;">未勾选时默认闭环运行（仿真+评估）。</p>
-        <div id="optimizerExternalEvalWrap" style="display:none;margin-top:0.5rem;padding:0.5rem;background:var(--natsume-bg);border:1px solid var(--natsume-border);border-radius:8px;">
-          <div class="upload-report-wrap" style="margin-top:0;">
-            <label>上传外部评估报告</label>
-            <div id="exportReportDropZone" class="drop-zone" style="max-width:100%;">将 .md / .json / .txt 报告拖至此处或点击选取</div>
-            <input type="file" id="exportReportFile" accept=".md,.json,.txt" style="display:none">
-            <div id="uploadExportReportMsg" class="msg"></div>
-          </div>
-        </div>
+        <p class="hint" style="font-size:0.8rem;margin:0.25rem 0 0;"></p>
         <label style="margin-top:0.4rem;">优化器</label>
         <select id="optimizerType" style="width:100%;"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
         <div class="btn-row-right" style="margin-top:0.5rem;">
@@ -432,6 +386,8 @@
   <script src="/static/js/settings.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
+</html>
+
 </html>
 
 </html>

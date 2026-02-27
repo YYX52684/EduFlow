@@ -3,19 +3,20 @@
 
 将内部仿真与评估作为 DSPy 优化器的自动 metric，替代外部平台人工评估，
 实现「生成 → 仿真 → 评估」闭环，使卡片质量随迭代提升。
+支持三档人设（优秀/一般/较差）并行仿真，取均值作为评估得分。
 """
 
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable, List, Tuple
-
-from .external_metric import load_config_from_dict
 
 
 def _build_llm_config(api_key: str, model_type: str) -> Tuple[dict, dict]:
     """根据 model_type 构建仿真器与评估器的 LLM 配置。"""
-    model_type = (model_type or "deepseek").lower()
+    from config import DEFAULT_MODEL_TYPE
+    model_type = (model_type or DEFAULT_MODEL_TYPE).lower()
     if model_type == "doubao":
         from config import DOUBAO_BASE_URL, DOUBAO_MODEL, DOUBAO_SERVICE_CODE
         base_url = (DOUBAO_BASE_URL or "").rstrip("/")
@@ -40,7 +41,7 @@ def run_simulate_and_evaluate(
     cards_path: str,
     output_dir: str,
     api_key: str,
-    model_type: str = "deepseek",
+    model_type: str = "doubao",
     persona_id: str = "excellent",
     max_rounds_per_card: Optional[int] = None,
     total_max_rounds: Optional[int] = None,
@@ -139,8 +140,9 @@ def make_auto_metric(
     export_path: str,
     export_config: Optional[Dict[str, Any]] = None,
     api_key: Optional[str] = None,
-    model_type: str = "deepseek",
+    model_type: str = "doubao",
     persona_id: str = "excellent",
+    persona_ids: Optional[List[str]] = None,
     output_dir: Optional[str] = None,
     prompt_user: bool = False,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
@@ -151,15 +153,16 @@ def make_auto_metric(
 
     行为：将 pred.cards 写入 output_cards_path，运行仿真 + 评估，
     将报告写入 export_path，并返回 total_score。
-    替代外部平台人工评估，实现闭环。
+    若 persona_ids 为多个人设，则并行运行三档（优秀/一般/较差）仿真，取均值作为最终得分。
 
     Args:
         output_cards_path: 生成卡片写入路径
         export_path: 评估报告导出路径（JSON，含 total_score）
-        export_config: 传给 external_metric 的配置（可选）
+        export_config: 预留参数（当前闭环模式下未使用，可传 None）
         api_key: LLM API 密钥（不传则从 config 取）
         model_type: "doubao" | "deepseek"
-        persona_id: 学生人设
+        persona_id: 单一人设（persona_ids 为空时使用，兼容旧逻辑）
+        persona_ids: 多个人设 ID，如 ["excellent","average","struggling"]，并行运行取均值
         output_dir: 仿真输出目录（默认在 optimizer 下创建 closed_loop_sim）
         prompt_user: 是否打印提示（闭环模式下通常为 False）
     """
@@ -175,6 +178,27 @@ def make_auto_metric(
     os.makedirs(sim_output, exist_ok=True)
     _progress_count = [0]  # mutable for closure
 
+    # 三档人设并行时使用，否则单一人设
+    ids_to_run = persona_ids if persona_ids and len(persona_ids) > 1 else [persona_id]
+
+    def _run_one(persona: str, cards_path: str, out_subdir: str) -> Tuple[Optional[float], Optional[Any], Optional[Any]]:
+        """单个人设的仿真+评估，返回 (score, log, report)。"""
+        try:
+            log, report = run_simulate_and_evaluate(
+                cards_path=cards_path,
+                output_dir=out_subdir,
+                api_key=api_key,
+                model_type=model_type,
+                persona_id=persona,
+                save_logs=True,
+                verbose=False,
+            )
+            return float(report.total_score), log, report
+        except Exception as e:
+            if prompt_user:
+                print(f"  [metric] 人设 {persona} 仿真/评估失败: {e}")
+            return 0.0, None, None
+
     def metric(example, pred, trace=None):
         cards = getattr(pred, "cards", None)
         if cards is None:
@@ -186,6 +210,7 @@ def make_auto_metric(
 
         n = _progress_count[0] + 1
         _progress_count[0] = n
+
         def sim_progress(phase: str, message: str) -> None:
             if progress_callback:
                 progress_callback(n, total_estimate, message)
@@ -194,57 +219,93 @@ def make_auto_metric(
             progress_callback(n, total_estimate, f"第 {n} 次评估：仿真+评估中…")
         if prompt_user:
             print(f"\n  [metric] 已写入卡片到: {path}")
-            print("  [metric] 运行仿真+评估（闭环模式）...")
+            print(f"  [metric] 运行闭环（{len(ids_to_run)} 档人设）...")
 
-        try:
-            log, report = run_simulate_and_evaluate(
-                cards_path=path,
-                output_dir=sim_output,
-                api_key=api_key,
-                model_type=model_type,
-                persona_id=persona_id,
-                save_logs=True,
-                verbose=False,
-                progress_callback=sim_progress,
-            )
-        except Exception as e:
-            if prompt_user:
-                print(f"  [metric] 仿真/评估失败: {e}")
-            # 失败时写入占位报告，返回 0
-            os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
-            with open(export_path, "w", encoding="utf-8") as f:
-                json.dump({"total_score": 0.0, "error": str(e)}, f, ensure_ascii=False, indent=2)
-            return 0.0
+        scores: List[float] = []
+        reports: List[Any] = []
+        logs: List[Any] = []
 
-        # 写入导出文件供 external_metric 解析（与 evaluate API 的 export 格式一致）
+        if len(ids_to_run) > 1:
+            # 三档人设并行，取均值
+            with ThreadPoolExecutor(max_workers=len(ids_to_run)) as ex:
+                futures = {
+                    ex.submit(
+                        _run_one,
+                        persona,
+                        path,
+                        os.path.join(sim_output, f"persona_{persona}"),
+                    ): persona
+                    for persona in ids_to_run
+                }
+                for fut in as_completed(futures):
+                    sc, lg, rpt = fut.result()
+                    scores.append(sc)
+                    if rpt:
+                        reports.append(rpt)
+                    if lg:
+                        logs.append(lg)
+            mean_score = sum(scores) / len(scores) if scores else 0.0
+            report = reports[0] if reports else None
+            log = logs[0] if logs else None
+        else:
+            try:
+                log, report = run_simulate_and_evaluate(
+                    cards_path=path,
+                    output_dir=sim_output,
+                    api_key=api_key,
+                    model_type=model_type,
+                    persona_id=ids_to_run[0],
+                    save_logs=True,
+                    verbose=False,
+                    progress_callback=sim_progress,
+                )
+                mean_score = float(report.total_score)
+            except Exception as e:
+                if prompt_user:
+                    print(f"  [metric] 仿真/评估失败: {e}")
+                os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
+                with open(export_path, "w", encoding="utf-8") as f:
+                    json.dump({"total_score": 0.0, "error": str(e)}, f, ensure_ascii=False, indent=2)
+                return 0.0
+
         export_dir = os.path.dirname(os.path.abspath(export_path))
         os.makedirs(export_dir or ".", exist_ok=True)
+        export_data = report.to_dict() if report is not None else {"total_score": mean_score}
+        if len(scores) > 1:
+            export_data["persona_scores"] = dict(zip(ids_to_run, scores))
+            export_data["mean_score"] = mean_score
+            export_data["total_score"] = mean_score
         with open(export_path, "w", encoding="utf-8") as f:
-            json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+            json.dump(export_data, f, ensure_ascii=False, indent=2)
 
-        # 闭环专用：写入「最终评估报告」Markdown（含本次模拟日志路径与打分），每轮覆盖，跑完闭环后即最后一场
-        logs_dir = os.path.join(sim_output, "logs")
-        log_md_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.md")
-        log_json_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.json")
-        final_report_path = os.path.join(export_dir, "closed_loop_final_report.md")
-        with open(final_report_path, "w", encoding="utf-8") as f:
-            f.write(report.to_markdown())
-            f.write("\n\n---\n\n## 本次模拟会话日志\n\n")
-            f.write(f"- **会话ID**: {log.session_id}\n")
-            f.write(f"- **日志(Markdown)**: `{log_md_rel}`（工作区 output 下）\n")
-            f.write(f"- **日志(JSON)**: `{log_json_rel}`\n")
-            log_md_abs = os.path.join(logs_dir, f"session_{log.session_id}.md")
-            if os.path.isfile(log_md_abs):
-                f.write("\n### 会话日志摘要\n\n```\n")
-                with open(log_md_abs, "r", encoding="utf-8") as lf:
-                    f.write(lf.read()[:8000].replace("```", "` ` `"))
-                if os.path.getsize(log_md_abs) > 8000:
-                    f.write("\n... (已截断)\n")
-                f.write("\n```\n")
+        if report is not None and log is not None:
+            logs_dir = os.path.join(sim_output, "logs")
+            log_md_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.md")
+            log_json_rel = os.path.join(os.path.basename(sim_output), "logs", f"session_{log.session_id}.json")
+            final_report_path = os.path.join(export_dir, "closed_loop_final_report.md")
+            with open(final_report_path, "w", encoding="utf-8") as f:
+                f.write(report.to_markdown())
+                if len(scores) > 1:
+                    f.write(f"\n\n---\n\n## 三档人设得分\n\n")
+                    for pid, sc in zip(ids_to_run, scores):
+                        f.write(f"- {pid}: {sc}\n")
+                    f.write(f"- **均值**: {mean_score}\n\n")
+                f.write("\n---\n\n## 本次模拟会话日志\n\n")
+                f.write(f"- **会话ID**: {log.session_id}\n")
+                f.write(f"- **日志(Markdown)**: `{log_md_rel}`\n")
+                f.write(f"- **日志(JSON)**: `{log_json_rel}`\n")
+                log_md_abs = os.path.join(logs_dir, f"session_{log.session_id}.md")
+                if os.path.isfile(log_md_abs):
+                    f.write("\n### 会话日志摘要\n\n```\n")
+                    with open(log_md_abs, "r", encoding="utf-8") as lf:
+                        f.write(lf.read()[:8000].replace("```", "` ` `"))
+                    if os.path.getsize(log_md_abs) > 8000:
+                        f.write("\n... (已截断)\n")
+                    f.write("\n```\n")
 
         if prompt_user:
-            print(f"  [metric] 评估完成，总分: {report.total_score}，已写入: {export_path}")
+            print(f"  [metric] 评估完成，总分: {mean_score}，已写入: {export_path}")
 
-        return float(report.total_score)
+        return float(mean_score)
 
     return metric

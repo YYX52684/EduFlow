@@ -9,12 +9,15 @@ import requests
 
 
 def get_simulator_default_config() -> dict:
-    """从 config 读取模拟器用默认配置（api_url, api_key, model）。"""
-    from config import DEEPSEEK_CHAT_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL
+    """从 config 读取模拟器用默认配置（api_url, api_key, model）。默认使用公司豆包 API。"""
+    from config import DOUBAO_BASE_URL, DOUBAO_API_KEY, DOUBAO_MODEL
+
+    base = (DOUBAO_BASE_URL or "").rstrip("/")
+    api_url = f"{base}/chat/completions" if base else ""
     return {
-        "api_url": DEEPSEEK_CHAT_URL,
-        "api_key": DEEPSEEK_API_KEY or "",
-        "model": DEEPSEEK_MODEL,
+        "api_url": api_url,
+        "api_key": DOUBAO_API_KEY or "",
+        "model": DOUBAO_MODEL,
     }
 
 

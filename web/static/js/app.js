@@ -95,6 +95,7 @@
     }
     function renderTree() {
       var el = document.getElementById('localFileList');
+      if (!el) return;
       var folderLabel = document.getElementById('sidebarCurrentFolder');
       if (!treeRoot) {
         if (folderLabel) folderLabel.textContent = '未择定';
@@ -159,7 +160,8 @@
       if (btn) { btn.disabled = true; btn.title = '需 HTTPS 或 localhost 访问后可用'; }
     })();
 
-    document.getElementById('btnPickLocalDir').onclick = async function() {
+    var btnPickLocalDir = document.getElementById('btnPickLocalDir');
+    if (btnPickLocalDir) btnPickLocalDir.onclick = async function() {
       if (typeof showDirectoryPicker !== 'function') {
         document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">当前浏览器不支持选择目录（请使用 Chrome 或 Edge）。请用右侧拖拽或选文件上传。</div>';
         return;
@@ -684,7 +686,8 @@
       };
     })();
 
-    document.getElementById('localFileList').onclick = async function(e) {
+    var localFileListEl = document.getElementById('localFileList');
+    if (localFileListEl) localFileListEl.onclick = async function(e) {
       var item = e.target.closest('.file-list-item');
       if (!item) return;
       var kind = item.getAttribute('data-kind');
@@ -712,7 +715,7 @@
       }
     };
 
-    document.getElementById('localFileList').ondblclick = async function(e) {
+    if (localFileListEl) localFileListEl.ondblclick = async function(e) {
       var item = e.target.closest('.file-list-item');
       if (!item) return;
       var kind = item.getAttribute('data-kind');
@@ -741,7 +744,7 @@
       }
     };
 
-    document.getElementById('localFileList').ondragstart = function(e) {
+    if (localFileListEl) localFileListEl.ondragstart = function(e) {
       var item = e.target.closest('.file-list-item[data-kind="file"], .file-list-item[data-kind="dir"]');
       if (!item) return;
       e.dataTransfer.setData('text/plain', 'eduflow-file');
@@ -755,11 +758,11 @@
         window._eduflowDraggedFileHandle = null;
       }
     };
-    document.getElementById('localFileList').ondragend = function() {
+    if (localFileListEl) localFileListEl.ondragend = function() {
       window._eduflowDraggedFileHandle = null;
       window._eduflowDraggedPath = null;
     };
-    document.getElementById('localFileList').oncontextmenu = function(e) {
+    if (localFileListEl) localFileListEl.oncontextmenu = function(e) {
       var item = e.target.closest('.file-list-item');
       if (!item || item.classList.contains('up')) return;
       var kind = item.getAttribute('data-kind');
@@ -1038,13 +1041,6 @@
       (el = document.getElementById('cfgCookie')) && (el.value = lastLoadedPlatformConfig.cookie);
       (el = document.getElementById('cfgStartNodeId')) && (el.value = lastLoadedPlatformConfig.start_node_id);
       (el = document.getElementById('cfgEndNodeId')) && (el.value = lastLoadedPlatformConfig.end_node_id);
-      (el = document.getElementById('cfgBaseUrl')) && (el.value = lastLoadedPlatformConfig.base_url);
-      (function(){
-        var c=document.getElementById('cfgCourseId'),t=document.getElementById('cfgTrainTaskId');
-        if(c){c.value='';c.placeholder='从 URL 提取或手动填写课程 ID';c.setAttribute('autocomplete','off');}
-        if(t){t.value='';t.placeholder='从 URL 提取或手动填写任务 ID';t.setAttribute('autocomplete','off');}
-        setTimeout(function(){ if(c)c.value=''; if(t)t.value=''; }, 0);
-      })();
     }
     async function fetchPlatformConfig() {
       if (!(typeof getWorkspaceId === 'function' ? getWorkspaceId() : (window.WORKSPACE_ID || ''))) return;
@@ -1064,11 +1060,6 @@
         else if (msgEl) msgEl.textContent = '';
       }
     }
-    (function clearCourseTaskIds() {
-      var c = document.getElementById('cfgCourseId'), t = document.getElementById('cfgTrainTaskId');
-      if (c) c.value = '';
-      if (t) t.value = '';
-    })();
     document.getElementById('btnLoadConfig').onclick = async () => {
       const msg = document.getElementById('configMsg');
       const url = (document.getElementById('cfgLoadUrl') && document.getElementById('cfgLoadUrl').value || '').trim();
@@ -1076,7 +1067,6 @@
       const cookie = (document.getElementById('cfgCookie') && document.getElementById('cfgCookie').value || '').trim();
       const startNode = (document.getElementById('cfgStartNodeId') && document.getElementById('cfgStartNodeId').value || '').trim();
       const endNode = (document.getElementById('cfgEndNodeId') && document.getElementById('cfgEndNodeId').value || '').trim();
-      const advanced = document.getElementById('platformConfigAdvanced');
       const body = {
         url: url || undefined,
         authorization: jwt || undefined,
@@ -1084,14 +1074,6 @@
         start_node_id: startNode || undefined,
         end_node_id: endNode || undefined,
       };
-      if (advanced && advanced.open) {
-        const baseUrl = (document.getElementById('cfgBaseUrl') && document.getElementById('cfgBaseUrl').value || '').trim();
-        const courseId = (document.getElementById('cfgCourseId') && document.getElementById('cfgCourseId').value || '').trim();
-        const taskId = (document.getElementById('cfgTrainTaskId') && document.getElementById('cfgTrainTaskId').value || '').trim();
-        if (baseUrl) body.base_url = baseUrl;
-        if (courseId) body.course_id = courseId;
-        if (taskId) body.train_task_id = taskId;
-      }
       msg.textContent = '加载中…';
       try {
         const r = await apiFetch('/api/platform/load-config', {
@@ -1107,14 +1089,6 @@
         msg.innerHTML = '<span class="err">' + (e.message || String(e)) + '</span>';
       }
     };
-    (function initPlatformConfigOnDemand() {
-      var fetched = false;
-      function maybeFetch() { if (!fetched) { fetched = true; fetchPlatformConfig(); } }
-      ['cfgLoadUrl', 'cfgAuthorization', 'cfgCookie', 'cfgStartNodeId', 'cfgEndNodeId'].forEach(function(id) {
-        var el = document.getElementById(id); if (el) el.addEventListener('focus', maybeFetch, { once: true });
-      });
-    })();
-
     document.getElementById('btnRunOptimizer').onclick = async function() {
       const msg = document.getElementById('optimizerMsg');
       const pre = document.getElementById('optimizerResult');
@@ -1133,16 +1107,15 @@
         if (progressPct) progressPct.textContent = '0%';
       }
       try {
-        var useExternalEval = !!(document.getElementById('optimizerUseExternalEval') && document.getElementById('optimizerUseExternalEval').checked);
         var roundsDefault = document.querySelector('input[name="optimizerRoundsMode"][value="default"]');
         var maxRounds = (roundsDefault && roundsDefault.checked) ? null : (parseInt(document.getElementById('optimizerMaxRoundsInput').value, 10) || 1);
         const body = {
           trainset_path: 'output/optimizer/trainset.json',
           devset_path: null,
           cards_output_path: null,
-          export_path: useExternalEval ? 'output/optimizer/export_score.json' : null,
+          export_path: null,
           optimizer_type: (document.getElementById('optimizerType') && document.getElementById('optimizerType').value) || 'bootstrap',
-          use_auto_eval: !useExternalEval,
+          use_auto_eval: true,
           max_rounds: maxRounds,
           persona_id: (document.getElementById('personaId') && document.getElementById('personaId').value) || 'excellent',
         };
@@ -1379,16 +1352,6 @@
         if (d.output_path) {
           var injectCardsPathInput = document.getElementById('injectCardsPath');
           if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
-          var qa = document.getElementById('uploadQuickActions');
-          if (qa) {
-            qa.innerHTML = '<span class="hint">快捷：</span><button type="button" class="qabtn" id="qaInject">注入平台</button>';
-            qa.style.display = 'flex';
-            var qaInjectBtn = document.getElementById('qaInject');
-            if (qaInjectBtn) qaInjectBtn.onclick = function() {
-              var injectSection = document.querySelector('section [id="injectCardsPath"]');
-              if (injectSection) injectSection.closest('section').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            };
-          }
         }
       } catch (e) {
         msg.innerHTML = '<span class="err">' + (e.message || '生成失败') + '</span>';
@@ -1588,16 +1551,7 @@
         if (el) el.disabled = !enabled;
       });
     }
-    (function setupOptimizerExternalEvalToggle() {
-      var useExternal = document.getElementById('optimizerUseExternalEval');
-      var wrap = document.getElementById('optimizerExternalEvalWrap');
-      if (!useExternal || !wrap) return;
-      function toggle() {
-        wrap.style.display = useExternal.checked ? 'block' : 'none';
-      }
-      useExternal.addEventListener('change', toggle);
-      toggle();
-    })();
+    // 外部评估模式已移除，统一使用闭环自动评估
 
     document.getElementById('btnInjectPreview').onclick = async () => {
       const path = document.getElementById('injectCardsPath').value.trim();
@@ -1626,7 +1580,6 @@
       const path = document.getElementById('injectCardsPath').value.trim();
       const taskName = document.getElementById('injectTaskName').value.trim() || null;
       const description = document.getElementById('injectDescription').value.trim() || null;
-      const overwrite = !!(document.getElementById('injectOverwrite') && document.getElementById('injectOverwrite').checked);
       const msg = document.getElementById('injectMsg');
       const pre = document.getElementById('injectResult');
       if (!path) { msg.innerHTML = '<span class="err">请从右侧工作区文件列表拖入或点击文件填入卡片</span>'; return; }
@@ -1636,17 +1589,10 @@
         const r = await apiFetch( '/api/inject/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cards_path: path, task_name: taskName, description: description, overwrite }),
+          body: JSON.stringify({ cards_path: path, task_name: taskName, description: description }),
         });
         const d = await safeResponseJson(r);
         if (!r.ok) {
-          if (r.status === 409) {
-            hideLongTaskFeedback();
-            msg.innerHTML = '<span class="err">' + (d.detail || '检测到已有卡片，未覆写') + '</span>';
-            pre.style.display = 'block';
-            pre.textContent = JSON.stringify(d, null, 2);
-            return;
-          }
           throw new Error(d.detail || JSON.stringify(d));
         }
         msg.textContent = d.message || (d.success ? '注入成功' : '注入完成，请查看详情');

@@ -33,7 +33,6 @@ class InjectRunRequest(BaseModel):
     cards_path: str
     task_name: Optional[str] = None
     description: Optional[str] = None
-    overwrite: Optional[bool] = False
 
 
 @router.post("/preview")
@@ -91,25 +90,6 @@ def inject_run(req: InjectRunRequest, workspace_id: str = Depends(require_worksp
         client = _create_client(cfg)
         injector = CardInjector(client)
 
-        # 注入前检测平台是否已有卡片配置
-        detection = {}
-        try:
-            detection = client.list_existing_steps()
-        except Exception as e:  # 极端兜底
-            detection = {"status": "error", "error": str(e)}
-
-        existing_count = int(detection.get("count") or 0)
-        has_existing = detection.get("status") == "ok" and existing_count > 0
-
-        if has_existing and not req.overwrite:
-            return JSONResponse(
-                status_code=409,
-                content={
-                    "detail": f"检测到该训练任务已有 {existing_count} 个脚本节点，默认不覆写。请确认后勾选“覆写已有卡片”再执行。",
-                    "existing": detection,
-                },
-            )
-
         def _progress(current: int, total: int, message: str):
             pass
 
@@ -132,7 +112,6 @@ def inject_run(req: InjectRunRequest, workspace_id: str = Depends(require_worksp
             "evaluation_items_count": result.get("evaluation_items_count"),
             "total_score": result.get("total_score"),
             "message": "注入成功" if success else "部分注入失败，请查看上述数量",
-            "existing": detection,
         }
     except FileNotFoundError as e:
         raise NotFoundError("卡片文件不存在", details={"path": req.cards_path, "reason": str(e)})

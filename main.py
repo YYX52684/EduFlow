@@ -69,13 +69,13 @@ def main():
     parser.add_argument("--generate-personas", metavar="INPUT_FILE", help="根据原始教学材料生成推荐的学生角色配置")
     parser.add_argument("--num-personas", type=int, default=3, help="生成的角色数量 (默认: 3)")
 
-    parser.add_argument("--optimize-dspy", action="store_true", help="运行 DSPy 生成器优化")
+    parser.add_argument("--optimize-dspy", action="store_true", help="运行 DSPy 生成器优化（闭环仿真+评估）")
     parser.add_argument("--trainset", metavar="PATH", help="trainset JSON 路径（用于 --optimize-dspy）")
     parser.add_argument("--devset", metavar="PATH", help="可选 devset JSON 路径（用于 --optimize-dspy）")
     parser.add_argument("--build-trainset", metavar="PATH", help="从剧本文件或目录构建 trainset 并保存为 JSON")
     parser.add_argument("--validate-trainset", metavar="PATH", help="校验 trainset JSON 结构")
     parser.add_argument("--cards-output", metavar="PATH", default=None, help="优化时生成卡片的输出路径")
-    parser.add_argument("--export-file", metavar="PATH", default=None, help="外部评估导出文件路径")
+    parser.add_argument("--export-file", metavar="PATH", default=None, help="评估结果导出文件路径（闭环评估 JSON/Markdown）")
     parser.add_argument("--optimizer", choices=["bootstrap", "mipro"], default="bootstrap", help="优化器类型")
     parser.add_argument("--max-rounds", type=int, default=None, help="Bootstrap 最大轮数")
 

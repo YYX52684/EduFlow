@@ -19,9 +19,25 @@ LLM_CONFIG_FILE = "llm_config.json"
 # 预设：model_type -> (base_url, model_name)
 PRESETS = {
     "deepseek": ("https://api.deepseek.com", "deepseek-chat"),
-    "doubao": ("http://llm-service.polymas.com/api/openai/v1", "Doubao-1.5-pro-32k"),
+    "doubao": ("https://llm-service.polymas.com/api/openai/v1", "Doubao-1.5-pro-32k"),
     "openai": ("https://api.openai.com/v1", "gpt-4o"),
 }
+
+
+def build_chat_completions_url(base_url: str) -> str:
+    """
+    根据基础 base_url 构建 OpenAI Chat Completions 端点。
+
+    约定：
+    - 若 base_url 以 /v1 结尾（如 https://api.openai.com/v1 或 .../api/openai/v1），拼接 /chat/completions；
+    - 否则在末尾补 /v1/chat/completions（如 https://api.deepseek.com → https://api.deepseek.com/v1/chat/completions）。
+    """
+    base = (base_url or "").rstrip("/")
+    if not base:
+        return ""
+    if base.endswith("/v1"):
+        return f"{base}/chat/completions"
+    return f"{base}/v1/chat/completions"
 
 
 def _config_path(workspace_id: str) -> str:
@@ -38,7 +54,8 @@ def get_llm_config(workspace_id: Optional[str] = None) -> dict:
     load_dotenv()
     env_key_ds = os.getenv("DEEPSEEK_API_KEY")
     env_key_db = os.getenv("LLM_API_KEY")
-    env_model_type = (os.getenv("MODEL_TYPE") or "deepseek").lower()
+    # 默认优先使用豆包（公司内网 LLM），除非显式指定 MODEL_TYPE=deepseek
+    env_model_type = (os.getenv("MODEL_TYPE") or "doubao").lower()
 
     cfg = {}
     if workspace_id:
@@ -50,9 +67,9 @@ def get_llm_config(workspace_id: Optional[str] = None) -> dict:
             except Exception:
                 pass
 
-    model_type = (cfg.get("model_type") or env_model_type or "deepseek").strip().lower()
+    model_type = (cfg.get("model_type") or env_model_type or "doubao").strip().lower()
     if model_type not in PRESETS:
-        model_type = "deepseek"
+        model_type = "doubao"
     base_url = (cfg.get("base_url") or "").strip() or PRESETS[model_type][0]
     model_name = (cfg.get("model") or "").strip() or PRESETS[model_type][1]
     api_key = (cfg.get("api_key") or "").strip()
@@ -103,9 +120,9 @@ def get_config(workspace_id: str = Depends(require_workspace_owned)):
             pass
     raw_key = (raw.get("api_key") or "").strip()
     llm = get_llm_config(workspace_id)
-    model_type = (llm.get("model_type") or "deepseek").strip().lower()
-    base_url = (llm.get("base_url") or "").rstrip("/") or PRESETS.get(model_type, PRESETS["deepseek"])[0]
-    model = (llm.get("model") or "").strip() or PRESETS.get(model_type, PRESETS["deepseek"])[1]
+    model_type = (llm.get("model_type") or "doubao").strip().lower()
+    base_url = (llm.get("base_url") or "").rstrip("/") or PRESETS.get(model_type, PRESETS["doubao"])[0]
+    model = (llm.get("model") or "").strip() or PRESETS.get(model_type, PRESETS["doubao"])[1]
     api_key = (llm.get("api_key") or "").strip()
     env_key_db = (os.getenv("LLM_API_KEY") or "").strip()
     using_default_free = bool(not raw_key and api_key and env_key_db and api_key == env_key_db)
@@ -145,8 +162,8 @@ def save_config(body: LLMConfigUpdate, workspace_id: str = Depends(require_works
     if body.api_key is not None:
         current["api_key"] = (body.api_key or "").strip()
     if body.model_type is not None:
-        t = (body.model_type or "deepseek").strip().lower()
-        current["model_type"] = t if t in PRESETS else "deepseek"
+        t = (body.model_type or "doubao").strip().lower()
+        current["model_type"] = t if t in PRESETS else "doubao"
     if body.base_url is not None:
         current["base_url"] = (body.base_url or "").strip()
     if body.model is not None:

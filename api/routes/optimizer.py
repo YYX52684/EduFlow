@@ -92,6 +92,7 @@ async def run_optimizer_stream(req: OptimizeRequest, workspace_id: str = Depends
     async def event_stream():
         yield f"event: progress\ndata: {json.dumps({'current': 0, 'total': 1, 'percent': 0, 'message': '正在加载模型与 trainset…'}, ensure_ascii=False)}\n\n"
         loop = asyncio.get_event_loop()
+        terminal_sent = False
         while proc.is_alive() or not result_queue.empty():
             try:
                 typ, payload = await loop.run_in_executor(
@@ -106,11 +107,16 @@ async def run_optimizer_stream(req: OptimizeRequest, workspace_id: str = Depends
                 yield f"event: progress\ndata: {data}\n\n"
             elif typ == "done":
                 yield f"event: done\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                terminal_sent = True
                 break
             elif typ == "error":
                 yield f"event: error\ndata: {json.dumps({'detail': payload}, ensure_ascii=False)}\n\n"
+                terminal_sent = True
                 break
         proc.join(timeout=5)
+        if not terminal_sent:
+            err = "优化进程异常退出或未返回结果"
+            yield f"event: error\ndata: {json.dumps({'detail': err}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         event_stream(),

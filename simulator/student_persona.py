@@ -675,15 +675,20 @@ class PersonaGenerator:
         personas: List[StudentPersona],
         output_dir: str = None,
         prefix: str = "generated",
+        source_basename: str = None,
     ) -> List[str]:
         """
-        保存生成的角色配置到YAML文件
-        
+        保存生成的角色配置到YAML文件。
+
+        若提供 source_basename，则按「原文档名_优秀/一般/较差」命名，便于识别刚生成的人设。
+        否则沿用 prefix_{i+1}_{safe_name} 格式。
+
         Args:
-            personas: 角色列表
+            personas: 角色列表（建议顺序：优秀、一般、较差）
             output_dir: 输出目录
-            prefix: 文件名前缀
-            
+            prefix: 文件名前缀（source_basename 为空时使用）
+            source_basename: 原文档名（不含扩展名），如「实调任务demo2-生物化学」
+
         Returns:
             保存的文件路径列表
         """
@@ -692,21 +697,27 @@ class PersonaGenerator:
             output_dir = project_root / "simulator_config" / "custom"
         else:
             output_dir = Path(output_dir)
-        
+
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        # 三档人设后缀，与预设 excellent/average/struggling 对应
+        level_suffixes = ["优秀", "一般", "较差"]
+
         saved_paths = []
         for i, persona in enumerate(personas):
-            # 生成文件名（使用角色名的拼音或简化版本）
-            safe_name = persona.name.replace(" ", "_").replace("/", "_")[:20]
-            filename = f"{prefix}_{i+1}_{safe_name}.yaml"
+            if source_basename and i < len(level_suffixes):
+                safe_base = source_basename.replace(" ", "_").replace("/", "_")[:40]
+                filename = f"{safe_base}_{level_suffixes[i]}.yaml"
+            else:
+                safe_name = persona.name.replace(" ", "_").replace("/", "_")[:20]
+                filename = f"{prefix}_{i+1}_{safe_name}.yaml"
             filepath = output_dir / filename
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
+
+            with open(filepath, "w", encoding="utf-8") as f:
                 yaml.dump(persona.to_dict(), f, allow_unicode=True, default_flow_style=False)
-            
+
             saved_paths.append(str(filepath))
-        
+
         return saved_paths
 
 

@@ -17,7 +17,7 @@
       --natsume-shadow-hover: rgba(74, 64, 53, 0.1);
       --natsume-err: #a65d4a;
       --sidebar-width: 280px;
-      --sidebar-margin: var(--sidebar-width);
+      --sidebar-margin: 0;
       --sim-sidebar-width: 380px;
       --card-radius: 1.5rem;
       --btn-radius: 0.75rem;
@@ -164,6 +164,12 @@
         radial-gradient(ellipse at 20% 10%, rgba(143, 169, 137, 0.05) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 90%, rgba(232, 141, 103, 0.04) 0%, transparent 50%);
       display: flex;
+    }
+    /* 移除左侧本地目录侧边栏的可视设计，仅保留右侧仿真侧边栏 */
+    .local-sidebar,
+    .sidebar-resize-handle,
+    .sidebar-expand-tab {
+      display: none !important;
     }
     /* 壁纸与主界面关联：整页背景在 body 上且 fixed，不随侧边栏收起/展开移动；侧边栏半透明以透出背景 */
     /* 左侧栏：与右侧栏对称——用侧栏自身 class 控制滑动，body class 控制主内容 margin */

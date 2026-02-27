@@ -46,10 +46,10 @@ demo/
   - trainset 路径：`output/optimizer/trainset.json`  
   - 点击「闭环优化」，等待进度条完成。优化后的卡片会写入 `output/optimizer/cards_for_eval.md`。
 
-### 4. 评估（高级）
+### 4. 查看评估结果
 
-- 若使用外部评估工具，可将评估结果导出为 `output/optimizer/export_score.json` 或 `.md`，供优化器使用。
-- 本示例已预置 `output/simulator_output/reports/evaluation-report-demo.json` 作为参考。
+- 仿真或闭环运行完成后，可在 `output/simulator_output/reports/` 查看评估报告；
+- 若运行闭环优化（DSPy），还可查看 `output/optimizer/closed_loop_final_report.md` 了解各轮得分与会话摘要。
 
 ### 5. 注入平台
 
