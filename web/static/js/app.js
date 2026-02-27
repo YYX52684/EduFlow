@@ -161,29 +161,39 @@
     })();
 
     var btnPickLocalDir = document.getElementById('btnPickLocalDir');
-    if (btnPickLocalDir) btnPickLocalDir.onclick = async function() {
-      if (typeof showDirectoryPicker !== 'function') {
-        document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">当前浏览器不支持选择目录（请使用 Chrome 或 Edge）。请用右侧拖拽或选文件上传。</div>';
-        return;
-      }
-      try {
-        var rootHandle = await showDirectoryPicker({ id: 'eduflow-local-dir' });
-        treeRoot = { name: rootHandle.name, handle: rootHandle, kind: 'dir', children: null, expanded: true };
-        var el = document.getElementById('localFileList');
-        el.innerHTML = '加载中…';
-        await loadTreeChildren(treeRoot);
-        renderTree();
-        saveLastDir(rootHandle);
-      } catch (e) {
-        if (e.name !== 'AbortError') {
-          var msg = (e.name === 'SecurityError' || (e.message && e.message.indexOf('secure') !== -1))
-            ? '当前环境不允许选择目录（需 HTTPS 或 localhost）。请用右侧拖拽/选文件上传，或通过 HTTPS 访问（本机或服务器配置 HTTPS 后即可）。'
-            : '未择定目录';
-          document.getElementById('localFileList').innerHTML = '<div class="file-list-item err">' + msg + '</div>';
+    if (btnPickLocalDir) {
+      btnPickLocalDir.onclick = async function() {
+        if (typeof showDirectoryPicker !== 'function') {
+          var listEl = document.getElementById('localFileList');
+          if (listEl) {
+            listEl.innerHTML = '<div class="file-list-item err">当前浏览器不支持选择目录（请使用 Chrome 或 Edge）。请用右侧拖拽或选文件上传。</div>';
+          }
+          return;
         }
-      }
-    };
-    restoreLastDir().catch(function() {});
+        try {
+          var rootHandle = await showDirectoryPicker({ id: 'eduflow-local-dir' });
+          treeRoot = { name: rootHandle.name, handle: rootHandle, kind: 'dir', children: null, expanded: true };
+          var el = document.getElementById('localFileList');
+          if (el) {
+            el.innerHTML = '加载中…';
+          }
+          await loadTreeChildren(treeRoot);
+          renderTree();
+          saveLastDir(rootHandle);
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            var msg = (e.name === 'SecurityError' || (e.message && e.message.indexOf('secure') !== -1))
+              ? '当前环境不允许选择目录（需 HTTPS 或 localhost）。请用右侧拖拽/选文件上传，或通过 HTTPS 访问（本机或服务器配置 HTTPS 后即可）。'
+              : '未择定目录';
+            var listElErr = document.getElementById('localFileList');
+            if (listElErr) {
+              listElErr.innerHTML = '<div class="file-list-item err">' + msg + '</div>';
+            }
+          }
+        }
+      };
+      restoreLastDir().catch(function() {});
+    }
 
     function updateScriptDropZoneDisplay(filename) {
       var dz = document.getElementById('scriptDropZone');
