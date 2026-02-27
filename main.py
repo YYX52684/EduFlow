@@ -51,8 +51,7 @@ def main():
     parser.add_argument("--inject-only", metavar="MD_FILE", help="仅注入已生成的 Markdown 文件到平台")
     parser.add_argument("--preview-inject", action="store_true", help="预览注入内容（不实际注入）")
     parser.add_argument("--set-project", metavar="URL", help="从智慧树页面 URL 提取并设置课程ID和训练任务ID")
-    parser.add_argument("--use-dspy", action="store_true", help="使用 DSPy 结构化生成器")
-    parser.add_argument("--framework", metavar="ID", default=None, help="指定生成框架 ID（如 default, dspy）")
+    parser.add_argument("--framework", metavar="ID", default="dspy", help="指定生成框架 ID（默认: dspy）")
     parser.add_argument("--list-frameworks", action="store_true", help="列出框架库中所有可用生成框架后退出")
 
     parser.add_argument("--simulate", metavar="MD_FILE", help="运行学生模拟测试，指定卡片 Markdown 文件")

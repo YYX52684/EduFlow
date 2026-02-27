@@ -42,8 +42,8 @@ def run_simulate_and_evaluate(
     api_key: str,
     model_type: str = "deepseek",
     persona_id: str = "excellent",
-    max_rounds_per_card: int = 10,
-    total_max_rounds: int = 100,
+    max_rounds_per_card: Optional[int] = None,
+    total_max_rounds: Optional[int] = None,
     save_logs: bool = True,
     verbose: bool = False,
     api_url: Optional[str] = None,
@@ -85,6 +85,13 @@ def run_simulate_and_evaluate(
     if not sim_config.get("api_url") or not sim_config.get("api_key"):
         raise ValueError("未配置 LLM API，请检查 api_key 与 model_type")
 
+    from config import DSPY_OPTIMIZER_CONFIG
+    _cfg = DSPY_OPTIMIZER_CONFIG
+    if max_rounds_per_card is None:
+        max_rounds_per_card = _cfg.get("closed_loop_max_rounds_per_card", 5)
+    if total_max_rounds is None:
+        total_max_rounds = _cfg.get("closed_loop_total_max_rounds", 50)
+
     progress("loading", "加载卡片…")
     config = SessionConfig(
         mode=SessionMode.AUTO,
@@ -96,6 +103,7 @@ def run_simulate_and_evaluate(
         student_config=sim_config,
         max_rounds_per_card=max_rounds_per_card,
         total_max_rounds=total_max_rounds,
+        progress_callback=progress_callback,
     )
     runner = SessionRunner(config)
     runner.load_cards(cards_path)
@@ -178,6 +186,10 @@ def make_auto_metric(
 
         n = _progress_count[0] + 1
         _progress_count[0] = n
+        def sim_progress(phase: str, message: str) -> None:
+            if progress_callback:
+                progress_callback(n, total_estimate, message)
+
         if progress_callback:
             progress_callback(n, total_estimate, f"第 {n} 次评估：仿真+评估中…")
         if prompt_user:
@@ -193,6 +205,7 @@ def make_auto_metric(
                 persona_id=persona_id,
                 save_logs=True,
                 verbose=False,
+                progress_callback=sim_progress,
             )
         except Exception as e:
             if prompt_user:

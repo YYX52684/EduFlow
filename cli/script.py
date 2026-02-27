@@ -9,6 +9,8 @@ from config import (
     OUTPUT_DIR,
     CARD_GENERATOR_TYPE,
     DEEPSEEK_API_KEY,
+    DEFAULT_MODEL_TYPE,
+    DOUBAO_API_KEY,
     EVALUATION_CONFIG,
 )
 from api.workspace import get_project_dirs
@@ -129,31 +131,8 @@ def run_script(args):
         if not frameworks:
             print("   [错误] 框架库中暂无可用生成框架。请在 generators/frameworks/ 下添加框架。")
             sys.exit(1)
-        framework_id = args.framework
-        if framework_id is None and CARD_GENERATOR_TYPE:
-            for m in frameworks:
-                if m["id"] == CARD_GENERATOR_TYPE:
-                    framework_id = CARD_GENERATOR_TYPE
-                    break
-        if framework_id is None and args.use_dspy:
-            framework_id = "dspy" if any(m["id"] == "dspy" for m in frameworks) else None
-        if framework_id is None and len(frameworks) == 1:
-            framework_id = frameworks[0]["id"]
-        elif framework_id is None and len(frameworks) > 1:
-            print("\n   请选择生成框架:")
-            for i, m in enumerate(frameworks, 1):
-                print(f"     {i}. {m['id']} - {m['name']}")
-            try:
-                choice = input("   请输入序号或框架 ID [1]: ").strip() or "1"
-                if choice.isdigit():
-                    idx = int(choice)
-                    framework_id = frameworks[idx - 1]["id"] if 1 <= idx <= len(frameworks) else frameworks[0]["id"]
-                else:
-                    framework_id = choice
-            except (EOFError, KeyboardInterrupt):
-                framework_id = frameworks[0]["id"]
-                print(f"   使用默认: {frameworks[0]['name']}")
-        if framework_id is None:
+        framework_id = args.framework or CARD_GENERATOR_TYPE or "dspy"
+        if not any(m["id"] == framework_id for m in frameworks):
             framework_id = frameworks[0]["id"]
 
         try:
@@ -163,7 +142,13 @@ def run_script(args):
             print(f"   [错误] {e}")
             sys.exit(1)
         try:
-            generator = GeneratorClass(api_key=DEEPSEEK_API_KEY)
+            api_key = DEEPSEEK_API_KEY if DEFAULT_MODEL_TYPE != "doubao" else DOUBAO_API_KEY
+            generator = GeneratorClass(
+                api_key=api_key or DEEPSEEK_API_KEY,
+                model_type=DEFAULT_MODEL_TYPE,
+                base_url=None,
+                model=None,
+            )
         except Exception as e:
             print(f"   [错误] 初始化生成框架失败: {e}")
             sys.exit(1)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 DSPy 优化器统一入口：从 trainset.json 加载样本，按评分优化卡片生成能力。
 API Key 与模型选择与其它功能一致（doubao / deepseek）。
@@ -8,12 +9,18 @@ API Key 与模型选择与其它功能一致（doubao / deepseek）。
   python run_optimizer.py --workspace 编译原理   # 使用 workspaces/编译原理/output/optimizer/
   python run_optimizer.py --trainset output/optimizer/trainset.json --model doubao --optimizer bootstrap
 """
+import io
 import os
 import sys
 import argparse
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Windows 下强制 stdout/stderr 使用 UTF-8，避免进度条等 Unicode 字符（如 ░）触发 GBK 编码错误
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from config import (
     DEFAULT_MODEL_TYPE,

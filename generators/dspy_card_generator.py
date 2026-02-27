@@ -25,6 +25,10 @@ _dspy_lm_lock = threading.Lock()
 # 所有卡片生成必须在此专用线程内执行，确保 dspy.configure 与 LLM 调用在同一线程。
 _dspy_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dspy-card-gen")
 
+# 优化器上下文：当 DSPy 优化器（BootstrapFewShot 等）在非主线程运行时，需在当前线程内直接执行
+# 卡片生成，否则会因 executor 线程与优化器线程分别调用 dspy.configure 而触发线程冲突。
+_optimizer_context = threading.local()
+
 from config import (
     DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL,
     DOUBAO_API_KEY, DOUBAO_BASE_URL, DOUBAO_MODEL,
@@ -175,7 +179,6 @@ class CardAGeneratorModule(dspy.Module):
                 npc_role=npc_role,
                 scene_goal=scene_goal
             )
-            prologue = prologue_result.prologue
             post_process_fields(prologue_result, ['prologue'])
             prologue = prologue_result.prologue
 
@@ -434,17 +437,6 @@ class DSPyCardGenerator:
 
         return "\n\n".join(sections)
 
-    def _truncate_text(self, text: str, max_len: int = 250) -> str:
-        """Truncate text to max_len, attempting to cut at sentence boundary."""
-        if not text:
-            return text
-        if len(text) <= max_len:
-            return text
-        cut = text.rfind('。', 0, max_len)
-        if cut == -1:
-            cut = max_len - 3
-        return text[:cut].rstrip() + "..."
-
     def _format_card_b(self, result: dspy.Prediction, stage_index: int, total_stages: int) -> str:
         """格式化B类卡片输出（不再包含 # Transition / **卡片XA**，避免对话中出现跳转指令）"""
         sections = []
@@ -617,10 +609,11 @@ class DSPyCardGenerator:
 
         当由非主线程调用时（如 FastAPI 请求处理线程），通过单线程执行器执行，
         避免 dspy.settings「只能由最初配置的线程修改」导致的生成失败。
-        主线程调用（CLI、优化器）则直接执行。
+        主线程调用（CLI、优化器）或优化器在非主线程内调用时，直接在当前线程执行。
         card_callback(label, content) 在每张卡片生成完成后调用，用于流式展示。
         """
-        if threading.current_thread() is threading.main_thread():
+        _in_optimizer = getattr(_optimizer_context, "running", False)
+        if threading.current_thread() is threading.main_thread() or _in_optimizer:
             return self._generate_all_cards_impl(stages, original_content, progress_callback, card_callback)
         future = _dspy_executor.submit(
             self._generate_all_cards_impl,

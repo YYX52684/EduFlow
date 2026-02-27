@@ -75,8 +75,8 @@ CARD_DEFAULTS = {
 }
 
 # 卡片生成器配置
-# 可选值: "default" (传统方式), "dspy" (DSPy结构化生成)
-CARD_GENERATOR_TYPE = os.getenv("CARD_GENERATOR_TYPE", "default")
+# 可选值: "dspy" (DSPy结构化生成，唯一支持)
+CARD_GENERATOR_TYPE = os.getenv("CARD_GENERATOR_TYPE", "dspy")
 
 # 评价项配置（注入时使用）
 EVALUATION_CONFIG = {
@@ -126,4 +126,7 @@ DSPY_OPTIMIZER_CONFIG = {
     "optimizer_type": os.getenv("DSPY_OPTIMIZER", "bootstrap"),
     "max_rounds": int(os.getenv("DSPY_MAX_ROUNDS", "1")),
     "max_bootstrapped_demos": int(os.getenv("DSPY_MAX_BOOTSTRAPPED_DEMOS", "4")),
+    # 闭环仿真参数：缩短可加快单次评估，减少「卡在10%」的等待感
+    "closed_loop_max_rounds_per_card": int(os.getenv("DSPY_CLOSED_LOOP_ROUNDS_PER_CARD", "5")),
+    "closed_loop_total_max_rounds": int(os.getenv("DSPY_CLOSED_LOOP_TOTAL_ROUNDS", "50")),
 }

@@ -12,7 +12,7 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -44,6 +44,8 @@ class SessionConfig:
     npc_config: Optional[dict] = None
     # 学生模拟器配置（可选）
     student_config: Optional[dict] = None
+    # 进度回调（phase, message），仿真过程中切换卡片时调用
+    progress_callback: Optional[Callable[[str, str], None]] = None
 
 
 @dataclass
@@ -230,9 +232,15 @@ class SessionRunner:
         print("=" * 60)
         
         try:
-            # 遍历所有A类卡片
-            while self.current_card_index < len(self.a_cards):
+            total_cards = len(self.a_cards)
+            while self.current_card_index < total_cards:
                 current_card = self.a_cards[self.current_card_index]
+                idx = self.current_card_index + 1
+                if self.config.progress_callback:
+                    self.config.progress_callback(
+                        "simulate",
+                        f"仿真中… 阶段 {idx}/{total_cards}",
+                    )
                 
                 print(f"\n{'='*40}")
                 print(f"[阶段 {current_card.stage_num}] {current_card.stage_name or current_card.title}")

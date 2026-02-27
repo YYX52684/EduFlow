@@ -22,7 +22,12 @@ def build_export_config(export_path: str, cfg: Optional[Dict[str, Any]] = None) 
         "json_score_key": cfg.get("json_score_key", "total_score"),
         "csv_score_column": cfg.get("csv_score_column"),
     }
-from .dspy_card_generator import DSPyCardGenerator, CardAGeneratorModule, CardBGeneratorModule
+from .dspy_card_generator import (
+    DSPyCardGenerator,
+    CardAGeneratorModule,
+    CardBGeneratorModule,
+    _optimizer_context,
+)
 from .external_metric import get_score_from_export, load_config_from_dict
 
 
@@ -163,8 +168,12 @@ def run_bootstrap_optimizer(
         max_labeled_demos=max_labeled_demos,
         max_rounds=max_rounds,
     )
-    compiled = optimizer.compile(program, trainset=examples)
-    return compiled
+    _optimizer_context.running = True
+    try:
+        compiled = optimizer.compile(program, trainset=examples)
+        return compiled
+    finally:
+        _optimizer_context.running = False
 
 
 def run_mipro_optimizer(
@@ -263,12 +272,16 @@ def run_mipro_optimizer(
         num_threads=1,
     )
 
-    compiled = optimizer.compile(
-        program,
-        trainset=train_examples,
-        valset=dev_examples,
-    )
-    return compiled
+    _optimizer_context.running = True
+    try:
+        compiled = optimizer.compile(
+            program,
+            trainset=train_examples,
+            valset=dev_examples,
+        )
+        return compiled
+    finally:
+        _optimizer_context.running = False
 
 
 def run_optimize_dspy(
