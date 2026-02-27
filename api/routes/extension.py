@@ -39,7 +39,6 @@ async def upload_and_generate(file: UploadFile = File(...)):
     try:
         from parsers import get_parser_for_extension
         from generators import ContentSplitter, list_frameworks, get_framework
-        from config import CARD_GENERATOR_TYPE
 
         full_content = get_parser_for_extension(suffix)(path)
         llm = _get_llm_config()
@@ -54,24 +53,17 @@ async def upload_and_generate(file: UploadFile = File(...)):
             return {"error": "未能分析出有效阶段，请检查剧本内容"}
 
         frameworks = list_frameworks()
-        framework_id = "dspy" if any(m["id"] == "dspy" for m in frameworks) else (CARD_GENERATOR_TYPE or "default")
+        framework_id = "dspy"
         if not any(m["id"] == framework_id for m in frameworks):
-            framework_id = frameworks[0]["id"] if frameworks else "default"
+            framework_id = frameworks[0]["id"] if frameworks else "dspy"
 
         GeneratorClass, _ = get_framework(framework_id)
-        if framework_id == "dspy":
-            generator = GeneratorClass(
-                api_key=llm.get("api_key"),
-                model_type=llm.get("model_type"),
-                base_url=llm.get("base_url") or None,
-                model=llm.get("model") or None,
-            )
-        else:
-            generator = GeneratorClass(
-                api_key=llm.get("api_key"),
-                base_url=llm.get("base_url") or None,
-                model=llm.get("model") or None,
-            )
+        generator = GeneratorClass(
+            api_key=llm.get("api_key"),
+            model_type=llm.get("model_type"),
+            base_url=llm.get("base_url") or None,
+            model=llm.get("model") or None,
+        )
         cards_content = generator.generate_all_cards(stages, full_content)
 
         header = f"""# 教学卡片

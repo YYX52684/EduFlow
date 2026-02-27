@@ -7,7 +7,6 @@
 - 开发者可在 frameworks/ 下新增子目录实现新框架，自动被发现
 """
 from .content_splitter import ContentSplitter
-from .card_generator import CardGenerator
 
 # DSPy生成器可能需要额外安装dspy-ai
 try:
@@ -22,7 +21,6 @@ from .frameworks import list_frameworks, get_framework
 
 __all__ = [
     "ContentSplitter",
-    "CardGenerator",
     "DSPyCardGenerator",
     "DSPY_AVAILABLE",
     "list_frameworks",

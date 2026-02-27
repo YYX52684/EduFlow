@@ -25,7 +25,7 @@ def test_card_defaults():
 
 def test_stage_meta_generation():
     """阶段元数据生成格式正确（STAGE_META 注释 + JSON）。"""
-    from generators.card_generator import CardGenerator
+    from generators.dspy_card_generator import DSPyCardGenerator
 
     stage = {
         "id": 1,
@@ -38,12 +38,7 @@ def test_stage_meta_generation():
         "content_excerpt": "Test excerpt",
     }
 
-    class MockCardGenerator(CardGenerator):
-        def __init__(self):
-            self.card_a_template = ""
-            self.card_b_template = ""
-
-    generator = MockCardGenerator()
+    generator = DSPyCardGenerator(api_key="test-key-for-unit-test")
     meta_str = generator._create_stage_meta(stage)
     meta_pattern = r"<!--\s*STAGE_META:\s*(\{.*?\})\s*-->"
     match = re.search(meta_pattern, meta_str)

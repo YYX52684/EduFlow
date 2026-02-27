@@ -13,8 +13,6 @@ from parsers import get_parser_for_extension
 from .content_splitter import ContentSplitter
 
 from config import DEEPSEEK_API_KEY
-import json
-from pathlib import Path
 
 # 卡片/输出目录（与 workspaces 或根目录 output 一致，不再使用 train/）
 CARDS_ROOT = Path("output")

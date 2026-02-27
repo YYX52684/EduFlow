@@ -39,7 +39,7 @@ def _run_generate_cards(
     stages = req.stages
     if not stages:
         raise BadRequestError("stages 不能为空")
-    framework_id = req.framework_id or CARD_GENERATOR_TYPE
+    framework_id = req.framework_id or CARD_GENERATOR_TYPE or "dspy"
     frameworks = list_frameworks()
     if not frameworks:
         raise ConfigError("无可用生成框架")
@@ -52,19 +52,12 @@ def _run_generate_cards(
     except ValueError as e:
         raise ValidationError(str(e), details={"framework_id": framework_id})
     try:
-        if framework_id == "dspy":
-            generator = GeneratorClass(
-                api_key=cfg["api_key"],
-                model_type=cfg.get("model_type"),
-                base_url=cfg.get("base_url") or None,
-                model=cfg.get("model") or None,
-            )
-        else:
-            generator = GeneratorClass(
-                api_key=cfg["api_key"],
-                base_url=cfg.get("base_url") or None,
-                model=cfg.get("model") or None,
-            )
+        generator = GeneratorClass(
+            api_key=cfg["api_key"],
+            model_type=cfg.get("model_type"),
+            base_url=cfg.get("base_url") or None,
+            model=cfg.get("model") or None,
+        )
     except Exception as e:
         raise ConfigError("初始化生成器失败", details={"reason": str(e)})
 

@@ -114,42 +114,6 @@ def is_same_role(current_role: str, next_role: str) -> bool:
     return current_name == next_name
 
 
-def estimate_length(text: str) -> int:
-    """
-    估算文本长度（中文字符 + 英文单词）
-    
-    Args:
-        text: 输入文本
-        
-    Returns:
-        估算长度
-    """
-    if not text:
-        return 0
-    
-    # 中文字符算1个字
-    chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
-    # 英文单词算1个字（简单估算）
-    english_words = len(re.findall(r'[a-zA-Z]+', text))
-    
-    return chinese_chars + english_words
-
-
-def generate_length_guidance(target_min: int, target_max: int, field_desc: str = "") -> str:
-    """
-    生成长度指导文本，用于提示词
-    
-    Args:
-        target_min: 目标最小长度
-        target_max: 目标最大长度
-        field_desc: 字段描述
-        
-    Returns:
-        长度指导文本
-    """
-    return f"长度建议{target_min}-{target_max}字，保持简洁自然即可，不必严格限制。"
-
-
 class Retryable:
     """带重试机制的函数包装器"""
     
@@ -177,7 +141,6 @@ class Retryable:
                             self.on_retry(attempt, e)
                     else:
                         raise last_exception
-            return None
         return wrapper
 
 

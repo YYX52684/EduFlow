@@ -3,6 +3,7 @@
 EduFlow Web API 入口
 不修改 main.py，仅复用现有模块提供 REST 接口。
 """
+import io
 import logging
 import os
 import sys
@@ -10,6 +11,11 @@ import sys
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+
+# Windows 下强制 stdout/stderr 使用 UTF-8，避免优化器/仿真等输出 Unicode 字符时触发 GBK 编码错误
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
