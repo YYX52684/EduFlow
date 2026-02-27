@@ -3,13 +3,7 @@
 import os
 import sys
 
-from config import (
-    OUTPUT_DIR,
-    DSPY_OPTIMIZER_CONFIG,
-    DEFAULT_MODEL_TYPE,
-    DEEPSEEK_API_KEY,
-    DOUBAO_API_KEY,
-)
+from config import OUTPUT_DIR, DSPY_OPTIMIZER_CONFIG, DEFAULT_MODEL_TYPE, DEEPSEEK_API_KEY, DOUBAO_API_KEY
 from api.workspace import get_project_dirs
 
 
@@ -47,26 +41,26 @@ def run_optimize_dspy(
     args,
     parser,
 ):
-    """运行 DSPy 生成器优化。需要 args.trainset；可选 args.devset, args.workspace, args.cards_output, args.export_file, args.optimizer, args.max_rounds。"""
+    """运行 DSPy 生成器优化（闭环模式：仿真+内部评估）。"""
     from generators import DSPY_AVAILABLE
     if not DSPY_AVAILABLE:
         print("错误: 未安装 dspy-ai，请运行 pip install dspy-ai")
         sys.exit(1)
-    from generators.dspy_optimizer import run_optimize_dspy, build_export_config
+    from generators.dspy_optimizer import run_optimize_dspy
 
     if not args.trainset:
         parser.error("--optimize-dspy 需要提供 --trainset（trainset JSON 路径）")
     cfg = DSPY_OPTIMIZER_CONFIG
     _opt_out = get_project_dirs(args.workspace.strip())[1] if args.workspace else OUTPUT_DIR
     output_cards = args.cards_output or cfg.get("cards_output_path", os.path.join(_opt_out, "optimizer", "cards_for_eval.md"))
-    export_path = args.export_file or cfg.get("export_file_path", os.path.join(_opt_out, "optimizer", "export_score.json"))
-    export_config = build_export_config(export_path, cfg)
+    # 闭环模式下，export_path 仅作为评估结果导出路径（JSON/Markdown），供后续查看与分析
+    export_path = args.export_file or os.path.join(_opt_out, "optimizer", "export_score.json")
     print("=" * 60)
     print("DSPy 生成器优化")
     print("=" * 60)
     print(f"  trainset: {args.trainset}")
     print(f"  卡片输出: {output_cards}")
-    print(f"  导出文件（读取分数）: {export_path}\n")
+    print(f"  评估报告导出路径: {export_path}\n")
     model_type = DEFAULT_MODEL_TYPE
     api_key = DOUBAO_API_KEY if model_type == "doubao" else DEEPSEEK_API_KEY
     try:
@@ -75,7 +69,6 @@ def run_optimize_dspy(
             devset_path=os.path.abspath(args.devset) if args.devset else None,
             output_cards_path=os.path.abspath(output_cards),
             export_path=os.path.abspath(export_path),
-            export_config=export_config,
             optimizer_type=args.optimizer,
             api_key=api_key,
             model_type=model_type,

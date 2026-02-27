@@ -2,7 +2,7 @@ import os
 from typing import Callable, Optional
 
 from config import DSPY_OPTIMIZER_CONFIG
-from generators.dspy_optimizer import build_export_config, run_optimize_dspy
+from generators.dspy_optimizer import run_optimize_dspy
 from api.workspace import WorkspaceManager
 from api.routes.llm_config import require_llm_config
 from api.exceptions import BadRequestError, ConfigError, NotFoundError
@@ -29,7 +29,8 @@ def run_optimizer_core(
 
     llm = require_llm_config(workspace_id)
     wm = WorkspaceManager(workspace_id)
-    model_type = (req.model_type or llm.get("model_type") or "deepseek").lower()
+    # 优先使用请求 / 工作区配置中的 model_type，默认退回豆包
+    model_type = (req.model_type or llm.get("model_type") or "doubao").lower()
     cfg = DSPY_OPTIMIZER_CONFIG
 
     trainset_abs = wm.resolve_output_path(req.trainset_path)
@@ -40,6 +41,7 @@ def run_optimizer_core(
         )
 
     cards_path = req.cards_output_path or "output/optimizer/cards_for_eval.md"
+    # 闭环模式下，export_path 作为评估结果导出文件（JSON），供前端查看与分析
     export_path_rel = req.export_path or "output/optimizer/export_score.json"
     cards_abs = wm.resolve_output_path(cards_path)
     export_abs = wm.resolve_output_path(export_path_rel)
@@ -53,7 +55,6 @@ def run_optimizer_core(
         if not os.path.isfile(devset_abs):
             raise NotFoundError("devset 文件不存在", details={"path": req.devset_path})
 
-    export_config = build_export_config(export_abs, cfg)
     if req.optimizer_type not in ("bootstrap", "mipro"):
         raise BadRequestError(
             "optimizer_type 须为 bootstrap 或 mipro",
@@ -65,13 +66,11 @@ def run_optimizer_core(
         "devset_path": devset_abs,
         "output_cards_path": cards_abs,
         "export_path": export_abs,
-        "export_config": export_config,
         "optimizer_type": req.optimizer_type,
         "api_key": llm["api_key"],
         "model_type": model_type,
         "max_rounds": req.max_rounds or cfg.get("max_rounds", 1),
         "max_bootstrapped_demos": cfg.get("max_bootstrapped_demos", 4),
-        "use_auto_eval": req.use_auto_eval,
         "persona_id": req.persona_id,
     }
     if progress_callback is not None:
@@ -79,27 +78,14 @@ def run_optimizer_core(
 
     run_optimize_dspy(**kwargs)
 
-    hint = (
-        "闭环模式已完成，每轮已自动仿真+评估。"
-        if req.use_auto_eval
-        else f"请使用外部平台对 {cards_path} 进行评估，并将结果导出到 {export_path_rel} 后继续迭代。"
-    )
+    hint = "闭环模式已完成，每轮已自动仿真+评估。"
     final_report_rel = "output/optimizer/closed_loop_final_report.md"
-    if not req.use_auto_eval:
-        final_report_abs = wm.resolve_output_path(final_report_rel)
-        os.makedirs(os.path.dirname(final_report_abs) or ".", exist_ok=True)
-        with open(final_report_abs, "w", encoding="utf-8") as f:
-            f.write(
-                "# 优化运行报告\n\n本次使用外部评估。\n\n分数文件：`"
-                + export_path_rel
-                + "`\n"
-            )
 
     return {
         "message": "优化完成。优化后的程序已返回（后续可接入保存/加载）。",
         "cards_output_path": cards_path,
         "export_path": export_path_rel,
-        "use_auto_eval": req.use_auto_eval,
+        "use_auto_eval": True,
         "hint": hint,
         "evaluation_report_path": final_report_rel,
     }

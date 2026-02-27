@@ -1,5 +1,7 @@
 ## EduFlow 操作指令总结
 
+> 推荐优先使用 Web 控制台（`python run_web.py` 打开 `http://localhost:8000/`）完成日常解析、生成、仿真与注入；本节命令行指令主要面向高级用户和批处理/自动化场景。
+
 ### 一、卡片生成命令
 
 | 命令 | 说明 |
@@ -61,9 +63,9 @@ python main.py --set-project "https://hike-teaching-center.polymas.com/tch-hike/
 
 ---
 
-### 五（续）、DSPy 优化与外部评估
+### 五（续）、DSPy 优化（闭环仿真 + 内部评估）
 
-使用**外部平台的导出文件**作为评分指标，对 DSPy 卡片生成器进行优化（如 BootstrapFewShot）。
+闭环模式下，优化器会自动对生成的卡片执行「仿真 + 多维度评估」，并将总分作为 DSPy 的 metric（如 BootstrapFewShot、MIPRO）。
 
 | 命令 | 说明 |
 |------|------|

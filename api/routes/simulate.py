@@ -11,6 +11,7 @@ from simulator import SessionRunner, SessionConfig
 from simulator.card_loader import LocalCardLoader
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_workspace_dirs, resolve_workspace_path
+from api.routes.llm_config import build_chat_completions_url
 from simulator.session_runner import SessionMode
 from simulator.evaluator import EvaluatorFactory
 from api.routes.llm_config import require_llm_config
@@ -94,11 +95,7 @@ def run_simulation(req: SimulateRequest, workspace_id: str = Depends(require_wor
     base_url = (llm.get("base_url") or "").rstrip("/")
     model_name = llm.get("model") or ""
 
-    # OpenAI 兼容 chat-completions 接口：
-    # - 对 DeepSeek / OpenAI：base_url 形如 https://api.xxx.com/v1
-    # - 对豆包：base_url 形如 http://llm-service.polymas.com/api/openai/v1
-    # 均只需在末尾拼接 /chat/completions
-    api_url = f"{base_url}/chat/completions"
+    api_url = build_chat_completions_url(base_url)
     npc_student_config = {
         "api_url": api_url,
         "api_key": api_key,
@@ -166,7 +163,7 @@ def run_simulation_from_content(
     api_key = llm.get("api_key") or ""
     base_url = (llm.get("base_url") or "").rstrip("/")
     model_name = llm.get("model") or ""
-    api_url = f"{base_url}/chat/completions"
+    api_url = build_chat_completions_url(base_url)
     npc_student_config = {"api_url": api_url, "api_key": api_key, "model": model_name}
 
     config = SessionConfig(

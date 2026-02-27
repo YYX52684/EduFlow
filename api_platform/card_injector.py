@@ -372,32 +372,32 @@ class CardInjector:
     ) -> Dict[str, Any]:
         """
         注入卡片并配置任务（含评价项）。
-        流程：解析 Markdown（含评价项）→ 注入卡片 → editConfiguration → 批量 createScoreItem。
+        流程：解析 Markdown（含评价项）→ 配置任务信息 → 注入卡片 → 批量 createScoreItem。
         """
         path = Path(md_path)
         if not path.exists():
             raise FileNotFoundError(f"文件不存在: {md_path}")
         content = path.read_text(encoding="utf-8")
-        
+
         # 1. 解析评价项
         evaluation_items = self.parse_evaluation_items(content)
         total_score = sum(it.get("score", 0) for it in evaluation_items)
-        
-        # 2. 注入卡片（复用现有逻辑）
-        inject_result = self.inject_from_file(md_path, progress_callback=progress_callback)
-        
-        # 3. 配置任务信息（若提供了 task_name 或 description）
+
+        # 2. 优先更新任务配置（若前端提供了任务名称或描述）
         if task_name is not None or description is not None:
             try:
                 self.api.edit_configuration(
-                    task_name=task_name or inject_result.get("task_name", "训练任务"),
+                    task_name=task_name or "训练任务",
                     description=description or "",
                     train_time=-1,
                 )
                 print("\n  [OK] 已更新任务配置（名称/描述/不限时）")
             except Exception as e:
                 print(f"\n  [警告] 更新任务配置失败: {e}")
-        
+
+        # 3. 注入卡片（复用现有逻辑）
+        inject_result = self.inject_from_file(md_path, progress_callback=progress_callback)
+
         # 4. 创建评价项（失败不影响卡片注入结果）
         created = 0
         for it in evaluation_items:
@@ -411,7 +411,7 @@ class CardInjector:
                 created += 1
             except Exception as e:
                 print(f"  [警告] 创建评价项「{it.get('item_name', '')}」失败: {e}")
-        
+
         inject_result["evaluation_items_count"] = created
         inject_result["total_score"] = total_score
         return inject_result

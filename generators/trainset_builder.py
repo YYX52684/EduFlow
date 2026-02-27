@@ -33,7 +33,7 @@ TRAINSET_EXAMPLE_KEYS = {"full_script", "stages"}
 STAGE_REQUIRED_KEYS = {"id", "title", "description", "role", "task", "key_points", "content_excerpt"}
 STAGE_OPTIONAL_KEYS = {"interaction_rounds", "student_role"}
 
-# 外部评估常见维度对应的剧本应含内容（用于对齐检查提示）
+# 评估维度对应的剧本应含内容（用于对齐检查提示）
 EVAL_ALIGNMENT_HINTS = {
     "任务目标": ["任务目标", "目标"],
     "评分标准": ["评分标准", "满分", "分"],
@@ -168,7 +168,7 @@ def validate_trainset(
     校验 trainset 结构与评估标准对齐情况。
 
     - 结构：每条样本必须有 full_script、stages；每个 stage 必须有 id, title, description, role, task, key_points, content_excerpt。
-    - 对齐（可选）：full_script 建议包含任务目标/评分标准等，便于外部评估维度（知识点覆盖率、环节准出等）有据可依。
+    - 对齐（可选）：full_script 建议包含任务目标/评分标准等，便于评估维度（知识点覆盖率、环节准出等）有据可依。
 
     Args:
         examples: 样本列表（load_trainset 或 build_trainset_from_path 的返回值）。
@@ -240,7 +240,7 @@ def validate_trainset(
             if "任务目标" not in full_script and "目标" not in full_script:
                 messages.append(f"样本 {idx + 1}: [建议] full_script 中未见「任务目标」类表述，评估时「目标达成度」等维度可能缺少依据")
             if "评分标准" not in full_script and "满分" not in full_script:
-                messages.append(f"样本 {idx + 1}: [建议] full_script 中未见「评分标准」或「满分」，与外部评估维度对齐时可补充")
+                messages.append(f"样本 {idx + 1}: [建议] full_script 中未见「评分标准」或「满分」，与评估维度对齐时可补充")
 
     if strict and messages:
         valid = False
@@ -573,15 +573,15 @@ def quick_build_eval_trainset(
     train_dir: str = "train"
 ) -> str:
     """
-    快速构建带评估信息的训练集
-    
-    自动查找常见目录并构建训练集
+    快速构建带评估信息的训练集。
+
+    默认从内部评估报告目录（如 simulator_output/reports、output/optimizer）中
+    解析 evaluation-report-*.md / .json，结合对应卡片与原始剧本构建样本。
     """
     if eval_dirs is None:
         eval_dirs = [
-            "input/现代农业创业项目路演_安康学院",
-            "input/自动控制原理_山西大学",
-            "外部评估报告",
+            "simulator_output/reports",
+            "output/optimizer",
         ]
     if cards_dirs is None:
         cards_dirs = [str(CARDS_ROOT)]

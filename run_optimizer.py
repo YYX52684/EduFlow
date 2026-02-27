@@ -53,7 +53,7 @@ def main():
         "--model",
         choices=["doubao", "deepseek"],
         default=None,
-        help=f"模型（默认: {DEFAULT_MODEL_TYPE}）",
+        help=f\"模型（默认: {DEFAULT_MODEL_TYPE}，推荐使用豆包 doubao）\",
     )
     parser.add_argument(
         "--optimizer",
@@ -69,7 +69,7 @@ def main():
     parser.add_argument(
         "--export",
         default=None,
-        help="外部评估导出文件路径（默认随 --workspace 或 output/optimizer/export_score.json）",
+        help="闭环评估报告导出文件路径（默认随 --workspace 或 output/optimizer/export_score.json）",
     )
     parser.add_argument(
         "--max-rounds",
@@ -82,18 +82,6 @@ def main():
         type=int,
         default=None,
         help="Bootstrap 最大示例数（默认从 config）",
-    )
-    parser.add_argument(
-        "--auto-eval",
-        action="store_true",
-        default=True,
-        help="闭环模式（默认开启）：以仿真+评估替代外部平台人工评估",
-    )
-    parser.add_argument(
-        "--no-auto-eval",
-        dest="auto_eval",
-        action="store_false",
-        help="禁用闭环模式，使用外部评估",
     )
     parser.add_argument(
         "--persona",
@@ -126,7 +114,7 @@ def main():
 
     cfg = DSPY_OPTIMIZER_CONFIG
     cards_path = args.cards_output or cfg.get("cards_output_path") or os.path.join(_opt_dir, "cards_for_eval.md")
-    export_path = args.export or cfg.get("export_file_path") or os.path.join(_opt_dir, "export_score.json")
+    export_path = args.export or os.path.join(_opt_dir, "export_score.json")
     cards_path = os.path.abspath(cards_path)
     export_path = os.path.abspath(export_path)
     os.makedirs(os.path.dirname(cards_path) or ".", exist_ok=True)
@@ -143,10 +131,9 @@ def main():
     print(f"  trainset: {trainset_path} ({len(trainset)} 条)")
     print(f"  模型: {model_type}")
     print(f"  优化器: {args.optimizer}")
-    if args.auto_eval:
-        print(f"  闭环模式: 是 (persona={args.persona})")
+    print(f"  闭环模式: 是 (persona={args.persona})")
     print(f"  卡片输出: {cards_path}")
-    print(f"  评估导出: {export_path}")
+    print(f"  评估报告导出: {export_path}")
     print("  预计耗时: 闭环模式约 15–60 分钟（取决于 trainset 与轮数）")
     print()
 
@@ -157,33 +144,23 @@ def main():
         bar = "█" * filled + "░" * (bar_len - filled)
         print(f"\r[{bar}] {pct}% - {message}", end="", flush=True)
 
-    export_config = {
-        "parser": cfg.get("parser", "json"),
-        "json_score_key": cfg.get("json_score_key", "total_score"),
-    }
-
     try:
         compiled = run_optimize_dspy(
             trainset_path=trainset_path,
             devset_path=None,
             output_cards_path=cards_path,
             export_path=export_path,
-            export_config=export_config,
+            export_config=None,
             optimizer_type=args.optimizer,
             api_key=DOUBAO_API_KEY if model_type == "doubao" else DEEPSEEK_API_KEY,
             model_type=model_type,
             max_rounds=args.max_rounds or cfg.get("max_rounds", 1),
             max_bootstrapped_demos=args.max_demos or cfg.get("max_bootstrapped_demos", 4),
-            use_auto_eval=args.auto_eval,
             persona_id=args.persona,
-            progress_callback=_progress_cb if args.auto_eval else None,
+            progress_callback=_progress_cb,
         )
-        if args.auto_eval:
-            print()
-        if args.auto_eval:
-            print("[OK] 闭环优化完成。每轮已自动运行仿真+评估。")
-        else:
-            print("[OK] 优化完成。请使用外部平台对生成的卡片进行评估，并将结果导出到上述 export 路径后继续迭代。")
+        print()
+        print("[OK] 闭环优化完成。每轮已自动运行仿真+评估。")
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -21,7 +21,7 @@ router = APIRouter()
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs, resolve_workspace_path
 from api.exceptions import LLMError
-from api.routes.llm_config import require_llm_config
+from api.routes.llm_config import require_llm_config, build_chat_completions_url
 from api.routes.evaluate import _write_export_files
 from generators.closed_loop import run_simulate_and_evaluate
 
@@ -40,8 +40,9 @@ def _run_closed_loop(req: ClosedLoopRequest, workspace_id: str, progress_callbac
     api_key = llm.get("api_key") or ""
     base_url = (llm.get("base_url") or "").rstrip("/")
     model_name = llm.get("model") or ""
-    model_type = (llm.get("model_type") or "deepseek").lower()
-    api_url = f"{base_url}/chat/completions" if base_url else ""
+    # 闭环仿真默认与全局配置一致，未设置时使用豆包
+    model_type = (llm.get("model_type") or "doubao").lower()
+    api_url = build_chat_completions_url(base_url)
     _, output_dir, _ = get_project_dirs(workspace_id)
     sim_output = os.path.join(output_dir, "simulator_output", "closed_loop")
 

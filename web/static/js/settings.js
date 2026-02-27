@@ -287,7 +287,7 @@
       });
       return;
     }
-    if (e.target.closest('button, a, input, select, textarea, .local-sidebar, .modal-overlay, .ctx-menu, section, header, .drop-zone, pre, .file-list, .breadcrumb, .sidebar-resize-handle, .sidebar-collapse-btn, .sidebar-expand-tab, .file-list-item, .nav a, label, [contenteditable]')) return;
+    if (e.target.closest('button, a, input, select, textarea, .modal-overlay, section, header, .drop-zone, pre, .file-list, .breadcrumb, .file-list-item, .nav a, label, [contenteditable]')) return;
     document.body.classList.add('ui-fade-out');
     setTimeout(function() {
       document.body.classList.add('ui-hidden');
@@ -295,130 +295,5 @@
     }, 220);
   });
 
-  (function() {
-    var SIDEBAR_WIDTH_KEY = 'eduflow_sidebar_width';
-    var SIDEBAR_COLLAPSED_KEY = 'eduflow_sidebar_collapsed';
-    var MIN_WIDTH = 200;
-    var MAX_WIDTH = 480;
-    var DEFAULT_WIDTH = 280;
-    var root = document.documentElement;
-    function getSidebarWidth() {
-      var w = parseFloat(getComputedStyle(root).getPropertyValue('--sidebar-width'));
-      return isNaN(w) ? DEFAULT_WIDTH : w;
-    }
-    function setSidebarWidth(px) {
-      px = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, px));
-      root.style.setProperty('--sidebar-width', px + 'px');
-      try { localStorage.setItem(SIDEBAR_WIDTH_KEY, String(px)); } catch (e) {}
-    }
-    var localSidebar = document.getElementById('localSidebar');
-    function setCollapsed(collapsed) {
-      if (collapsed) {
-        document.body.classList.add('sidebar-collapsed');
-        if (localSidebar) localSidebar.classList.add('collapsed');
-      } else {
-        document.body.classList.remove('sidebar-collapsed');
-        if (localSidebar) localSidebar.classList.remove('collapsed');
-      }
-      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) {}
-    }
-    function isCollapsed() { return document.body.classList.contains('sidebar-collapsed'); }
-    try {
-      var savedW = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-      if (savedW != null) {
-        var n = parseFloat(savedW);
-        if (!isNaN(n)) root.style.setProperty('--sidebar-width', Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) + 'px');
-      }
-      if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1') {
-        document.body.classList.add('sidebar-collapsed');
-        if (localSidebar) localSidebar.classList.add('collapsed');
-      }
-    } catch (e) {}
-    var resizeHandle = document.getElementById('sidebarResizeHandle');
-    if (resizeHandle) {
-      resizeHandle.onmousedown = function(e) {
-        if (isCollapsed()) return;
-        e.preventDefault();
-        var startX = e.clientX;
-        var startW = getSidebarWidth();
-        function onMove(ev) { setSidebarWidth(startW + (ev.clientX - startX)); }
-        function onUp() {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-        }
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      };
-    }
-    var collapseBtn = document.getElementById('sidebarCollapseBtn');
-    if (collapseBtn) collapseBtn.onclick = function() { setCollapsed(true); };
-    var expandTab = document.getElementById('sidebarExpandTab');
-    if (expandTab) expandTab.onclick = function() {
-      setCollapsed(false);
-      var w = DEFAULT_WIDTH;
-      try { var s = localStorage.getItem(SIDEBAR_WIDTH_KEY); if (s != null) { var n = parseFloat(s); if (!isNaN(n)) w = n; } } catch (e) {}
-      setSidebarWidth(w);
-    };
-    (function setupLeftSidebarSwipe() {
-      if (!localSidebar) return;
-      var dragPx = 0, touchStartX = null, wheelAccum = 0, wheelEndTimer = null;
-      var COMMIT_RATIO = 0.35;
-      var WHEEL_END_MS = 120;
-      var transitionEase = 'cubic-bezier(0.16, 1, 0.3, 1)';
-      function getWidth() { return localSidebar.getBoundingClientRect().width || 280; }
-      function applyDrag(px) {
-        localSidebar.style.transition = 'none';
-        localSidebar.style.transform = 'translateX(-' + Math.max(0, Math.min(px, getWidth())) + 'px)';
-      }
-      function endDrag(commit) {
-        if (commit) {
-          localSidebar.style.transition = 'transform 0.25s ' + transitionEase;
-          localSidebar.style.transform = '';
-          setCollapsed(true);
-        } else {
-          localSidebar.style.transition = 'transform 0.3s ' + transitionEase;
-          localSidebar.style.transform = 'translateX(0)';
-          var onEnd = function() {
-            localSidebar.removeEventListener('transitionend', onEnd);
-            localSidebar.style.transition = '';
-            localSidebar.style.transform = '';
-          };
-          localSidebar.addEventListener('transitionend', onEnd);
-        }
-        dragPx = 0;
-        wheelAccum = 0;
-        touchStartX = null;
-      }
-      localSidebar.addEventListener('wheel', function(e) {
-        if (isCollapsed()) return;
-        if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return;
-        e.preventDefault();
-        wheelAccum += -e.deltaX;
-        wheelAccum = Math.max(0, Math.min(wheelAccum, getWidth()));
-        applyDrag(wheelAccum);
-        clearTimeout(wheelEndTimer);
-        wheelEndTimer = setTimeout(function() {
-          wheelEndTimer = null;
-          var th = getWidth() * COMMIT_RATIO;
-          endDrag(wheelAccum >= th);
-        }, WHEEL_END_MS);
-      }, { passive: false });
-      localSidebar.addEventListener('touchstart', function(e) {
-        touchStartX = e.touches[0].clientX;
-        dragPx = 0;
-      }, { passive: true });
-      localSidebar.addEventListener('touchmove', function(e) {
-        if (touchStartX == null || isCollapsed()) return;
-        var dx = touchStartX - e.touches[0].clientX;
-        dragPx = Math.max(0, Math.min(dx, getWidth()));
-        applyDrag(dragPx);
-        if (Math.abs(dx) > 8) e.preventDefault();
-      }, { passive: false });
-      localSidebar.addEventListener('touchend', function(e) {
-        if (touchStartX == null) return;
-        var th = getWidth() * COMMIT_RATIO;
-        endDrag(dragPx >= th);
-      }, { passive: true });
-    })();
   })();
 })();

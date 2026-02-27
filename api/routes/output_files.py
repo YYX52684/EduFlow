@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-output 目录：列出当前工作区 output 下的文件、上传外部评估报告等。
-支持读取/写入文件内容，供卡片可视化编辑使用。
+output 目录：列出当前工作区 output 下的文件、上传评估报告等优化相关文件。
+支持读取/写入文件内容，供卡片与评估结果的可视化编辑使用。
 """
 import os
 from urllib.parse import quote
@@ -94,9 +94,9 @@ async def upload_to_output(
     save_as: Optional[str] = Form(""),
 ):
     """
-    上传文件到当前工作区 output。用于上传外部评估报告等。
+    上传文件到当前工作区 output。可用于上传闭环评估报告、日志等优化相关文件。
     subpath: 相对 output 的子路径，默认 output/optimizer。
-    save_as: 保存为的文件名，空则用原文件名；可填 export_score.md 以覆盖默认导出路径。
+    save_as: 保存为的文件名，空则用原文件名；如需覆盖默认闭环评估输出可填写 export_score.json。
     """
     _, output_dir, _ = get_project_dirs(workspace_id)
     content = await file.read()

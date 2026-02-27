@@ -59,7 +59,8 @@ async def generate_personas(
             num_personas=num_personas,
             include_preset_types=True,
         )
-        saved_paths = generator.save_personas(personas, None)
+        source_basename = os.path.splitext(file.filename or "script")[0]
+        saved_paths = generator.save_personas(personas, None, source_basename=source_basename)
         return {
             "count": len(personas),
             "personas": [
