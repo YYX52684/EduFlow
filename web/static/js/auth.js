@@ -12,6 +12,18 @@
     return (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
   }
 
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  function setValidationError(errorEl, message) {
+    if (!errorEl) return;
+    errorEl.textContent = message || '';
+    errorEl.style.display = message ? 'block' : 'none';
+  }
+  function setInputInvalid(input, invalid) {
+    if (!input) return;
+    if (invalid) input.classList.add('input-invalid');
+    else input.classList.remove('input-invalid');
+  }
+
   (function initAuthUI() {
     var authScreen = document.getElementById('authScreen');
     if (!authScreen) return;
@@ -40,7 +52,78 @@
       if (forgotMsg) forgotMsg.textContent = '';
       if (forgotSuccess) { forgotSuccess.style.display = 'none'; forgotSuccess.textContent = ''; }
       if (forgotResetLink) { forgotResetLink.style.display = 'none'; forgotResetLink.innerHTML = ''; }
+      [['loginIdentifier', 'loginIdentifierError'], ['registerEmail', 'registerEmailError'], ['registerPassword', 'registerPasswordError'], ['registerPasswordAgain', 'registerPasswordAgainError'], ['forgotIdentifier', 'forgotIdentifierError'], ['resetNewPassword', null], ['resetNewPasswordAgain', 'resetPasswordAgainError']].forEach(function(pair) {
+        var err = document.getElementById(pair[1]);
+        var inp = document.getElementById(pair[0]);
+        if (err) setValidationError(err, '');
+        if (inp) setInputInvalid(inp, false);
+      });
     }
+
+    function validateLoginIdentifier() {
+      var v = (document.getElementById('loginIdentifier') && document.getElementById('loginIdentifier').value || '').trim();
+      var errEl = document.getElementById('loginIdentifierError');
+      var inp = document.getElementById('loginIdentifier');
+      if (!v) { setValidationError(errEl, ''); setInputInvalid(inp, false); return true; }
+      if (!EMAIL_RE.test(v)) { setValidationError(errEl, '请输入有效的邮箱地址'); setInputInvalid(inp, true); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inp, false); return true;
+    }
+    function validateRegisterEmail() {
+      var v = (document.getElementById('registerEmail') && document.getElementById('registerEmail').value || '').trim();
+      var errEl = document.getElementById('registerEmailError');
+      var inp = document.getElementById('registerEmail');
+      if (!v) { setValidationError(errEl, '请填写邮箱'); setInputInvalid(inp, true); return false; }
+      if (!EMAIL_RE.test(v)) { setValidationError(errEl, '请输入有效的邮箱地址'); setInputInvalid(inp, true); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inp, false); return true;
+    }
+    function validateRegisterPassword() {
+      var v = (document.getElementById('registerPassword') && document.getElementById('registerPassword').value || '');
+      var errEl = document.getElementById('registerPasswordError');
+      var inp = document.getElementById('registerPassword');
+      if (v.length > 0 && v.length < 6) { setValidationError(errEl, '密码至少 6 位'); setInputInvalid(inp, true); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inp, false); return true;
+    }
+    function validateRegisterPasswordAgain() {
+      var p = (document.getElementById('registerPassword') && document.getElementById('registerPassword').value || '');
+      var v = (document.getElementById('registerPasswordAgain') && document.getElementById('registerPasswordAgain').value || '');
+      var errEl = document.getElementById('registerPasswordAgainError');
+      var inp = document.getElementById('registerPasswordAgain');
+      if (v && v !== p) { setValidationError(errEl, '两次输入的密码不一致'); setInputInvalid(inp, true); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inp, false); return true;
+    }
+    function validateForgotIdentifier() {
+      var v = (document.getElementById('forgotIdentifier') && document.getElementById('forgotIdentifier').value || '').trim();
+      var errEl = document.getElementById('forgotIdentifierError');
+      var inp = document.getElementById('forgotIdentifier');
+      if (!v) { setValidationError(errEl, ''); setInputInvalid(inp, false); return true; }
+      if (!EMAIL_RE.test(v)) { setValidationError(errEl, '请输入有效的邮箱地址'); setInputInvalid(inp, true); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inp, false); return true;
+    }
+    function validateResetPasswords() {
+      var p = (document.getElementById('resetNewPassword') && document.getElementById('resetNewPassword').value || '');
+      var v = (document.getElementById('resetNewPasswordAgain') && document.getElementById('resetNewPasswordAgain').value || '');
+      var errEl = document.getElementById('resetPasswordAgainError');
+      var inpAgain = document.getElementById('resetNewPasswordAgain');
+      var inpFirst = document.getElementById('resetNewPassword');
+      if (p.length > 0 && p.length < 6) { setValidationError(errEl, '密码至少 6 位'); setInputInvalid(inpFirst, true); setInputInvalid(inpAgain, false); return false; }
+      if (v && v !== p) { setValidationError(errEl, '两次输入的密码不一致'); setInputInvalid(inpAgain, true); setInputInvalid(inpFirst, false); return false; }
+      setValidationError(errEl, ''); setInputInvalid(inpAgain, false); setInputInvalid(inpFirst, false); return true;
+    }
+
+    var loginId = document.getElementById('loginIdentifier');
+    if (loginId) { loginId.oninput = validateLoginIdentifier; loginId.onblur = validateLoginIdentifier; }
+    var regEmail = document.getElementById('registerEmail');
+    if (regEmail) { regEmail.oninput = validateRegisterEmail; regEmail.onblur = validateRegisterEmail; }
+    var regPwd = document.getElementById('registerPassword');
+    if (regPwd) { regPwd.oninput = function() { validateRegisterPassword(); validateRegisterPasswordAgain(); }; regPwd.onblur = validateRegisterPassword; }
+    var regPwdAgain = document.getElementById('registerPasswordAgain');
+    if (regPwdAgain) { regPwdAgain.oninput = validateRegisterPasswordAgain; regPwdAgain.onblur = validateRegisterPasswordAgain; }
+    var forgotId = document.getElementById('forgotIdentifier');
+    if (forgotId) { forgotId.oninput = validateForgotIdentifier; forgotId.onblur = validateForgotIdentifier; }
+    var resetPwd = document.getElementById('resetNewPassword');
+    if (resetPwd) { resetPwd.oninput = validateResetPasswords; resetPwd.onblur = validateResetPasswords; }
+    var resetPwdAgain = document.getElementById('resetNewPasswordAgain');
+    if (resetPwdAgain) { resetPwdAgain.oninput = validateResetPasswords; resetPwdAgain.onblur = validateResetPasswords; }
 
     document.querySelectorAll('.auth-tab').forEach(function(btn) {
       btn.onclick = function() {
@@ -95,6 +178,7 @@
     if (forgotForm) {
       forgotForm.onsubmit = async function(e) {
         e.preventDefault();
+        if (!validateForgotIdentifier()) return;
         var id = document.getElementById('forgotIdentifier').value.trim();
         if (forgotMsg) forgotMsg.textContent = '';
         if (forgotSuccess) forgotSuccess.style.display = 'none';
@@ -132,6 +216,7 @@
     if (resetForm) {
       resetForm.onsubmit = async function(e) {
         e.preventDefault();
+        if (!validateResetPasswords()) return;
         var tokenEl = document.getElementById('resetToken');
         var token = (tokenEl && tokenEl.value) ? tokenEl.value.trim() : '';
         var p = document.getElementById('resetNewPassword').value;
@@ -161,6 +246,7 @@
     if (loginForm) {
       loginForm.onsubmit = async function(e) {
         e.preventDefault();
+        if (!validateLoginIdentifier()) return;
         var id = document.getElementById('loginIdentifier').value.trim();
         var p = document.getElementById('loginPassword').value;
         if (loginMsg) loginMsg.textContent = '';
@@ -183,18 +269,11 @@
     if (registerForm) {
       registerForm.onsubmit = async function(e) {
         e.preventDefault();
+        if (!validateRegisterEmail() || !validateRegisterPassword() || !validateRegisterPasswordAgain()) return;
         var email = document.getElementById('registerEmail').value.trim();
         var p = document.getElementById('registerPassword').value;
         var pAgain = document.getElementById('registerPasswordAgain').value;
         if (registerMsg) registerMsg.textContent = '';
-        if (!email) {
-          if (registerMsg) registerMsg.textContent = '请填写邮箱。';
-          return;
-        }
-        if (p !== pAgain) {
-          if (registerMsg) registerMsg.textContent = '两次输入的密码不一致，请重新输入。';
-          return;
-        }
         var base = getApiBase().replace(/\/$/, '');
         var body = { email: email, password: p };
         try {
@@ -262,5 +341,7 @@
     if (authScreen) {
       authScreen.onclick = function(e) { if (e.target === authScreen) hideAuthScreen(); };
     }
+    window.AUTH_READY = true;
+    try { document.dispatchEvent(new CustomEvent('eduflow:authReady')); } catch (e) {}
   })();
 })();

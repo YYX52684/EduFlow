@@ -11,10 +11,18 @@
 
 import os
 import sys
+import json
+import tempfile
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from generators.evaluation_parser import EvaluationParser, analyze_reports
-from generators.trainset_builder import quick_build_eval_trainset, EvaluationAwareBuilder
+from generators.trainset_builder import (
+    quick_build_eval_trainset,
+    EvaluationAwareBuilder,
+    save_trainset,
+    merge_trainsets,
+)
 
 
 def test_evaluation_parser():
@@ -89,6 +97,58 @@ def test_trainset_builder():
     else:
         print("⚠ 未能构建训练集（可能缺少数据）")
         return None
+
+
+def test_merge_trainsets_basic():
+    """测试按 content_hash/source_file 去重的 merge_trainsets 工具函数。"""
+    print("\n" + "=" * 60)
+    print("步骤2.1: 测试 merge_trainsets 工具函数")
+    print("=" * 60)
+
+    from generators.trainset_builder import compute_content_hash
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        p1 = os.path.join(tmpdir, "t1.json")
+        p2 = os.path.join(tmpdir, "t2.json")
+        merged_path = os.path.join(tmpdir, "merged.json")
+
+        # 构造两份包含重复样本的 trainset
+        stages = [
+            {
+                "id": 1,
+                "title": "阶段一",
+                "description": "",
+                "role": "教师",
+                "task": "任务",
+                "key_points": ["要点"],
+                "content_excerpt": "摘要",
+            }
+        ]
+        ex1 = {
+            "full_script": "脚本A",
+            "stages": stages,
+            "source_file": "input/A.md",
+        }
+        ex1["content_hash"] = compute_content_hash(ex1["full_script"], ex1["stages"])
+
+        ex2 = {
+            "full_script": "脚本B",
+            "stages": stages,
+            "source_file": "input/B.md",
+        }
+        ex2["content_hash"] = compute_content_hash(ex2["full_script"], ex2["stages"])
+
+        # t1: A, B；t2: A 再次出现
+        save_trainset([ex1, ex2], p1)
+        save_trainset([ex1], p2)
+
+        merged_count = merge_trainsets([p1, p2], merged_path)
+        print(f"✓ 合并后样本数: {merged_count}")
+        with open(merged_path, "r", encoding="utf-8") as f:
+            merged = json.load(f)
+        assert merged_count == 2, "合并后应只有 2 条去重样本"
+        assert {e["full_script"] for e in merged} == {"脚本A", "脚本B"}
+        print("✓ merge_trainsets 去重逻辑正常")
 
 
 def test_api_connection():

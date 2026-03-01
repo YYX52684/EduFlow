@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
-  apiRequest,
-  apiPostJson,
-  apiGet,
-  apiPostSSE,
-  ApiError,
+    ApiError,
+    apiGet,
+    apiPostJson,
+    apiPostSSE,
+    apiRequest,
 } from "../utils/api";
 
 interface UploadResponse {
@@ -42,6 +42,16 @@ interface PersonasResponse {
   custom: string[];
 }
 
+interface TrainsetFile {
+  path: string;
+  name: string;
+  mtime?: number;
+}
+
+interface TrainsetListResponse {
+  files: TrainsetFile[];
+}
+
 function normalizeCardsPath(p: string): string {
   const s = (p || "").trim();
   return s.startsWith("output/") ? s : s ? `output/${s}` : "";
@@ -60,6 +70,8 @@ export const ConsolePage = () => {
 
   const [outputFiles, setOutputFiles] = useState<WorkspaceFile[]>([]);
   const [personas, setPersonas] = useState<PersonasResponse | null>(null);
+  const [trainsetFiles, setTrainsetFiles] = useState<TrainsetFile[]>([]);
+  const [selectedTrainsetPath, setSelectedTrainsetPath] = useState<string>("");
   const [cardsPath, setCardsPath] = useState("");
 
   // 步骤 3：试玩/模拟
@@ -92,18 +104,21 @@ export const ConsolePage = () => {
     let cancelled = false;
     (async () => {
       try {
-        const [filesResp, personasResp] = await Promise.all([
+        const [filesResp, personasResp, trainsetResp] = await Promise.all([
           apiGet<FilesResponse>("/output/files"),
           apiGet<PersonasResponse>("/personas"),
+          apiGet<TrainsetListResponse>("/trainset/list"),
         ]);
         if (!cancelled) {
           setOutputFiles((filesResp?.files as WorkspaceFile[]) || []);
           setPersonas(personasResp || null);
+          setTrainsetFiles(trainsetResp?.files || []);
         }
       } catch {
         if (!cancelled) {
           setOutputFiles([]);
           setPersonas(null);
+          setTrainsetFiles([]);
         }
       }
     })();
@@ -370,7 +385,7 @@ export const ConsolePage = () => {
       await apiPostSSE(
         "/optimizer/run-stream",
         {
-          trainset_path: "output/optimizer/trainset.json",
+          ...(selectedTrainsetPath ? { trainset_path: selectedTrainsetPath } : {}),
           use_auto_eval: true,
           optimizer_type: "bootstrap",
         },
@@ -408,7 +423,7 @@ export const ConsolePage = () => {
           <span className="pill">支持 .md / .docx / .doc / .pdf</span>
         </div>
         <p className="page-section-desc">
-          上传教学剧本，解析为阶段结构并写入 trainset.json，为闭环优化做准备。
+          上传教学剧本，解析为阶段结构并写入 trainset 库，为闭环优化做准备。
         </p>
 
         <form onSubmit={handleUpload} className="stack-v">
@@ -730,7 +745,23 @@ export const ConsolePage = () => {
             </div>
 
             <div className="stack-v" style={{ flex: 1, minWidth: 200 }}>
-              <p className="hint" style={{ marginBottom: 8 }}>
+              <label className="field-label" style={{ marginBottom: 4 }}>
+                Trainset（不选则使用库中最新一份）
+              </label>
+              <select
+                className="field-input"
+                value={selectedTrainsetPath}
+                onChange={(e) => setSelectedTrainsetPath(e.target.value)}
+                style={{ maxWidth: 400 }}
+              >
+                <option value="">默认（最新）</option>
+                {trainsetFiles.map((f) => (
+                  <option key={f.path} value={f.path}>
+                    {f.name || f.path}
+                  </option>
+                ))}
+              </select>
+              <p className="hint" style={{ marginTop: 8, marginBottom: 8 }}>
                 基于 trainset 迭代优化，闭环模式自动用三档人设（优秀/一般/较差）并行评估取均值。
               </p>
               <button

@@ -5,7 +5,7 @@ output 目录：列出当前工作区 output 下的文件、上传评估报告�
 """
 import os
 from urllib.parse import quote
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, Request, UploadFile, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -14,10 +14,20 @@ router = APIRouter()
 
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs, resolve_workspace_path, normalize_output_rel, list_dir_files, list_dir_files_with_mtime, save_upload_to_dir
-from api.exceptions import NotFoundError, LLMError
+from api.exceptions import NotFoundError, LLMError, BadRequestError
 
 # 评估报告允许的扩展名
 EXPORT_ALLOWED_EXT = {".md", ".json", ".txt"}
+
+# 放宽 multipart 单 part 大小，避免大文件触发 413/400
+MAX_UPLOAD_PART_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+async def _parse_form(request: Request):
+    try:
+        return await request.form(max_part_size=MAX_UPLOAD_PART_SIZE)
+    except TypeError:
+        return await request.form()
 
 
 class WriteBody(BaseModel):
@@ -88,19 +98,24 @@ def list_output_files(
 
 @router.post("/upload")
 async def upload_to_output(
+    request: Request,
     workspace_id: str = Depends(require_workspace_owned),
-    file: UploadFile = File(...),
-    subpath: Optional[str] = Form("output/optimizer"),
-    save_as: Optional[str] = Form(""),
 ):
     """
     上传文件到当前工作区 output。可用于上传闭环评估报告、日志等优化相关文件。
-    subpath: 相对 output 的子路径，默认 output/optimizer。
-    save_as: 保存为的文件名，空则用原文件名；如需覆盖默认闭环评估输出可填写 export_score.json。
+    单文件最大约 50MB。form 字段：file（必填）、subpath（默认 output/optimizer）、save_as（可选）。
     """
+    form = await _parse_form(request)
+    file = form.get("file")
+    if file is None or not isinstance(file, UploadFile):
+        raise BadRequestError("请上传文件", details={"field": "file"})
+    subpath = form.get("subpath")
+    subpath_str = (subpath if isinstance(subpath, str) else (subpath or "")) or "output/optimizer"
+    save_as_raw = form.get("save_as")
+    save_as = (save_as_raw if isinstance(save_as_raw, str) else (save_as_raw or "")) or ""
     _, output_dir, _ = get_project_dirs(workspace_id)
     content = await file.read()
-    subpath_str = (subpath or "output/optimizer").strip().replace("\\", "/").strip("/")
+    subpath_str = subpath_str.strip().replace("\\", "/").strip("/")
     path, err = save_upload_to_dir(
         output_dir,
         content,
@@ -113,3 +128,28 @@ async def upload_to_output(
     if err:
         return {"error": err}
     return {"path": path, "saved": True}
+
+
+class DeleteOutputRequest(BaseModel):
+    path: str  # 相对 output，如 output/xxx/file.json
+
+
+@router.delete("/delete")
+def delete_output_file(
+    body: DeleteOutputRequest,
+    workspace_id: str = Depends(require_workspace_owned),
+):
+    """删除 output 下指定文件；path 必须落在当前工作区 output 内。"""
+    path = (body.path or "").strip().replace("\\", "/")
+    if not path or ".." in path:
+        raise BadRequestError("path 非法", details={"path": path})
+    if not path.startswith("output/"):
+        path = "output/" + path.lstrip("/")
+    full_path = resolve_workspace_path(workspace_id, path, kind="output", must_exist=True)
+    if not os.path.isfile(full_path):
+        raise NotFoundError("文件不存在或非文件", details={"path": path})
+    try:
+        os.remove(full_path)
+    except Exception as e:
+        raise LLMError("删除失败", details={"path": path, "reason": str(e)})
+    return {"deleted": path}

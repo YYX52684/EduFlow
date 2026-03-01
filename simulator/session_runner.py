@@ -39,7 +39,9 @@ class SessionConfig:
     output_dir: str = "simulator_output"    # 输出目录
     verbose: bool = False                   # 详细输出
     save_logs: bool = True                  # 是否保存对话日志
-    
+
+    # 自定义人设根目录（如工作区 output/persona_lib）；为空则用默认 simulator_config/custom
+    custom_persona_dir: Optional[str] = None
     # NPC配置（可选，None表示从环境变量读取）
     npc_config: Optional[dict] = None
     # 学生模拟器配置（可选）
@@ -146,7 +148,9 @@ class SessionRunner:
         
         # 组件
         self.card_loader = LocalCardLoader()
-        self.persona_manager = PersonaManager()
+        self.persona_manager = PersonaManager(
+            custom_dir=self.config.custom_persona_dir
+        ) if self.config.custom_persona_dir else PersonaManager()
         
         self.npc: Optional[LLMNPC] = None
         self.student: Optional[Union[LLMStudent, ManualStudent]] = None

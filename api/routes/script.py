@@ -7,7 +7,7 @@ from fastapi import APIRouter, UploadFile, File, Depends
 from pydantic import BaseModel
 from parsers import get_parser_for_extension
 from generators import ContentSplitter
-from generators.trainset_builder import append_trainset_example
+from generators.trainset_builder import write_trainset_for_document
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs, resolve_workspace_path
 from api.routes.llm_config import get_llm_config, require_llm_config
@@ -38,20 +38,25 @@ def _stages_to_trainset_format(stages: list) -> list:
     ]
 
 
-def _maybe_append_trainset(
+def _write_trainset_lib(
     workspace_id: str,
     full_content: str,
     stages_for_trainset: list,
     source_file: str,
-) -> Optional[int]:
-    """若工作区有效且 stages 非空，则追加到 trainset.json，返回条数；否则返回 None。"""
+) -> Optional[str]:
+    """
+    将当前文档写入工作区 trainset 库：output/trainset_lib/{原文档名}_trainset.json。
+    任何异常不抛出，返回 None；成功返回相对路径（如 output/trainset_lib/xxx_trainset.json）。
+    """
     if not workspace_id or not stages_for_trainset:
         return None
     try:
         _, output_dir, _ = get_project_dirs(workspace_id)
-        trainset_path = os.path.join(output_dir, "optimizer", "trainset.json")
-        return append_trainset_example(
-            full_content, stages_for_trainset, trainset_path,
+        return write_trainset_for_document(
+            output_dir,
+            source_file,
+            full_content,
+            stages_for_trainset,
             source_file=source_file,
         )
     except Exception:
@@ -86,10 +91,12 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = D
         }
         if result.get("_truncated_note"):
             out["truncated_note"] = result["_truncated_note"]
-        count = _maybe_append_trainset(workspace_id, full_content, stages_for_trainset, file.filename or "")
-        if count is not None:
-            out["trainset_path"] = "output/optimizer/trainset.json"
-            out["trainset_count"] = count
+        trainset_path = _write_trainset_lib(
+            workspace_id, full_content, stages_for_trainset, file.filename or ""
+        )
+        if trainset_path is not None:
+            out["trainset_path"] = trainset_path
+            out["trainset_count"] = 1
         return out
     except Exception as e:
         raise LLMError("上传解析或分析失败", details={"reason": str(e)})
@@ -136,10 +143,12 @@ def analyze_by_path(req: AnalyzePathRequest, workspace_id: str = Depends(require
         }
         if result.get("_truncated_note"):
             out["truncated_note"] = result["_truncated_note"]
-        count = _maybe_append_trainset(workspace_id, full_content, stages_for_trainset, full)
-        if count is not None:
-            out["trainset_path"] = "output/optimizer/trainset.json"
-            out["trainset_count"] = count
+        trainset_path = _write_trainset_lib(
+            workspace_id, full_content, stages_for_trainset, os.path.basename(full)
+        )
+        if trainset_path is not None:
+            out["trainset_path"] = trainset_path
+            out["trainset_count"] = 1
         return out
     except Exception as e:
         raise LLMError("按路径分析失败", details={"reason": str(e)})

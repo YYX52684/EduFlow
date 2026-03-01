@@ -10,7 +10,7 @@ router = APIRouter()
 from simulator import SessionRunner, SessionConfig
 from simulator.card_loader import LocalCardLoader
 from api.routes.auth import require_workspace_owned
-from api.workspace import get_workspace_dirs, resolve_workspace_path
+from api.workspace import get_project_dirs, get_workspace_dirs, resolve_workspace_path
 from api.routes.llm_config import build_chat_completions_url
 from simulator.session_runner import SessionMode
 from simulator.evaluator import EvaluatorFactory
@@ -87,8 +87,9 @@ def run_simulation(req: SimulateRequest, workspace_id: str = Depends(require_wor
         raise BadRequestError(
             "Web API 暂仅支持 auto 模式；manual/hybrid 请使用命令行 python main.py --simulate ..."
         )
-    _, output_dir, _ = get_workspace_dirs(workspace_id)
+    _, output_dir, _ = get_project_dirs(workspace_id)
     run_output = os.path.join(output_dir, req.output_dir)
+    persona_lib = os.path.join(output_dir, "persona_lib")
 
     llm = require_llm_config(workspace_id)
     api_key = llm.get("api_key") or ""
@@ -108,6 +109,7 @@ def run_simulation(req: SimulateRequest, workspace_id: str = Depends(require_wor
         persona_id=req.persona_id,
         output_dir=run_output,
         verbose=False,
+        custom_persona_dir=persona_lib if os.path.isdir(persona_lib) else None,
         npc_config=npc_student_config,
         student_config=npc_student_config,
     )

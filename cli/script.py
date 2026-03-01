@@ -101,11 +101,61 @@ def run_script(args):
 
         try:
             from generators.trainset_builder import append_trainset_example
-            trainset_path = os.path.join(_output_dir, "optimizer", "trainset.json")
-            os.makedirs(os.path.dirname(trainset_path), exist_ok=True)
-            count = append_trainset_example(content, stages, trainset_path, source_file=input_path)
+
+            opt_dir = os.path.join(_output_dir, "optimizer")
+            os.makedirs(opt_dir, exist_ok=True)
+
+            # 推断课程 ID：
+            # - 若使用 workspace 且已选中项目，则 _input_dir 指向该项目目录，使用其 basename；
+            # - 否则，从输入文件相对路径的首级目录推断。
+            rel_from_input = os.path.relpath(input_path, _input_dir).replace("\\", "/")
+            base_input_dirname = os.path.basename(os.path.normpath(_input_dir))
+            if base_input_dirname and base_input_dirname != os.path.basename(os.path.normpath(INPUT_DIR)):
+                course_id = base_input_dirname
+            else:
+                parts = [p for p in rel_from_input.split("/") if p]
+                course_id = parts[0] if parts else os.path.splitext(os.path.basename(input_path))[0]
+
+            # 文档 ID：文件名去扩展名
+            doc_id = os.path.splitext(os.path.basename(input_path))[0]
+
+            # 文档级 trainset：trainset_{course_id}__{doc_id}.json
+            per_doc_trainset = os.path.join(opt_dir, f"trainset_{course_id}__{doc_id}.json")
+            per_doc_count = append_trainset_example(
+                content,
+                stages,
+                per_doc_trainset,
+                source_file=input_path,
+                course_id=course_id,
+                doc_id=doc_id,
+            )
+
+            # 课程级与汇总级 trainset，保持与旧流程兼容
+            per_course_trainset = os.path.join(opt_dir, f"trainset_{course_id}.json")
+            append_trainset_example(
+                content,
+                stages,
+                per_course_trainset,
+                source_file=input_path,
+                course_id=course_id,
+                doc_id=doc_id,
+            )
+
+            aggregated_trainset = os.path.join(opt_dir, "trainset.json")
+            total_count = append_trainset_example(
+                content,
+                stages,
+                aggregated_trainset,
+                source_file=input_path,
+                course_id=course_id,
+                doc_id=doc_id,
+            )
+
             if args.verbose:
-                print(f"   [trainset] 已写入 {trainset_path}，当前共 {count} 条\n")
+                print(
+                    f"   [trainset] 已写入 {per_doc_trainset}（该文档 {per_doc_count} 条），"
+                    f"课程级 {per_course_trainset}，汇总共 {total_count} 条\n"
+                )
         except Exception as e:
             if args.verbose:
                 print(f"   [trainset] 写入跳过: {e}\n")

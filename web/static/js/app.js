@@ -841,10 +841,19 @@
           });
         }
       } else {
-        html = '<div class="file-list-item tree-depth-0" style="color:var(--natsume-ink-light)">无文件</div>';
+        var emptyIcon = '<svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>';
+        html = '<div class="empty-state" id="workspaceEmptyState">' + emptyIcon +
+          '<p class="empty-state-title">工作区暂无文件</p>' +
+          '<p class="empty-state-desc">上传并解析剧本后可生成卡片，或从闭环优化导出</p>' +
+          '<button type="button" class="btn-primary empty-state-cta" data-action="scrollToScript">去上传剧本</button></div>';
       }
       if (listEl) {
         listEl.innerHTML = html || '';
+        var cta = listEl.querySelector('.empty-state-cta[data-action="scrollToScript"]');
+        if (cta) cta.onclick = function() {
+          var section = document.querySelector('[data-section="script"]') || document.getElementById('scriptDropZone');
+          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        };
         listEl.onclick = function(e) {
           var dl = e.target.closest('.workspace-file-dl');
           if (dl) {
@@ -906,6 +915,34 @@
 
       var historyFilesCache = [];
       var currentCategory = 'cards';
+      var historySearchQuery = '';
+
+      var emptyStateIconSvg = '<svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v4M16 4v4M2 12h20"/></svg>';
+      function getHistoryEmptyStateHTML(cat) {
+        var config = { cards: { title: '暂无卡片', desc: '上传剧本并点击「生成卡片」即可生成', btn: '去生成卡片', action: 'scrollToScript' },
+          reports: { title: '暂无评估报告', desc: '运行闭环优化后可在此查看报告', btn: '去运行优化', action: 'scrollToOptimizer' },
+          other: { title: '暂无其他文件', desc: '上传或生成文件后会出现在此处', btn: '去上传', action: 'scrollToScript' } }[cat] || { title: '暂无数据', desc: '完成对应步骤后会出现文件', btn: '去创建', action: 'scrollToScript' };
+        return '<div class="empty-state">' + emptyStateIconSvg +
+          '<p class="empty-state-title">' + config.title + '</p>' +
+          '<p class="empty-state-desc">' + config.desc + '</p>' +
+          '<button type="button" class="btn-primary empty-state-cta" data-action="' + config.action + '">' + config.btn + '</button></div>';
+      }
+      function bindHistoryEmptyStateButton(wrap, cat) {
+        if (!wrap) return;
+        var btn = wrap.querySelector('.empty-state-cta');
+        if (!btn) return;
+        btn.onclick = function() {
+          if (typeof closeModal === 'function') closeModal(modal);
+          var action = btn.getAttribute('data-action');
+          if (action === 'scrollToOptimizer') {
+            var el = document.querySelector('[data-section="optimizer"]') || document.getElementById('btnRunOptimizer');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } else {
+            var section = document.querySelector('[data-section="script"]') || document.getElementById('scriptDropZone');
+            if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        };
+      }
 
       function classifyFile(f) {
         var path = (f.path || '').replace(/^output\/?/, 'output/');
@@ -944,6 +981,12 @@
         if (!container) return;
         var order = sortSelect && sortSelect.value ? sortSelect.value : 'newest';
         var sorted = sortFiles(files, order);
+        var q = (historySearchQuery || '').trim().toLowerCase();
+        if (q) sorted = sorted.filter(function(f) {
+          var path = (f.path || '').replace(/^output\/?/, '');
+          var name = (f.name || path.split('/').pop() || '');
+          return (path + ' ' + name).toLowerCase().indexOf(q) !== -1;
+        });
         var html = '';
         sorted.forEach(function(f) {
           var path = (f.path || '').replace(/^output\/?/, 'output/');
@@ -982,8 +1025,29 @@
         renderList(listCards, cards);
         renderList(listReports, reports);
         renderList(listOther, other);
-        var currentList = currentCategory === 'cards' ? cards : currentCategory === 'reports' ? reports : other;
-        if (emptyHint) emptyHint.style.display = currentList.length === 0 ? 'block' : 'none';
+        var fullList = currentCategory === 'cards' ? cards : currentCategory === 'reports' ? reports : other;
+        var q = (historySearchQuery || '').trim();
+        var filteredCount = q ? fullList.filter(function(f) {
+          var path = (f.path || '').replace(/^output\/?/, '');
+          var name = (f.name || path.split('/').pop() || '');
+          return (path + ' ' + name).toLowerCase().indexOf(q.toLowerCase()) !== -1;
+        }).length : fullList.length;
+        if (emptyHint) {
+          if (filteredCount === 0) {
+            emptyHint.innerHTML = fullList.length === 0
+              ? getHistoryEmptyStateHTML(currentCategory)
+              : '<div class="empty-state">' + emptyStateIconSvg + '<p class="empty-state-title">无匹配结果</p><p class="empty-state-desc">试试其他关键词或清空搜索</p><button type="button" class="btn-secondary empty-state-cta" data-action="clearSearch">清空搜索</button></div>';
+            emptyHint.style.display = 'block';
+            emptyHint.classList.add('empty-state-wrap');
+            if (fullList.length === 0) bindHistoryEmptyStateButton(emptyHint, currentCategory);
+            else {
+              var clearBtn = emptyHint.querySelector('.empty-state-cta[data-action="clearSearch"]');
+              if (clearBtn) clearBtn.onclick = function() { historySearchQuery = ''; var inp = document.getElementById('historyFilesSearch'); if (inp) inp.value = ''; renderAll(); };
+            }
+          } else {
+            emptyHint.style.display = 'none';
+          }
+        }
       }
 
       function loadHistoryFiles() {
@@ -1007,6 +1071,13 @@
       if (modal) modal.onclick = function(e) { if (e.target === modal && typeof window.closeModal === 'function') window.closeModal(modal); };
       if (btnRefresh) btnRefresh.onclick = loadHistoryFiles;
       if (sortSelect) sortSelect.onchange = renderAll;
+      var searchInput = document.getElementById('historyFilesSearch');
+      if (searchInput && typeof debounce === 'function') {
+        searchInput.oninput = debounce(function() {
+          historySearchQuery = searchInput.value || '';
+          renderAll();
+        }, 300);
+      }
       tabs.forEach(function(tab) {
         tab.onclick = function() {
           tabs.forEach(function(t) { t.classList.remove('active'); });
@@ -1015,25 +1086,38 @@
           if (listCards) listCards.style.display = currentCategory === 'cards' ? 'block' : 'none';
           if (listReports) listReports.style.display = currentCategory === 'reports' ? 'block' : 'none';
           if (listOther) listOther.style.display = currentCategory === 'other' ? 'block' : 'none';
-          var currentList = currentCategory === 'cards' ? historyFilesCache.filter(function(f) { return classifyFile(f) === 'cards'; })
-            : currentCategory === 'reports' ? historyFilesCache.filter(function(f) { return classifyFile(f) === 'reports'; })
-            : historyFilesCache.filter(function(f) { return classifyFile(f) === 'other'; });
-          if (emptyHint) emptyHint.style.display = currentList.length === 0 ? 'block' : 'none';
+          renderAll();
         };
       });
     })();
 
     async function loadPersonas() {
-      const r = await apiFetch( '/api/personas');
+      const r = await apiFetch('/api/personas');
+      if (r.status === 401) return;
+      if (r.status === 403) return;
       const d = await safeResponseJson(r);
       const sel = document.getElementById('personaId');
+      if (!sel) return;
       const opts = (d.presets || []).map(p => '<option value="' + p + '">' + p + '</option>');
       (d.custom || []).forEach(c => opts.push('<option value="' + c + '">' + c + '</option>'));
       sel.innerHTML = opts.join('') || '<option value="excellent">excellent</option>';
       var cardEditSel = document.getElementById('cardEditPersonaId');
       if (cardEditSel) cardEditSel.innerHTML = sel.innerHTML;
     }
-    loadPersonas();
+    function runLoadPersonasWhenReady() {
+      if (window.AUTH_READY) {
+        loadPersonas();
+        return;
+      }
+      document.addEventListener('eduflow:authReady', function onReady() {
+        document.removeEventListener('eduflow:authReady', onReady);
+        loadPersonas();
+      }, { once: true });
+      setTimeout(function() {
+        if (!window.AUTH_READY) loadPersonas();
+      }, 3000);
+    }
+    runLoadPersonasWhenReady();
 
     var lastLoadedPlatformConfig = {};
     function setPlatformFormValues(d) {
