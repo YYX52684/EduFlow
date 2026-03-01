@@ -65,9 +65,9 @@ class CardASignature(dspy.Signature):
     # 输出字段（人称约定：卡片给 NPC 用，「你」=NPC，「学生/对方」=学生，不用「我」）
     role_section: str = dspy.OutputField(desc="# Role 部分：NPC是谁，背景、性格、说话方式。建议50-100字，简洁自然即可。用「你」指代 NPC，例如「你是张经理，食品厂设备采购经理……」。需要结合本幕 `content_excerpt` 与 `key_points` 中的关键信息，避免过度抽象的人设描述。")
     context_section: str = dspy.OutputField(desc="# Context 部分：当前场景背景，对方（学生）扮演什么角色。建议50-100字。用「你」指 NPC、「学生/对方」指学生。须嵌入本幕原文中的关键信息点（如角色关系、场景前提、重要道具/数据），而不是只写「你和学生正在交流」这类空泛语句。若本环节紧接在角色切换之后（上一张A卡是不同NPC），须写明：开场第一句须含简短情境承接（如时间、场景或身份，例如「好的，我们到病房了」「术后第二天了」「护士，我们明天要出院了」），再进入本角色第一句台词，避免学生感到突兀。")
-    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：你（NPC）如何与学生/对方对话、推进剧情。建议80-150字。用「你」指 NPC、「学生/对方」指学生。重要：1）每轮只问1-2个问题，不要连续追问；2）严禁使用机械连接词如「你提到」「这两点直接关系到」「第一...第二...」等重复句式；3）学生回答正确时给予具体正向激励，如「这个思路很清晰」「数据支撑很好」等；4）若本环节为学生向NPC咨询（如家属问护士出院指导），须写明每个主题追问不超过1～2轮、对方说清关键步骤后表示理解并感谢，避免对同一细节重复追问超过2次；5）在对话中逐一渗透 `key_points` 中列出的要点，可通过具体提问、解释或小结把每个要点讲清楚，避免只用一句「按要求完成即可」之类的概括性说法；6）严禁在括号内暴露思考、元叙述或后续计划（例如「等你回答后我会追问…」「接下来我会问…」），保持沉浸、不出戏。")
+    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：你（NPC）如何与学生/对方对话、推进剧情。建议80-150字。用「你」指 NPC、「学生/对方」指学生。重要：1）只写NPC要说的台词、提问或点评要点，不要写「你微笑着说道」「你看向学生」等动作/神态描写，否则智能体会把描写当台词念出来；2）每轮只问1-2个问题，不要连续追问；3）严禁机械连接词如「你提到」「第一...第二...」等；4）学生答对时给予具体正向激励；5）在对话中渗透 `key_points` 要点；6）严禁括号内暴露思考、元叙述。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：什么情况下触发场景切换。用「你」指 NPC、「学生/对方」指学生。必须基于本幕关键知识点和任务目标来判断是否达标：明确写出学生需要展示哪些要点（可引用 `key_points` 或 `content_excerpt` 中的关键信息）才算完成本环节。仅在学生达到本环节核心目标（如完成关键任务、达到最低要求）时才输出下一张卡片；若未完成，写明「不要输出卡片XB，可继续追问/引导……」再给出跳转指令。建议50-80字。")
-    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：你（NPC）扮演时的限制和注意事项。使用短横线列表格式。必须包含：1）每轮只问1-2个问题，每轮回复控制在250字以内；2）严禁使用以下机械连接词：「你提到」「这两点直接关系到」「第一...第二...」「哦？」等；3）学生回答正确时给予具体正向激励（如「很好」「思路清晰」「数据准确」），每2-3轮至少一次；4）若本环节为引导型（如带教护士、医生提问学生），须包含「学生答对后至少追问1次为什么/依据/还需要注意什么，再进入下一问或下一环节」；5）使用多样化的自然表达，避免重复句式；6）确保在本幕对话过程中覆盖 `key_points` 和 `content_excerpt` 中的关键信息点，不得只给出抽象总结，如有尚未覆盖的要点，应在后续轮次中补充；7）严禁在回复或说明中使用括号暴露思考、元叙述或后续计划（如「等你回答后我会……」「接下来我会问……」），保持角色沉浸、不出戏。")
+    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：你（NPC）扮演时的限制和注意事项。使用短横线列表格式。必须包含：1）每轮只问1-2个问题，每轮回复控制在250字以内；2）严禁机械连接词「你提到」「第一...第二...」「哦？」等；3）学生答对时给予具体正向激励，答对后至少追问1次为什么/依据；4）使用多样化自然表达，覆盖 `key_points` 要点；5）严禁括号暴露思考、元叙述；6）回复时只输出角色台词（提问/点评/引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会被当台词念出、破坏沉浸感。")
     options_section: str = dspy.OutputField(desc="# Options（可选）部分：仅当涉及英文/代码/长串需语音输入时提供。列出 3-5 个编号选项，中文描述清晰，包含正确/常见误区/部分正确。若无需选项则返回空字符串。避免让学生朗读英文或代码，提示其说编号或简短中文。")
 
 
@@ -90,15 +90,15 @@ class CardBSignature(dspy.Signature):
     full_script: str = dspy.InputField(desc="完整的原始剧本内容")
     stage_index: int = dspy.InputField(desc="当前阶段编号（从1开始）")
     total_stages: int = dspy.InputField(desc="总阶段数")
-    current_stage_title: str = dspy.InputField(desc="当前阶段标题，用于在过渡语中点明本环节完成了什么。")
+    current_stage_title: str = dspy.InputField(desc="当前阶段标题，用于在过渡语中自然带出刚讨论完的内容（勿用「本环节」等流程词）。")
     current_stage_goal: str = dspy.InputField(desc="当前阶段目标，应与该阶段的 key_points 和任务描述对应，过渡语需要根据是否达成这些目标来选择不同表述。")
     next_stage_title: str = dspy.InputField(desc="下一阶段标题（如果有）")
     next_card_id: str = dspy.InputField(desc="下一张卡片ID，如'卡片2A'或'结束'")
     is_last_stage: bool = dspy.InputField(desc="是否是最后一个阶段")
 
-    # 输出字段 - 简洁版，无旁白；根据事实：好则肯定，不好则指出并开启下一步
-    context_section: str = dspy.OutputField(desc="# Context 部分：说明本过渡语的使用原则。仅当学生达到本环节核心目标（可结合本阶段 key_points 与任务目标判断）时才使用肯定式过渡；若明显未达标，先简短点出缺失的要点再自然切换。不要使用「无论您是否……都是宝贵的」这类无条件推进表述。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：过渡语模板或示例，建议30-80字。需体现「根据事实」：可写两种表述（肯定版/指出不足版）或通用指引。正文不要包含「无论您是否……」；可用「您在本环节已经完成了……（点出1-2个关键要点）现在请……」或先指出未达成的关键点再衔接。不要第三人称场景描写。")
+    # 输出字段 - 简洁版，无旁白；根据事实：好则肯定，不好则指出并自然带出下一话题。必须沉浸角色，禁止流程用语。
+    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。学生达标时用肯定口吻自然带出下一话题，未达标时简短点出不足再带出下一话题。不要「无论您是否……」类无条件推进。1-2句话。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：过渡语模板或示例，建议30-80字。根据当前NPC身份与剧情情境自然衔接，不固定口吻——例如同事/研发讨论可自然带出下一话题，患者可说「谢谢医生」，医生可简短嘱托，带教可总结再约等。可写两种表述（肯定版/指出不足版）。严禁使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语。不要第三人称场景描写。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -122,8 +122,8 @@ class CardBNarratorSignature(dspy.Signature):
 
     # 输出字段 - 旁白版，用于角色切换；根据事实：好则肯定，不好则指出并开启下一步
     role_section: str = dspy.OutputField(desc="# Role 部分：旁白/叙述者的定位，1句话。")
-    context_section: str = dspy.OutputField(desc="# Context 部分：说明本过渡语的使用原则。仅当学生达到本环节核心目标（可结合本阶段 key_points 与任务目标判断）时才使用肯定式过渡；若明显未达标，先简短指出缺失的关键要点再衔接角色切换。不要使用「无论您是否……都是宝贵的」这类无条件推进表述。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议50-80字。需体现「根据事实」：可以分别给出学生表现较好和需要改进两种简短表述，并点明上一阶段达成或遗漏的关键要点；然后说明角色切换、介绍新角色。正文要简短、像场景提示，少用长段第三人称旁白（如「经过……现在请将注意力转向……」），以免打破沉浸感。可改为一句情境句（如「病房里，责任护士已备好报告」「术后第二天，患儿出现新情况」「病情稳定，母亲带着出院疑问等待沟通」）。不使用括号。")
+    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。学生达标时用肯定口吻自然衔接角色切换，未达标时简短点出不足再带出下一角色。不要「无论您是否……」类无条件推进。1-2句话。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议50-80字。根据当前剧情与下一角色身份自然衔接，不固定口吻——可情境句带出下一角色（如「病房里，责任护士已备好报告」），或患者致谢、医生嘱托等角色化收尾。严禁「本环节」「本阶段」「现在请进入下一阶段」等流程用语。少用长段第三人称旁白。不使用括号。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -225,11 +225,11 @@ class CardBGeneratorModule(dspy.Module):
         is_last_stage = stage_index >= total_stages
         next_card_id = "结束" if is_last_stage else f"卡片{stage_index + 1}A"
 
-        # 优化：最后一幕直接返回固定结果，不调用LLM
+        # 优化：最后一幕直接返回固定结果，不调用LLM；收尾语为通用占位，实际应以当前角色身份自然收尾（如患者可说谢谢医生、医生可嘱托等）
         if is_last_stage:
             return dspy.Prediction(
-                context_section="本环节结束，训练完成。",
-                output_section="训练结束，感谢您的参与。",
+                context_section="以当前NPC身份与剧情自然收尾（如患者致谢、医生嘱托、带教总结等），勿用「本环节」「训练」等出戏用语。",
+                output_section="感谢您的参与。",
                 transition_section="**结束**",
                 use_narrator=False
             )
@@ -391,6 +391,10 @@ class DSPyCardGenerator:
             constraints, "括号",
             "严禁在回复或说明中使用括号暴露思考、元叙述或后续计划（如「等你回答后我会……」「接下来我会问……」），保持角色沉浸、不出戏。"
         )
+        constraints = ensure_constraint(
+            constraints, "台词",
+            "回复时只输出角色台词（提问、点评、引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会当台词念出、破坏沉浸感。"
+        )
         # 基于 key_points 与 content_excerpt 做简单覆盖度自检：
         # 抽取若干原文要点，若在各段落中未直接出现，则在约束中提醒需要特别关注。
         try:
@@ -452,24 +456,22 @@ class DSPyCardGenerator:
             sections.append(format_card_section("Context", result.context_section))
             sections.append(format_card_section("Output", result.output_section))
             sections.append(format_card_section("Constraints",
-                "- **根据事实**：仅当学生达到本环节核心目标时才使用肯定式过渡；若明显未达标，先简短指出缺失的关键要点再开启下一环节。不要使用「无论您是否……」类无条件推进表述。\n"
-                "- **避免长篇旁白**：优先用1-2句简短情境提示和评价，不要写大段第三人称叙述，以免打断沉浸感。\n"
-                "- **过渡语可准备两个版本**：在模板中分别给出“表现较好”和“需要改进”两种简短表述，方便根据学生实际表现选择。\n"
+                "- **根据事实**：学生达标时用肯定口吻自然衔接，未达标时简短点出不足再带出下一话题；不要「无论您是否……」类无条件推进。\n"
+                "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接（如患者致谢、医生嘱托、同事带出下一话题等）。\n"
+                "- **避免长篇旁白**：优先用1-2句简短情境提示和评价，不要写大段第三人称叙述。\n"
                 "- **严禁任何括号内容**\n"
-                "- **控制输出长度**：# Output部分50-80字\n"
-                "- 所有文字都应该可以直接朗读出来"
+                "- **控制输出长度**：# Output部分50-80字，所有文字可直接朗读。"
             ))
         else:
             # 简洁版：无Role部分
             sections.append(format_card_section("Context", result.context_section))
             sections.append(format_card_section("Output", result.output_section))
             sections.append(format_card_section("Constraints",
-                "- **根据事实**：仅当学生达到本环节核心目标时才使用肯定式过渡；若明显未达标，先简短指出缺失的关键要点再开启下一环节。不要使用「无论您是否……」类无条件推进表述。\n"
+                "- **根据事实**：学生达标时用肯定口吻自然衔接，未达标时简短点出不足再带出下一话题；不要「无论您是否……」类无条件推进。\n"
+                "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接或收尾（如患者可致谢、医生可嘱托、同事可带出下一话题等，不固定一种口吻）。\n"
                 "- **严禁任何括号内容**\n"
-                "- **严禁第三人称长篇场景叙述**：可以用一句情境提示，但不要写成旁白段落。\n"
-                "- **控制输出长度**：# Output部分30-80字\n"
-                "- 如有需要，可在模板中准备“表现较好/需要改进”两个简短版本，便于根据学生表现选择。\n"
-                "- 所有文字都应该可以直接朗读出来"
+                "- **严禁第三人称长篇场景叙述**：用一句情境式台词自然过渡即可。\n"
+                "- **控制输出长度**：# Output部分30-80字，所有文字可直接朗读。"
             ))
 
         return "\n".join(sections)

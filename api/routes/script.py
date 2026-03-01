@@ -23,7 +23,7 @@ def _parse_file_to_content(path: str, suffix: str) -> str:
 
 
 def _stages_to_trainset_format(stages: list) -> list:
-    """将 ContentSplitter 的 stages 转为 trainset 所需格式。"""
+    """将 ContentSplitter 的 stages 转为 trainset 所需格式。保留 interaction_rounds 供卡片生成使用。"""
     return [
         {
             "id": s.get("id"),
@@ -33,6 +33,7 @@ def _stages_to_trainset_format(stages: list) -> list:
             "task": s.get("task"),
             "key_points": s.get("key_points", []),
             "content_excerpt": s.get("content_excerpt") or "",
+            "interaction_rounds": s.get("interaction_rounds"),
         }
         for s in stages
     ]

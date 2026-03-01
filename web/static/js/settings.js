@@ -29,6 +29,7 @@
         if ((el = document.getElementById('llmModelType'))) el.value = data.model_type || 'deepseek';
         if ((el = document.getElementById('llmApiKey'))) el.value = '';
         if ((el = document.getElementById('llmApiKeyMasked'))) el.textContent = data.has_api_key ? '已保存 Key: ' + (data.api_key_masked || '***') : '未设置';
+        if ((el = document.getElementById('btnClearLlmApiKey'))) el.style.display = data.has_api_key ? '' : 'none';
         if ((el = document.getElementById('llmBaseUrl'))) el.value = data.base_url || '';
         if ((el = document.getElementById('llmModelName'))) el.value = data.model || '';
         if ((el = document.getElementById('llmCustomFields'))) el.style.display = (data.model_type === 'openai') ? 'block' : 'none';
@@ -44,6 +45,28 @@
     llmModelType.onchange = function() {
       var cf = document.getElementById('llmCustomFields');
       if (cf) cf.style.display = (this.value === 'openai') ? 'block' : 'none';
+    };
+  }
+
+  var btnClearLlmApiKey = document.getElementById('btnClearLlmApiKey');
+  if (btnClearLlmApiKey) {
+    btnClearLlmApiKey.onclick = function() {
+      var msgEl = document.getElementById('llmConfigMsg');
+      msgEl.textContent = '清除中…';
+      window.apiFetch('/api/llm/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: '' })
+      })
+        .then(function(r) { return window.safeResponseJson(r); })
+        .then(function(data) {
+          msgEl.textContent = '已清除工作区 API Key';
+          document.getElementById('llmApiKey').value = '';
+          loadLlmConfig();
+        })
+        .catch(function(e) {
+          msgEl.textContent = '清除失败: ' + (e.message || e);
+        });
     };
   }
 

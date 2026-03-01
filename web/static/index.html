@@ -87,9 +87,7 @@
         <span id="resetPasswordAgainError" class="validation-error" aria-live="polite"></span>
         <div id="resetMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">确认并重置密码</button>
-        <p class="auth-link-row"><a href="#" id="linkResetBackToLogin">返回登录</a></p>
       </form>
-      <p class="auth-link-row auth-skip"><button type="button" id="btnSkipAuth" class="auth-skip-btn">暂不登录，继续使用</button></p>
     </div>
   </div>
   <div id="historyFilesModal" class="modal-overlay" aria-hidden="true">
@@ -140,6 +138,7 @@
           <label>API Key</label>
           <input type="password" id="llmApiKey" placeholder="留空则保持已保存的值" autocomplete="off">
           <span id="llmApiKeyMasked" class="hint"></span>
+          <button type="button" id="btnClearLlmApiKey" class="btn-secondary btn-small" style="margin-top:0.25em">清除已保存的 Key</button>
           <label>模型</label>
           <select id="llmModelType">
             <option value="deepseek">DeepSeek</option>
