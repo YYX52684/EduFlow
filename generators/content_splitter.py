@@ -53,7 +53,8 @@ class ContentSplitter:
 
 请分析以下剧本，将其划分为多个**场景/幕**。这是一个类似"剧本杀"的沉浸式学习体验，学生会与AI扮演的角色对话。
 
-请严格按照以下JSON格式返回分析结果（不要添加任何其他说明文字，不要使用markdown代码块）：
+请严格按照以下JSON格式返回分析结果（不要添加任何其他说明文字，不要使用markdown代码块）。
+注意：每个场景的 interaction_rounds 必须根据该场景的复杂度单独判断、填写 1-10 的整数，不要所有场景都填同一个数。
 
 {{
   "stages": [
@@ -61,12 +62,23 @@ class ContentSplitter:
       "id": 1,
       "title": "场景标题（简短描述，不超过15字）",
       "description": "场景详细描述（这一幕要达成什么体验/学习目标，2-3句话）",
-      "interaction_rounds": 5,
+      "interaction_rounds": 3,
       "role": "NPC角色（学生将与谁对话，如：渔父、贾谊、患者张先生等）",
       "student_role": "学生扮演的角色（如果有明确设定，如：屈原、医生等）",
       "task": "场景目标（这一幕的剧情要推进到什么程度，或学生要完成什么）",
       "key_points": ["剧情关键点1", "知识/情感要点2", "核心对话主题3"],
       "content_excerpt": "该场景对应的原文关键内容或对话摘要"
+    }},
+    {{
+      "id": 2,
+      "title": "另一场景标题",
+      "description": "该场景的详细描述",
+      "interaction_rounds": 6,
+      "role": "NPC角色",
+      "student_role": "",
+      "task": "该场景目标",
+      "key_points": ["要点1", "要点2"],
+      "content_excerpt": "原文摘要"
     }}
   ]
 }}
@@ -74,10 +86,7 @@ class ContentSplitter:
 字段说明：
 - title: 场景名称，用于显示在节点上
 - description: 详细描述，解释这一幕的体验目标
-- interaction_rounds: 建议的对话轮次（1-10），根据场景复杂度判断：
-  - 简短互动场景：1-3轮
-  - 中等深度场景：4-6轮
-  - 深度探讨/多话题场景：7-10轮
+- interaction_rounds: **每个场景单独判断**，建议的对话轮次（1-10）：简短互动 1-3、中等深度 4-6、多话题/深度探讨 7-10。不同场景应给出不同数值。
 - role: NPC角色，即AI扮演的角色
 - student_role: 学生扮演的角色（如果剧本中有明确设定）
 - task: 场景目标，描述剧情要推进的方向
@@ -112,7 +121,7 @@ class ContentSplitter:
             raise ImportError("请先安装openai库: pip install openai")
         self.api_key = api_key or (DOUBAO_API_KEY if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_API_KEY)
         if not self.api_key:
-            raise ValueError("未提供API密钥，请在 Web 设置中填写或设置 .env 中的 DEEPSEEK_API_KEY / LLM_API_KEY")
+            raise ValueError("未提供API密钥")
         self.base_url = (base_url or "").strip() or (DOUBAO_BASE_URL if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_BASE_URL)
         self.model = (model or "").strip() or (DOUBAO_MODEL if DEFAULT_MODEL_TYPE == "doubao" else DEEPSEEK_MODEL)
         self.client = OpenAI(

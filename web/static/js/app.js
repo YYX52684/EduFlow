@@ -239,6 +239,7 @@
         if (typeof window.updateSimProgress === 'function') window.updateSimProgress({1: true});
         if (genBtn) genBtn.disabled = false;
         if (personaBtn) personaBtn.disabled = !window.lastScriptFile;
+        if (tc && typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
       } catch (err) {
         msg.classList.add('err');
         msg.innerHTML = '<span class="err">' + (err.message || String(err)) + '</span>';
@@ -886,9 +887,34 @@
         listEl.ondragend = function() { window._eduflowDraggedPath = null; };
       }
       updatePathDatalists();
+      if (typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
     }
     var btnRefreshWorkspaceFiles = document.getElementById('btnRefreshWorkspaceFiles');
     if (btnRefreshWorkspaceFiles) btnRefreshWorkspaceFiles.onclick = refreshWorkspaceFileList;
+    function refreshTrainsetSelect() {
+      var sel = document.getElementById('optimizerTrainsetSelect');
+      var infoEl = document.getElementById('optimizerTrainsetInfo');
+      if (!sel) return;
+      apiFetch('/api/trainset/list').then(function(r) {
+        if (r.status === 401 && window.showAuthScreen) window.showAuthScreen();
+        return safeResponseJson(r);
+      }).then(function(d) {
+        var files = (d && d.files) ? d.files : [];
+        var opts = '<option value="">默认（最新）</option>';
+        files.forEach(function(f) {
+          var path = (f.path || '').replace(/^output\/?/, 'output/');
+          var name = f.name || path.split('/').pop() || path;
+          var escPath = String(path).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var escName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          opts += '<option value="' + escPath + '">' + escName + '</option>';
+        });
+        sel.innerHTML = opts;
+        if (infoEl) infoEl.textContent = files.length ? '共 ' + files.length + ' 个 Trainset，可选其一用于闭环优化。' : '暂无 Trainset，上传并解析剧本后会生成。';
+      }).catch(function() {
+        sel.innerHTML = '<option value="">默认（最新）</option>';
+        if (infoEl) infoEl.textContent = '';
+      });
+    }
     function updatePathDatalists() {
       var out = workspaceFilesCache.output || [];
       var cardsDl = document.getElementById('cardsPathOptions');
@@ -909,6 +935,8 @@
       var tabs = document.querySelectorAll('.history-files-tab');
       var listCards = document.getElementById('historyFilesCards');
       var listReports = document.getElementById('historyFilesReports');
+      var listTrainset = document.getElementById('historyFilesTrainset');
+      var listPersonas = document.getElementById('historyFilesPersonas');
       var listOther = document.getElementById('historyFilesOther');
       var emptyHint = document.getElementById('historyFilesEmpty');
       if (!modal || !btnOpen || !listCards) return;
@@ -921,6 +949,8 @@
       function getHistoryEmptyStateHTML(cat) {
         var config = { cards: { title: '暂无卡片', desc: '上传剧本并点击「生成卡片」即可生成', btn: '去生成卡片', action: 'scrollToScript' },
           reports: { title: '暂无评估报告', desc: '运行闭环优化后可在此查看报告', btn: '去运行优化', action: 'scrollToOptimizer' },
+          trainset: { title: '暂无 Trainset', desc: '上传并解析剧本后会自动写入 Trainset 库', btn: '去上传剧本', action: 'scrollToScript' },
+          personas: { title: '暂无人设文件', desc: '生成学生人设后会出现在人设库', btn: '去生成人设', action: 'scrollToScript' },
           other: { title: '暂无其他文件', desc: '上传或生成文件后会出现在此处', btn: '去上传', action: 'scrollToScript' } }[cat] || { title: '暂无数据', desc: '完成对应步骤后会出现文件', btn: '去创建', action: 'scrollToScript' };
         return '<div class="empty-state">' + emptyStateIconSvg +
           '<p class="empty-state-title">' + config.title + '</p>' +
@@ -948,6 +978,8 @@
         var path = (f.path || '').replace(/^output\/?/, 'output/');
         var name = (f.name || path.split('/').pop() || '').toLowerCase();
         var pathLower = path.toLowerCase();
+        if (pathLower.indexOf('trainset_lib') !== -1 && path.toLowerCase().endsWith('.json')) return 'trainset';
+        if (pathLower.indexOf('persona_lib') !== -1) return 'personas';
         if ((path.endsWith('.md') && (name.indexOf('cards') !== -1 || /^output\/[^/]+\.md$/.test(path))) ||
             (pathLower.indexOf('cards') !== -1 && path.endsWith('.md')))
           return 'cards';
@@ -1021,11 +1053,16 @@
       function renderAll() {
         var cards = historyFilesCache.filter(function(f) { return classifyFile(f) === 'cards'; });
         var reports = historyFilesCache.filter(function(f) { return classifyFile(f) === 'reports'; });
+        var trainset = historyFilesCache.filter(function(f) { return classifyFile(f) === 'trainset'; });
+        var personas = historyFilesCache.filter(function(f) { return classifyFile(f) === 'personas'; });
         var other = historyFilesCache.filter(function(f) { return classifyFile(f) === 'other'; });
         renderList(listCards, cards);
         renderList(listReports, reports);
+        if (listTrainset) renderList(listTrainset, trainset);
+        if (listPersonas) renderList(listPersonas, personas);
         renderList(listOther, other);
-        var fullList = currentCategory === 'cards' ? cards : currentCategory === 'reports' ? reports : other;
+        var fullList = currentCategory === 'cards' ? cards : currentCategory === 'reports' ? reports
+          : currentCategory === 'trainset' ? trainset : currentCategory === 'personas' ? personas : other;
         var q = (historySearchQuery || '').trim();
         var filteredCount = q ? fullList.filter(function(f) {
           var path = (f.path || '').replace(/^output\/?/, '');
@@ -1065,6 +1102,7 @@
 
       btnOpen.onclick = function() {
         loadHistoryFiles();
+        if (typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
         if (typeof window.openModal === 'function') window.openModal(modal, null);
       };
       if (btnClose) btnClose.onclick = function() { if (typeof window.closeModal === 'function') window.closeModal(modal); };
@@ -1085,6 +1123,8 @@
           currentCategory = tab.getAttribute('data-category') || 'cards';
           if (listCards) listCards.style.display = currentCategory === 'cards' ? 'block' : 'none';
           if (listReports) listReports.style.display = currentCategory === 'reports' ? 'block' : 'none';
+          if (listTrainset) listTrainset.style.display = currentCategory === 'trainset' ? 'block' : 'none';
+          if (listPersonas) listPersonas.style.display = currentCategory === 'personas' ? 'block' : 'none';
           if (listOther) listOther.style.display = currentCategory === 'other' ? 'block' : 'none';
           renderAll();
         };
@@ -1203,8 +1243,10 @@
       try {
         var roundsDefault = document.querySelector('input[name="optimizerRoundsMode"][value="default"]');
         var maxRounds = (roundsDefault && roundsDefault.checked) ? null : (parseInt(document.getElementById('optimizerMaxRoundsInput').value, 10) || 1);
+        var trainsetSel = document.getElementById('optimizerTrainsetSelect');
+        var trainsetPath = (trainsetSel && trainsetSel.value) ? trainsetSel.value.trim() : null;
         const body = {
-          trainset_path: 'output/optimizer/trainset.json',
+          trainset_path: trainsetPath || null,
           devset_path: null,
           cards_output_path: null,
           export_path: null,

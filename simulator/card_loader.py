@@ -135,7 +135,8 @@ class LocalCardLoader:
         
         card.role = sections.get("Role", "")
         card.context = sections.get("Context", "")
-        card.interaction = sections.get("Interaction", "")
+        # Interaction 去掉动作/神态描写，避免智能体把「你微笑着说道」等当台词念出
+        card.interaction = self._strip_interaction_stage_directions(sections.get("Interaction", ""))
         card.transition = sections.get("Transition", "")
         card.constraints = sections.get("Constraints", "")
         card.prologue = sections.get("Prologue", "")
@@ -155,12 +156,20 @@ class LocalCardLoader:
         return card
     
     def _build_a_card_prompt(self, content: str, card: CardData) -> str:
-        """构建对话类卡片的LLM提示词"""
+        """构建对话类卡片的LLM提示词；Interaction 使用已去掉动作描写的版本，避免模型把「你微笑着说道」当台词念出。"""
         prompt = content
         prompt = re.sub(r'^#\s*卡片\d+[A-Z]+\s*\n', '', prompt.strip())
         prompt = re.sub(r'<!--\s*STAGE_META:\s*\{.*?\}\s*-->\s*\n?', '', prompt)
         # 移除开场白部分（开场白单独使用，不加入系统提示）
         prompt = re.sub(r'#\s*Prologue\s*\n.*?(?=\n#\s|\Z)', '', prompt, flags=re.DOTALL)
+        # 用已清洗的 Interaction 替换原文中的 Interaction 块，避免动作描写被当台词念出
+        interaction_header = re.compile(r'#\s*Interaction\s*\n', re.IGNORECASE)
+        match = interaction_header.search(prompt)
+        if match and card.interaction:
+            rest = prompt[match.end():]
+            next_section = re.search(r'\n#\s+\w+\s*\n', rest)
+            body_end = next_section.start() if next_section else len(rest)
+            prompt = prompt[: match.end()] + card.interaction.strip() + "\n\n" + rest[body_end:].lstrip()
         return prompt.strip()
     
     def _extract_stage_meta(self, content: str) -> Optional[Dict[str, Any]]:
@@ -196,6 +205,36 @@ class LocalCardLoader:
             sections[current_section] = '\n'.join(current_content).strip()
         
         return sections
+
+    @staticmethod
+    def _strip_interaction_stage_directions(text: str) -> str:
+        """
+        去掉 Interaction 中的动作/神态描写，只保留台词或要点，避免智能体把「你微笑着说道」等当台词念出。
+        匹配并去掉：你……说道：「」、你……说道：""、等学生回答后，你接着问： 等前缀，保留引号内内容。
+        """
+        if not text or not text.strip():
+            return text
+        s = text.strip()
+        # 去掉「你……说道：」类前缀（保留其后引号内的台词）
+        # 例：你微笑着看向学生，说道：「经过前面……」 -> 经过前面……
+        s = re.sub(
+            r'你[^「"\n]*[，,、]?\s*说道\s*[：:]\s*[「"]?',
+            '',
+            s,
+        )
+        # 去掉「等学生回答后，你接着问：」类，改为简短提示
+        s = re.sub(
+            r'等[^「"\n]*?你\s*接着\s*问\s*[：:]\s*[「"]?',
+            '接着可问：',
+            s,
+        )
+        # 去掉单独成句的动作描写（整句删），如「你微笑着看向学生，说道：……。」
+        s = re.sub(
+            r'你[^。！？\n]*?(?:说道|看向|笑着?说|点头说)[^。！？\n]*?[。！？]\s*',
+            '',
+            s,
+        )
+        return s.strip()
     
     def separate_cards(self, cards: List[CardData]) -> Tuple[List[CardData], List[CardData]]:
         """
