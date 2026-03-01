@@ -39,7 +39,7 @@
     const listRes = await chrome.runtime.sendMessage({
       type: "API_REQUEST",
       payload: {
-        endpoint: "/teacher-course/abilityTrain/getScriptStepList",
+        endpoint: "/teacher-course/abilityTrain/queryScriptStepList",
         method: "POST",
         body: { trainTaskId, courseId: courseId || "" },
       },
@@ -65,18 +65,35 @@
     else if (data?.data?.steps) list = data.data.steps;
     else if (data?.data?.list) list = data.data.list;
     else if (data?.data?.scriptStepList) list = data.data.scriptStepList;
+    else if (data?.data?.scriptSteps) list = data.data.scriptSteps;
     else if (data?.steps) list = data.steps;
+    else if (data?.list && Array.isArray(data.list)) list = data.list;
+    else if (data?.scriptStepList && Array.isArray(data.scriptStepList)) list = data.scriptStepList;
     else if (data?.result && Array.isArray(data.result)) list = data.result;
     else if (data?.result?.list) list = data.result.list;
+    else if (data?.result?.scriptStepList) list = data.result.scriptStepList;
     return list;
   }
 
   function getStepType(step) {
-    return step?.type || step?.nodeType || step?.stepType || "";
+    return (
+      step?.type ||
+      step?.nodeType ||
+      step?.stepType ||
+      step?.stepDetailDTO?.nodeType ||
+      step?.stepDetailDTO?.stepType ||
+      ""
+    );
   }
 
   function getStepId(step) {
-    return step?.id || step?.stepId || step?.scriptStepId || "";
+    return (
+      step?.id ||
+      step?.stepId ||
+      step?.scriptStepId ||
+      step?.stepDetailDTO?.stepId ||
+      ""
+    );
   }
 
   async function getStartEndFromPage() {

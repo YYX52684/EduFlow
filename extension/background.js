@@ -19,7 +19,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  handleMessage(msg).then(sendResponse).catch((err) => {
+  handleMessage(msg, sender).then(sendResponse).catch((err) => {
     console.error("Background message handler error:", err);
     sendResponse({ success: false, error: err.message });
   });
@@ -28,7 +28,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 const ZHIHUISHU_MATCH = /hike-teaching-center\.polymas\.com.*ability/i;
 
-async function handleMessage(msg) {
+async function handleMessage(msg, sender) {
   switch (msg.type) {
     case "GET_CURRENT_TAB_URL":
       return getCurrentTabUrl();
@@ -44,6 +44,8 @@ async function handleMessage(msg) {
       return llmCall(msg.payload);
     case "EXTRACT_NODES_FROM_PAGE":
       return extractNodesFromPage(sender);
+    case "GET_PLATFORM_CONFIG":
+      return getPlatformConfig();
     case "LLM_CALL":
       return { success: false, error: "插件已移除 LLM 直连，请使用 EduFlow 后端（DSPy）" };
     default:
@@ -196,6 +198,83 @@ async function extractNodesFromPage(sender) {
     return { success: false, error: "页面中未找到开始/结束节点，请确保已打开能力训练配置页并刷新" };
   } catch (e) {
     return { success: false, error: e.message || "提取节点失败" };
+  }
+}
+
+/** 解析 queryScriptStepList 响应，提取 SCRIPT_START / SCRIPT_END 的 stepId，与 content.js 逻辑一致 */
+function parseStepListForStartEnd(data) {
+  let list = [];
+  if (Array.isArray(data)) list = data;
+  else if (data?.data && Array.isArray(data.data)) list = data.data;
+  else if (data?.data?.steps) list = data.data.steps;
+  else if (data?.data?.list) list = data.data.list;
+  else if (data?.data?.scriptStepList) list = data.data.scriptStepList;
+  else if (data?.data?.scriptSteps) list = data.data.scriptSteps;
+  else if (data?.steps) list = data.steps;
+  else if (data?.list && Array.isArray(data.list)) list = data.list;
+  else if (data?.scriptStepList && Array.isArray(data.scriptStepList)) list = data.scriptStepList;
+  else if (data?.result?.list) list = data.result.list;
+  else if (data?.result?.scriptStepList) list = data.result.scriptStepList;
+  const getType = (s) =>
+    s?.type || s?.nodeType || s?.stepType || s?.stepDetailDTO?.nodeType || s?.stepDetailDTO?.stepType || "";
+  const getId = (s) =>
+    s?.id || s?.stepId || s?.scriptStepId || s?.stepDetailDTO?.stepId || "";
+  const start = list.find((s) => getType(s) === "SCRIPT_START");
+  const end = list.find((s) => getType(s) === "SCRIPT_END");
+  return { startNodeId: start ? getId(start) : "", endNodeId: end ? getId(end) : "" };
+}
+
+/**
+ * 一键获取平台配置：当前页 URL、Cookie、JWT、开始/结束节点 ID，供粘贴到 Web 端使用。
+ */
+async function getPlatformConfig() {
+  try {
+    const tabInfo = await getCurrentTabInfo();
+    if (!tabInfo.success || !tabInfo.data?.url) {
+      return { success: false, error: "无法获取当前标签页，请先打开智慧树能力训练配置页" };
+    }
+    const pageUrl = tabInfo.data.url;
+    const idsRes = await extractPageIds({ url: pageUrl });
+    if (!idsRes.success) {
+      return { success: false, error: idsRes.error || "无法从 URL 解析 trainTaskId" };
+    }
+    const { trainTaskId, courseId } = idsRes.data;
+
+    const auth = await getAuth();
+    const jwt = auth.success && auth.data?.authorization ? auth.data.authorization : "";
+
+    const cookies = await chrome.cookies.getAll({ url: HIKETC_URL });
+    const cookieStr = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+
+    let startNodeId = "";
+    let endNodeId = "";
+    if (trainTaskId) {
+      const listRes = await apiRequest({
+        endpoint: "/teacher-course/abilityTrain/queryScriptStepList",
+        method: "POST",
+        body: { trainTaskId, courseId: courseId || "" },
+      });
+      if (listRes.success && listRes.data) {
+        const parsed = parseStepListForStartEnd(listRes.data);
+        startNodeId = parsed.startNodeId || "";
+        endNodeId = parsed.endNodeId || "";
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        url: pageUrl,
+        cookie: cookieStr,
+        jwt,
+        startNodeId,
+        endNodeId,
+        trainTaskId: trainTaskId || "",
+        courseId: courseId || "",
+      },
+    };
+  } catch (e) {
+    return { success: false, error: e.message || "获取配置失败" };
   }
 }
 

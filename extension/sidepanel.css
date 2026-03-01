@@ -128,3 +128,12 @@ h1 { font-size: 16px; margin: 0 0 12px 0; }
   max-height: 360px;
   overflow: auto;
 }
+
+.platform-config-fields .hint { margin-bottom: 8px; font-size: 12px; color: #6b7280; }
+.platform-config-fields label { display: block; margin: 10px 0 4px 0; font-size: 12px; color: #374151; }
+.platform-config-fields .config-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 6px; }
+.platform-config-fields .config-input,
+.platform-config-fields .config-textarea { flex: 1; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; font-family: ui-monospace, monospace; background: #f9fafb; }
+.platform-config-fields .config-textarea { resize: vertical; min-height: 44px; }
+.platform-config-fields .btn-copy { flex-shrink: 0; padding: 6px 10px; font-size: 12px; border: 1px solid #d1d5db; border-radius: 6px; background: #f3f4f6; cursor: pointer; }
+.platform-config-fields .btn-copy:hover { background: #e5e7eb; }

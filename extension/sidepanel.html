@@ -93,6 +93,40 @@
     <div id="inject-status" class="status"></div>
   </section>
 
+  <section class="step-block" id="platform-config-block">
+    <h2 class="step-title">复制到 Web 端</h2>
+    <p class="hint">在智慧树能力训练配置页打开本扩展，点击下方按钮获取配置，可逐一复制到 Web 端「平台配置」使用。</p>
+    <button type="button" id="btn-get-platform-config" class="btn btn-secondary">一键获取平台配置</button>
+    <div id="platform-config-status" class="status"></div>
+    <div id="platform-config-fields" class="platform-config-fields" style="display:none;">
+      <label>当前页面 URL</label>
+      <div class="config-row">
+        <input type="text" id="platform-config-url" class="config-input" readonly />
+        <button type="button" class="btn-copy" data-target="platform-config-url" title="复制">复制</button>
+      </div>
+      <label>Cookie</label>
+      <div class="config-row">
+        <textarea id="platform-config-cookie" class="config-textarea" readonly rows="2"></textarea>
+        <button type="button" class="btn-copy" data-target="platform-config-cookie" title="复制">复制</button>
+      </div>
+      <label>JWT (Authorization)</label>
+      <div class="config-row">
+        <textarea id="platform-config-jwt" class="config-textarea" readonly rows="2"></textarea>
+        <button type="button" class="btn-copy" data-target="platform-config-jwt" title="复制">复制</button>
+      </div>
+      <label>开始节点 ID</label>
+      <div class="config-row">
+        <input type="text" id="platform-config-start" class="config-input" readonly />
+        <button type="button" class="btn-copy" data-target="platform-config-start" title="复制">复制</button>
+      </div>
+      <label>结束节点 ID</label>
+      <div class="config-row">
+        <input type="text" id="platform-config-end" class="config-input" readonly />
+        <button type="button" class="btn-copy" data-target="platform-config-end" title="复制">复制</button>
+      </div>
+    </div>
+  </section>
+
   <script src="sidepanel.js"></script>
 </body>
 </html>
