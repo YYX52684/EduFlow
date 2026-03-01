@@ -91,6 +91,55 @@
   });
   eduflowApiUrlEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE_EDUFLOW_API_URL]: eduflowApiUrlEl.value }));
 
+  const extensionLlmApiKeyEl = document.getElementById("extension-llm-api-key");
+  const extensionLlmKeyMaskEl = document.getElementById("extension-llm-key-mask");
+  const extensionLlmModelTypeEl = document.getElementById("extension-llm-model-type");
+  const btnSaveLlmConfig = document.getElementById("btn-save-llm-config");
+  const extensionLlmSaveStatusEl = document.getElementById("extension-llm-save-status");
+
+  async function loadExtensionLlmConfig() {
+    const base = getApiBase();
+    try {
+      const res = await fetch(base + "/api/extension/llm/config");
+      const data = await res.json().catch(() => ({}));
+      if (extensionLlmKeyMaskEl) {
+        extensionLlmKeyMaskEl.textContent = data.has_api_key ? data.api_key_masked || "已设置" : "未设置，请填写并保存";
+      }
+      if (extensionLlmModelTypeEl && data.model_type) {
+        extensionLlmModelTypeEl.value = data.model_type;
+      }
+    } catch (_) {
+      if (extensionLlmKeyMaskEl) extensionLlmKeyMaskEl.textContent = "无法加载，请确认后端地址正确";
+    }
+  }
+
+  if (btnSaveLlmConfig) {
+    btnSaveLlmConfig.addEventListener("click", async () => {
+      const base = getApiBase();
+      setStatus(extensionLlmSaveStatusEl, "保存中…", "info");
+      try {
+        const body = { model_type: extensionLlmModelTypeEl?.value || "doubao" };
+        if (extensionLlmApiKeyEl?.value?.trim()) body.api_key = extensionLlmApiKeyEl.value.trim();
+        const res = await fetch(base + "/api/extension/llm/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = data.error_detail?.message || data.message || data.error || "保存失败";
+          setStatus(extensionLlmSaveStatusEl, msg, "error");
+          return;
+        }
+        setStatus(extensionLlmSaveStatusEl, data.message || "已保存", "success");
+        if (extensionLlmApiKeyEl) extensionLlmApiKeyEl.value = "";
+        await loadExtensionLlmConfig();
+      } catch (e) {
+        setStatus(extensionLlmSaveStatusEl, "保存失败：" + (e.message || ""), "error");
+      }
+    });
+  }
+
   dropZone.addEventListener("click", () => fileInput.click());
   dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("dragover"); });
   dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
@@ -469,6 +518,7 @@
 
   (async function init() {
     await loadFrameworks();
+    await loadExtensionLlmConfig();
   })();
   refreshTabStatus();
   setInterval(refreshTabStatus, 2000);

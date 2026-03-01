@@ -4,7 +4,8 @@
 
 ## 使用前提
 
-- **默认**：扩展使用 [eduflows.cn](https://eduflows.cn) 后端，无需配置。
+- **默认**：扩展使用 [eduflows.cn](https://eduflows.cn) 后端，无需改地址。
+- **API Key**：解析与生成需 LLM API。首次使用请展开侧边栏「**API 与模型**」，填写 API Key 并选择模型（如 DeepSeek / 豆包），点击「保存 API 配置」。未保存时会出现「未提供 API 密钥」等提示。
 - **本地部署**：若本地运行网站，在侧边栏展开「EduFlow 后端 API」并改为 `http://localhost:端口`。
 - 注入前需打开**智慧树能力训练配置页**（某门课的卡片编辑页），扩展会自动检测当前标签页是否为该页面。
 

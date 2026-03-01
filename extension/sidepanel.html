@@ -15,6 +15,22 @@
       <p class="hint">默认 eduflows.cn。本地部署可填 http://localhost:端口</p>
     </div>
   </details>
+  <details id="extension-llm-details" class="llm-details">
+    <summary>API 与模型</summary>
+    <div class="llm-fields">
+      <label for="extension-llm-api-key">API Key</label>
+      <input type="password" id="extension-llm-api-key" placeholder="留空则保持已保存的值" autocomplete="off" />
+      <span id="extension-llm-key-mask" class="hint"></span>
+      <label for="extension-llm-model-type">模型</label>
+      <select id="extension-llm-model-type">
+        <option value="deepseek">DeepSeek</option>
+        <option value="doubao">豆包</option>
+        <option value="openai">OpenAI 兼容</option>
+      </select>
+      <button type="button" id="btn-save-llm-config" class="btn btn-secondary">保存 API 配置</button>
+      <span id="extension-llm-save-status" class="status"></span>
+    </div>
+  </details>
 
   <section class="step-block" id="step1-block">
     <h2 class="step-title">1. 选择文件</h2>

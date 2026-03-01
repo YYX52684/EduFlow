@@ -448,11 +448,10 @@
       color: var(--natsume-accent);
       border-bottom-color: var(--natsume-accent);
     }
-    /* ---------- 精致卡片感 Section：层级 + 纸质纹理 + 20px 圆角 ---------- */
+    /* ---------- 精致卡片感 Section：夏目色系 + 纸质纹理 + 20px 圆角 ---------- */
     section {
       margin: 0;
       padding: 0;
-      background: #fff;
       border: 0.5px solid var(--natsume-border-strong);
       border-radius: var(--card-radius);
       box-shadow: 0 2px 12px var(--natsume-shadow);
@@ -465,7 +464,7 @@
         linear-gradient(90deg, rgba(74, 64, 53, 0.012) 1px, transparent 1px);
       background-size: 20px 20px;
       background-position: 0 0, 0 0;
-      background-color: #fff;
+      background-color: var(--natsume-bg);
     }
     #mainConsoleView section:nth-child(2) { animation-delay: 0.08s; }
     #mainConsoleView section:nth-child(3) { animation-delay: 0.18s; }
@@ -481,11 +480,11 @@
     section:hover {
       box-shadow: 0 4px 20px var(--natsume-shadow-hover);
     }
-    /* 标题区：与内容区用极淡水平线 + 内边距层次区分 */
+    /* 标题区：与内容区用极淡水平线 + 内边距层次区分，夏目暖色 */
     .section-header,
     .section-title-row {
       padding: var(--space-xl) var(--space-3xl);
-      background: #fff;
+      background: var(--natsume-bg);
       border-bottom: 1px solid var(--natsume-border);
     }
     .section-title-row {
@@ -498,7 +497,7 @@
     .section-title-row h2 { margin: 0; padding: 0; border: none; }
     .section-body {
       padding: var(--space-2xl) var(--space-3xl);
-      background: var(--natsume-paper);
+      background: var(--natsume-bg);
     }
     section h2 {
       font-size: 1.15rem;
@@ -573,7 +572,7 @@
       background-position: right 0.85rem center;
       padding-right: 2rem;
     }
-    /* ---------- Select 专项：44px 容器、圆角、natsume-bg、呼吸感描边、焦点上移、chevron 浮动 ---------- */
+    /* ---------- Select 专项：44px 容器、natsume-bg、呼吸感描边、焦点上移、chevron 浮动 ---------- */
     .picker-ios {
       display: flex;
       align-items: center;
@@ -582,8 +581,7 @@
       max-width: 20rem;
       height: 44px;
       min-height: 44px;
-      border-radius: 12px;
-      overflow: hidden;
+      border-radius: var(--btn-radius);
       background: var(--natsume-bg);
       border: 0.5px solid var(--natsume-border-strong);
       box-shadow: 0 1px 2px var(--natsume-shadow);
@@ -623,7 +621,7 @@
       background: transparent !important;
       background-image: none !important;
       border: none !important;
-      border-radius: 12px;
+      border-radius: var(--btn-radius);
       box-shadow: none !important;
       cursor: pointer;
       appearance: none;
@@ -683,7 +681,7 @@
       background: transparent;
       background-image: none;
       border: none;
-      border-radius: 12px;
+      border-radius: var(--btn-radius);
       cursor: pointer;
       text-align: left;
       overflow: hidden;
@@ -701,10 +699,9 @@
       min-width: 100%;
       max-height: 260px;
       overflow-y: auto;
-      overflow-x: hidden;
       background: var(--natsume-bg);
       border: 0.5px solid var(--natsume-border-strong);
-      border-radius: 12px;
+      border-radius: var(--btn-radius);
       box-shadow: 0 4px 16px var(--natsume-shadow);
       z-index: 100;
       display: none;
@@ -725,10 +722,10 @@
       text-align: left;
     }
     .picker-ios-option:first-child {
-      border-radius: 12px 12px 0 0;
+      border-radius: var(--btn-radius) var(--btn-radius) 0 0;
     }
     .picker-ios-option:last-child {
-      border-radius: 0 0 12px 12px;
+      border-radius: 0 0 var(--btn-radius) var(--btn-radius);
     }
     .picker-ios-option:hover {
       background: rgba(143, 169, 137, 0.12);
@@ -827,7 +824,7 @@
     .sim-card-block {
       border: 1px solid var(--natsume-border);
       border-radius: var(--card-radius);
-      background: #fff;
+      background: var(--natsume-bg);
       padding: 1rem 1.25rem;
       box-shadow: 0 2px 8px var(--natsume-shadow);
       transition: box-shadow var(--transition-normal), border-color var(--transition-fast);
@@ -1484,6 +1481,26 @@
       flex: 1;
       overflow-y: auto;
       padding: 0.75rem 1rem;
+    }
+    /* 仅右侧栏内下拉框使用 12px 圆角 */
+    .sim-sidebar .picker-ios {
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .sim-sidebar .picker-ios .select-ios {
+      border-radius: 12px;
+    }
+    .sim-sidebar .picker-ios-trigger {
+      border-radius: 12px;
+    }
+    .sim-sidebar .picker-ios-dropdown {
+      border-radius: 12px;
+    }
+    .sim-sidebar .picker-ios-option:first-child {
+      border-radius: 12px 12px 0 0;
+    }
+    .sim-sidebar .picker-ios-option:last-child {
+      border-radius: 0 0 12px 12px;
     }
     .sim-progress {
       font-size: 0.85rem;

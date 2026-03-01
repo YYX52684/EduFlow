@@ -2,31 +2,118 @@
 """
 Chrome 插件专用 API：六步流程（上传解析、框架、人设、评分、生成卡片、注入）。
 无需 workspace 认证，使用 extension 工作区与默认 LLM 配置。
+插件用户可在侧边栏「API 与模型」中填写 API Key，保存至 extension 工作区。
 """
 import os
+import json
 import re
 import tempfile
 import yaml
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, File, UploadFile
 from pydantic import BaseModel
 
-from api.workspace import get_project_dirs
+from api.workspace import get_project_dirs, get_workspace_file_path
 from api.exceptions import BadRequestError
 
 router = APIRouter()
 
 EXTENSION_WORKSPACE = "extension"
 PERSONA_LIB_SUBDIR = "persona_lib"
+LLM_CONFIG_FILE = "llm_config.json"
 _FS_UNSAFE = re.compile(r'[\\/:*?"<>|\s]+')
+
+# 与 api.routes.llm_config 一致，供 extension 读写配置
+_LLM_PRESETS = {
+    "deepseek": ("https://api.deepseek.com", "deepseek-chat"),
+    "doubao": ("https://llm-service.polymas.com/api/openai/v1", "Doubao-1.5-pro-32k"),
+    "openai": ("https://api.openai.com/v1", "gpt-4o"),
+}
 
 
 def _get_llm_config():
     """获取 extension 使用的 LLM 配置。"""
     from api.routes.llm_config import get_llm_config
     return get_llm_config(EXTENSION_WORKSPACE)
+
+
+def _extension_llm_config_path() -> str:
+    """Extension 工作区 llm_config.json 路径。"""
+    return get_workspace_file_path(EXTENSION_WORKSPACE, LLM_CONFIG_FILE)
+
+
+@router.get("/llm/config")
+def get_extension_llm_config():
+    """
+    返回 extension 工作区 LLM 配置，供插件侧边栏展示。
+    api_key 脱敏返回；未配置时 has_api_key 为 false，提示用户在侧边栏填写。
+    """
+    path = _extension_llm_config_path()
+    raw = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception:
+            pass
+    llm = _get_llm_config()
+    model_type = (llm.get("model_type") or "doubao").strip().lower()
+    if model_type not in _LLM_PRESETS:
+        model_type = "doubao"
+    base_url = (llm.get("base_url") or "").rstrip("/") or _LLM_PRESETS[model_type][0]
+    model = (llm.get("model") or "").strip() or _LLM_PRESETS[model_type][1]
+    api_key = (llm.get("api_key") or "").strip()
+    raw_key = (raw.get("api_key") or "").strip()
+    if api_key:
+        mask = (api_key[:8] + "…" + api_key[-4:]) if len(api_key) > 12 else "已设置"
+    else:
+        mask = ""
+    return {
+        "model_type": model_type,
+        "base_url": base_url,
+        "model": model,
+        "api_key_masked": mask,
+        "has_api_key": bool(api_key),
+    }
+
+
+class ExtensionLLMConfigUpdate(BaseModel):
+    api_key: Optional[str] = None
+    model_type: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+
+
+@router.post("/llm/config")
+def save_extension_llm_config(body: ExtensionLLMConfigUpdate):
+    """
+    保存 extension 工作区 LLM 配置（API Key、模型等）。
+    供插件侧边栏「API 与模型」保存，无需登录。
+    """
+    path = _extension_llm_config_path()
+    current = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except Exception:
+            pass
+    if body.api_key is not None:
+        current["api_key"] = (body.api_key or "").strip()
+    if body.model_type is not None:
+        t = (body.model_type or "doubao").strip().lower()
+        current["model_type"] = t if t in _LLM_PRESETS else "doubao"
+    if body.base_url is not None:
+        current["base_url"] = (body.base_url or "").strip()
+    if body.model is not None:
+        current["model"] = (body.model or "").strip()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(current, f, ensure_ascii=False, indent=2)
+    return {"message": "已保存，解析与生成将使用该 API Key 与模型"}
 
 
 def _extension_output_dir() -> str:
