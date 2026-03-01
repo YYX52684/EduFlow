@@ -220,7 +220,10 @@
         if (!r.ok) {
           r.clone().text().then(function(text) {
             var msg = '请求失败';
-            try { var d = JSON.parse(text); msg = d.detail || d.message || msg; } catch (e) { if (text) msg = text.slice(0, 120); }
+            try {
+              var d = JSON.parse(text);
+              msg = getUserFriendlyLlmErrorMessage(d) || d.message || d.detail || msg;
+            } catch (e) { if (text) msg = text.slice(0, 120); }
             showToast(msg, 'error');
           }).catch(function() { showToast('请求失败', 'error'); });
         }
@@ -236,9 +239,24 @@
       try { return JSON.parse(text); } catch (e) { return { detail: text || r.statusText || 'Invalid response' }; }
     });
   }
+
+  /** 将 API 错误体转为用户可见的简短文案，避免把整段 details/reason 堆给用户。 */
+  function getUserFriendlyLlmErrorMessage(d) {
+    if (!d || typeof d !== 'object') return '';
+    var code = d.code || (d.error_detail && d.error_detail.code);
+    var detailsReason = (d.details && d.details.reason) || (d.error_detail && d.error_detail.details && d.error_detail.details.reason) || '';
+    var reasonStr = String(detailsReason);
+    if (code === 'LLM_ERROR' && (reasonStr.indexOf('401') !== -1 || reasonStr.indexOf('key') !== -1 || reasonStr.indexOf('Key') !== -1 || reasonStr.indexOf('当前key') !== -1)) {
+      return '未设置 API Key 或 Key 无效，请在「设置」中填写或更换。';
+    }
+    if (code === 'CONFIG_ERROR') return d.message || '未配置完整的 LLM 信息，请在「设置」中填写 API Key 与模型。';
+    return d.message || (d.error_detail && d.error_detail.message) || '';
+  }
+
   window.encodeWorkspaceIdForHeader = encodeWorkspaceIdForHeader;
   window.apiFetch = apiFetch;
   window.safeResponseJson = safeResponseJson;
+  window.getUserFriendlyLlmErrorMessage = getUserFriendlyLlmErrorMessage;
 
   function showWorkspaceToast(id) {
     var wl = document.getElementById('currentWorkspaceLabel');

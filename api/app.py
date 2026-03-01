@@ -74,12 +74,13 @@ def eduflow_error_handler(request: Request, exc: EduFlowError):
     """
     request_id = get_request_id(request)
     logger.warning(
-        "request_error request_id=%s path=%s method=%s code=%s message=%s",
+        "request_error request_id=%s path=%s method=%s code=%s message=%s details=%s",
         request_id,
         request.url.path,
         request.method,
         exc.code,
         exc.message,
+        exc.details,
     )
     base = exc.to_dict()
     envelope = {
