@@ -230,7 +230,10 @@
         msg.textContent = '解析与分幕中…（首次约 10–30 秒，同内容会走缓存）';
         var r = await apiFetch('/api/script/upload', { method: 'POST', body: fd });
         var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) {
+          var friendly = typeof window.getUserFriendlyLlmErrorMessage === 'function' ? window.getUserFriendlyLlmErrorMessage(d) : '';
+          throw new Error(friendly || d.message || d.detail || '上传解析失败');
+        }
         lastUploadData = d;
         var fn = file && file.name ? file.name : (d.filename || '');
         updateScriptDropZoneDisplay(fn);
