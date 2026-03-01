@@ -1,9 +1,9 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { AuthPage } from "./pages/AuthPage";
 import { ConsolePage } from "./pages/ConsolePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
-import { AuthPage } from "./pages/AuthPage";
 
 const App = () => {
   return (

@@ -13,6 +13,9 @@ import io
 import os
 import sys
 import argparse
+import json
+import hashlib
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -53,7 +56,7 @@ def main():
         "--model",
         choices=["doubao", "deepseek"],
         default=None,
-        help=f\"模型（默认: {DEFAULT_MODEL_TYPE}，推荐使用豆包 doubao）\",
+        help=f"模型（默认: {DEFAULT_MODEL_TYPE}，推荐使用豆包 doubao）",
     )
     parser.add_argument(
         "--optimizer",
@@ -88,6 +91,16 @@ def main():
         default="excellent",
         help="闭环模式下的学生人设（默认: excellent）",
     )
+    parser.add_argument(
+        "--course-id",
+        default=None,
+        help="按课程 ID 选择 trainset_<course-id>.json（与 --workspace 联用时，位于对应工作区 output/optimizer/ 下）",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="禁用课程级缓存：即使 trainset 未变化也强制重新优化",
+    )
     args = parser.parse_args()
 
     model_type = args.model or DEFAULT_MODEL_TYPE
@@ -105,7 +118,19 @@ def main():
     else:
         _opt_dir = OPTIMIZER_OUTPUT_DIR  # 已是 .../output/optimizer
 
-    trainset_path = args.trainset or os.path.join(_opt_dir, "trainset.json")
+    # trainset 选择逻辑：
+    # 1) 显式指定 --trainset 时优先；
+    # 2) 其后若指定 --course-id，则使用 trainset_<course-id>.json；
+    # 3) 否则退化为默认的 trainset.json。
+    if args.trainset:
+        trainset_path = args.trainset
+        course_id = None
+    else:
+        course_id = (args.course_id or "").strip() or None
+        if course_id:
+            trainset_path = os.path.join(_opt_dir, f"trainset_{course_id}.json")
+        else:
+            trainset_path = os.path.join(_opt_dir, "trainset.json")
     trainset_path = os.path.abspath(trainset_path)
     if not os.path.isfile(trainset_path):
         print(f"错误: trainset 文件不存在: {trainset_path}")
@@ -137,6 +162,27 @@ def main():
     print("  预计耗时: 闭环模式约 15–60 分钟（取决于 trainset 与轮数）")
     print()
 
+    # 课程级缓存：仅在按 course_id 运行且未显式关闭缓存时生效
+    if course_id and not args.no_cache:
+        cache_path = os.path.join(os.path.dirname(trainset_path), f"cache_{course_id}.json")
+        try:
+            with open(trainset_path, "rb") as f:
+                trainset_bytes = f.read()
+            trainset_hash = hashlib.sha256(trainset_bytes).hexdigest()
+        except Exception:
+            trainset_hash = None
+
+        if trainset_hash and os.path.isfile(cache_path):
+            try:
+                with open(cache_path, "r", encoding="utf-8") as f:
+                    cache_data = json.load(f)
+                if cache_data.get("trainset_hash") == trainset_hash:
+                    print(f"[CACHE] 课程 {course_id} 的 trainset 未变化，本次命中缓存，跳过优化。")
+                    print("        若需强制重新优化，请添加 --no-cache 参数。")
+                    return
+            except Exception:
+                pass
+
     def _progress_cb(current: int, total: int, message: str):
         pct = min(100, int(100 * current / max(1, total)))
         bar_len = 30
@@ -161,6 +207,24 @@ def main():
         )
         print()
         print("[OK] 闭环优化完成。每轮已自动运行仿真+评估。")
+
+        # 写入课程级缓存元数据，便于下次快速判断是否需要重跑
+        if course_id:
+            cache_path = os.path.join(os.path.dirname(trainset_path), f"cache_{course_id}.json")
+            try:
+                with open(trainset_path, "rb") as f:
+                    trainset_bytes = f.read()
+                trainset_hash = hashlib.sha256(trainset_bytes).hexdigest()
+                cache_payload = {
+                    "course_id": course_id,
+                    "trainset_path": os.path.abspath(trainset_path),
+                    "trainset_hash": trainset_hash,
+                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                }
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    json.dump(cache_payload, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
     except Exception as e:
         import traceback
         traceback.print_exc()

@@ -50,6 +50,7 @@ def run_simulate_and_evaluate(
     api_url: Optional[str] = None,
     model_name: Optional[str] = None,
     progress_callback: Optional[Callable[[str, str], None]] = None,
+    custom_persona_dir: Optional[str] = None,
 ) -> Tuple[Any, Any]:
     """
     运行仿真并评估，返回 (SessionLog, EvaluationReport)。
@@ -100,6 +101,7 @@ def run_simulate_and_evaluate(
         output_dir=output_dir,
         verbose=verbose,
         save_logs=save_logs,
+        custom_persona_dir=custom_persona_dir,
         npc_config=sim_config,
         student_config=sim_config,
         max_rounds_per_card=max_rounds_per_card,

@@ -2,15 +2,37 @@
   const STORAGE_EDUFLOW_API_URL = "eduflow_api_url";
   const DEFAULT_EDUFLOW_API_URL = "https://eduflows.cn";
 
-  let currentFile = null;
-  let currentFileContent = null;
-  let currentCardsMarkdown = null;
+  const state = {
+    file: null,
+    fileName: null,
+    stages: null,
+    fullContent: null,
+    trainsetPath: null,
+    personas: [],
+    personaDir: null,
+    selectedFrameworkId: "dspy",
+    selectedPersonaId: null,
+    scoringSystemId: "default",
+    cardsMarkdown: null,
+  };
 
   const tabStatusEl = document.getElementById("tab-status");
   const eduflowApiUrlEl = document.getElementById("eduflow-api-url");
   const dropZone = document.getElementById("drop-zone");
   const fileInput = document.getElementById("file-input");
   const fileStatusEl = document.getElementById("file-status");
+  const step1ResultEl = document.getElementById("step1-result");
+  const step2Block = document.getElementById("step2-block");
+  const frameworkSelect = document.getElementById("framework-select");
+  const step3Block = document.getElementById("step3-block");
+  const personaSelect = document.getElementById("persona-select");
+  const personaContentWrap = document.getElementById("persona-content-wrap");
+  const personaContent = document.getElementById("persona-content");
+  const btnSavePersona = document.getElementById("btn-save-persona");
+  const personaSaveStatus = document.getElementById("persona-save-status");
+  const step4Block = document.getElementById("step4-block");
+  const scoringSelect = document.getElementById("scoring-select");
+  const step5Block = document.getElementById("step5-block");
   const btnGenerate = document.getElementById("btn-generate");
   const generateStatus = document.getElementById("generate-status");
   const generateProgress = document.getElementById("generate-progress");
@@ -19,8 +41,13 @@
   const cardsReady = document.getElementById("cards-ready");
   const cardsSummary = document.getElementById("cards-summary");
   const cardsPreview = document.getElementById("cards-preview");
+  const step6Block = document.getElementById("step6-block");
   const btnInject = document.getElementById("btn-inject");
   const injectStatus = document.getElementById("inject-status");
+
+  function getApiBase() {
+    return (eduflowApiUrlEl?.value || "").trim().replace(/\/$/, "") || DEFAULT_EDUFLOW_API_URL;
+  }
 
   function setStatus(el, text, type) {
     if (!el) return;
@@ -30,9 +57,16 @@
   }
 
   function setProgress(pct, label) {
-    generateProgress.style.display = "block";
+    if (generateProgress) generateProgress.style.display = "block";
     if (progressFill) progressFill.style.width = Math.min(100, pct) + "%";
     if (progressTextEl) progressTextEl.textContent = label || "加载中...";
+  }
+
+  function enableStepBlocks(stepIndex) {
+    for (let i = 2; i <= stepIndex; i++) {
+      const block = document.getElementById("step" + i + "-block");
+      if (block) block.classList.remove("step-block-disabled");
+    }
   }
 
   async function refreshTabStatus() {
@@ -42,7 +76,7 @@
       tabStatusEl.className = "tab-status warn";
       return;
     }
-    const { url, isZhihuishu } = res.data;
+    const { isZhihuishu } = res.data;
     if (isZhihuishu) {
       tabStatusEl.textContent = "当前页面：智慧树能力训练配置页，可注入";
       tabStatusEl.className = "tab-status ok";
@@ -193,58 +227,213 @@
     return Promise.reject(new Error("不支持的文件格式"));
   }
 
-  function handleFile(file) {
-    currentFile = file;
-    currentCardsMarkdown = null;
+  async function handleFile(file) {
+    state.file = file;
+    state.fileName = file.name;
+    state.stages = null;
+    state.fullContent = null;
+    state.personas = [];
+    state.cardsMarkdown = null;
     cardsReady.style.display = "none";
+    step1ResultEl.style.display = "none";
     setStatus(generateStatus, "");
     setStatus(injectStatus, "");
-    btnGenerate.disabled = true;
-    readFileAsText(file)
-      .then((text) => {
-        currentFileContent = text;
-        btnGenerate.disabled = false;
-      })
-      .catch(() => {});
+    setStatus(personaSaveStatus, "");
+    personaContentWrap.style.display = "none";
+    personaSelect.innerHTML = '<option value="">加载中…</option>';
+
+    setStatus(fileStatusEl, "解析中（上传并生成 trainset、人设）…", "info");
+    setProgress(10, "上传解析中...");
+    const formData = new FormData();
+    formData.append("file", file);
+    const base = getApiBase();
+    try {
+      setProgress(30, "调用后端 upload-parse...");
+      const res = await fetch(base + "/api/extension/upload-parse", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (data.error) throw new Error(data.error);
+      if (!data.success) throw new Error(data.error || "解析失败");
+
+      state.stages = data.stages || [];
+      state.fullContent = data.full_content || "";
+      state.trainsetPath = data.trainset_path || null;
+      state.personas = data.personas || [];
+      state.personaDir = data.persona_dir || null;
+
+      setProgress(100, "完成");
+      setStatus(fileStatusEl, "解析完成：" + (data.filename || file.name), "success");
+      step1ResultEl.style.display = "block";
+      step1ResultEl.innerHTML = "阶段数：<strong>" + state.stages.length + "</strong>；trainset："
+        + (state.trainsetPath || "—") + "；人设数：<strong>" + state.personas.length + "</strong>。";
+      step1ResultEl.className = "step-result success";
+
+      enableStepBlocks(6);
+      await loadFrameworks();
+      await fillPersonaSelect();
+      if (scoringSelect) scoringSelect.value = state.scoringSystemId || "default";
+    } catch (err) {
+      setStatus(fileStatusEl, "解析失败：" + (err.message || ""), "error");
+      step1ResultEl.style.display = "block";
+      step1ResultEl.textContent = err.message || "解析失败";
+      step1ResultEl.className = "step-result error";
+    } finally {
+      setProgress(0, "");
+      if (generateProgress) generateProgress.style.display = "none";
+    }
   }
 
-  async function generateCards() {
-    if (!currentFileContent || !currentFile) return;
-    const eduflowApiUrl = (eduflowApiUrlEl?.value || "").trim().replace(/\/$/, "") || DEFAULT_EDUFLOW_API_URL;
+  async function loadFrameworks() {
+    const base = getApiBase();
+    try {
+      const res = await fetch(base + "/api/extension/frameworks");
+      const data = await res.json().catch(() => ({}));
+      const list = data.frameworks || [];
+      frameworkSelect.innerHTML = "";
+      list.forEach((f) => {
+        const opt = document.createElement("option");
+        opt.value = f.id;
+        opt.textContent = f.name || f.id;
+        frameworkSelect.appendChild(opt);
+      });
+      if (list.length && !list.find((f) => f.id === state.selectedFrameworkId)) {
+        state.selectedFrameworkId = list[0].id;
+      }
+      if (state.selectedFrameworkId) frameworkSelect.value = state.selectedFrameworkId;
+    } catch (_) {
+      frameworkSelect.innerHTML = '<option value="dspy">dspy</option>';
+    }
+  }
 
+  async function fillPersonaSelect() {
+    personaSelect.innerHTML = '<option value="">加载中…</option>';
+    const base = getApiBase();
+    try {
+      const res = await fetch(base + "/api/extension/personas");
+      const data = await res.json().catch(() => ({}));
+      const presets = data.presets || [];
+      const custom = data.custom || [];
+      personaSelect.innerHTML = '<option value="">请选择人设</option>';
+      presets.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        personaSelect.appendChild(opt);
+      });
+      custom.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id.replace(/^custom\//, "");
+        personaSelect.appendChild(opt);
+      });
+    } catch (_) {
+      personaSelect.innerHTML = '<option value="">请选择人设</option>';
+      ["excellent", "average", "struggling"].forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        personaSelect.appendChild(opt);
+      });
+      (state.personas || []).forEach((p) => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name || p.id;
+        personaSelect.appendChild(opt);
+      });
+    }
+  }
+
+  frameworkSelect.addEventListener("change", () => {
+    state.selectedFrameworkId = frameworkSelect.value || "dspy";
+  });
+
+  personaSelect.addEventListener("change", async () => {
+    const id = personaSelect.value;
+    state.selectedPersonaId = id || null;
+    if (!id) {
+      personaContentWrap.style.display = "none";
+      return;
+    }
+    const base = getApiBase();
+    setStatus(personaSaveStatus, "加载中…", "info");
+    personaContentWrap.style.display = "block";
+    try {
+      const res = await fetch(base + "/api/extension/personas/content?persona_id=" + encodeURIComponent(id));
+      const data = await res.json().catch(() => ({}));
+      personaContent.value = data.content || "";
+      personaContent.readOnly = !!data.read_only;
+      btnSavePersona.style.display = data.read_only ? "none" : "block";
+      setStatus(personaSaveStatus, "");
+    } catch (_) {
+      personaContent.value = "";
+      setStatus(personaSaveStatus, "加载失败", "error");
+    }
+  });
+
+  btnSavePersona.addEventListener("click", async () => {
+    const id = state.selectedPersonaId;
+    if (!id || !id.startsWith("custom/")) return;
+    const base = getApiBase();
+    setStatus(personaSaveStatus, "保存中…", "info");
+    try {
+      const res = await fetch(base + "/api/extension/personas/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_id: id, content: personaContent.value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error_detail?.message || data.message || data.error || "保存失败";
+        throw new Error(msg);
+      }
+      setStatus(personaSaveStatus, "已保存", "success");
+    } catch (e) {
+      setStatus(personaSaveStatus, "保存失败：" + (e.message || ""), "error");
+    }
+  });
+
+  scoringSelect.addEventListener("change", () => {
+    state.scoringSystemId = scoringSelect.value || "default";
+  });
+
+  async function generateCards() {
+    if (!state.stages || !state.fullContent) {
+      setStatus(generateStatus, "请先完成步骤 1 选择文件", "error");
+      return;
+    }
+    const base = getApiBase();
     btnGenerate.disabled = true;
     setStatus(generateStatus, "生成中...", "info");
-    setProgress(10, "上传并生成中...");
+    setProgress(20, "调用生成接口...");
     try {
-      setProgress(20, "调用 EduFlow 后端（DSPy）...");
-      const formData = new FormData();
-      formData.append("file", currentFile);
-      const res = await fetch(`${eduflowApiUrl}/api/extension/upload-and-generate`, {
+      const res = await fetch(base + "/api/extension/generate-cards", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          framework_id: state.selectedFrameworkId || "dspy",
+          stages: state.stages,
+          full_content: state.fullContent,
+          source_filename: state.fileName || null,
+          scoring_system_id: state.scoringSystemId || "default",
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.error) throw new Error(data.error);
-      if (!data.success || !data.cards_markdown) {
-        throw new Error(data.error || "生成失败");
-      }
+      if (!data.success || !data.cards_markdown) throw new Error(data.error || "生成失败");
 
-      const stages = data.stages || [];
-      const cardsMarkdown = data.cards_markdown;
-
+      state.cardsMarkdown = data.cards_markdown;
       setProgress(100, "完成");
-      currentCardsMarkdown = cardsMarkdown;
-      setStatus(generateStatus, `已生成 ${stages.length * 2} 张卡片`, "success");
-      cardsSummary.textContent = `已生成 ${stages.length} 个阶段、${stages.length * 2} 张卡片。请确保当前标签页为智慧树能力训练配置页，再点击「注入平台」。`;
-      if (cardsPreview) cardsPreview.textContent = currentCardsMarkdown;
+      setStatus(generateStatus, "已生成卡片", "success");
+      cardsSummary.textContent = "已生成 " + state.stages.length + " 个阶段。可编辑下方内容后再点击「注入平台」。";
+      cardsPreview.value = state.cardsMarkdown;
       cardsReady.style.display = "block";
       setStatus(injectStatus, "");
+      enableStepBlocks(6);
     } catch (err) {
-      setStatus(generateStatus, "错误：" + err.message + "。请确认 EduFlow 后端地址正确（本地部署可填 http://localhost:端口）", "error");
+      setStatus(generateStatus, "错误：" + (err.message || ""), "error");
       cardsReady.style.display = "none";
+    } finally {
       setProgress(0, "");
       if (generateProgress) generateProgress.style.display = "none";
-    } finally {
       btnGenerate.disabled = false;
     }
   }
@@ -252,8 +441,9 @@
   btnGenerate.addEventListener("click", generateCards);
 
   btnInject.addEventListener("click", async () => {
-    if (!currentCardsMarkdown) {
-      setStatus(injectStatus, "请先生成卡片", "error");
+    const markdown = cardsPreview ? cardsPreview.value : state.cardsMarkdown;
+    if (!markdown || !markdown.trim()) {
+      setStatus(injectStatus, "请先完成步骤 5 生成卡片", "error");
       return;
     }
     const tabRes = await chrome.runtime.sendMessage({ type: "GET_CURRENT_TAB_INFO" });
@@ -265,7 +455,7 @@
     try {
       const res = await chrome.tabs.sendMessage(tabRes.data.tabId, {
         type: "INJECT_CARDS",
-        payload: { cards_markdown: currentCardsMarkdown },
+        payload: { cards_markdown: markdown },
       });
       if (res?.success) {
         setStatus(injectStatus, "注入完成：" + (res.message || "请刷新画布查看"), "success");
@@ -277,6 +467,9 @@
     }
   });
 
+  (async function init() {
+    await loadFrameworks();
+  })();
   refreshTabStatus();
   setInterval(refreshTabStatus, 2000);
 })();

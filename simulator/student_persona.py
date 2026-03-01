@@ -250,23 +250,23 @@ PRESET_PERSONAS = {
 
 class PersonaManager:
     """人设管理器"""
-    
-    def __init__(self, config_dir: str = None):
+
+    def __init__(self, config_dir: str = None, custom_dir: str = None):
         """
         初始化人设管理器
-        
+
         Args:
-            config_dir: 配置目录路径，默认为项目根目录下的simulator_config
+            config_dir: 配置目录路径，默认为项目根目录下的 simulator_config
+            custom_dir: 自定义人设根目录；若提供则 list_custom/get 均基于此目录（可含子目录如 xxx_人设）
         """
         if config_dir:
             self.config_dir = Path(config_dir)
         else:
-            # 默认使用项目根目录下的simulator_config
             project_root = Path(__file__).parent.parent
             self.config_dir = project_root / "simulator_config"
-        
+
         self.presets_dir = self.config_dir / "presets"
-        self.custom_dir = self.config_dir / "custom"
+        self.custom_dir = Path(custom_dir) if custom_dir else (self.config_dir / "custom")
     
     def get_persona(self, persona_id: str) -> StudentPersona:
         """
@@ -289,26 +289,26 @@ class PersonaManager:
     
     def load_from_file(self, file_path: str) -> StudentPersona:
         """
-        从YAML文件加载人设
-        
+        从 YAML 文件加载人设。
+
         Args:
-            file_path: 相对于config_dir的路径，或绝对路径
-            
+            file_path: 可为 "custom/xxx" 或 "custom/xxx_人设/优秀"（相对 custom_dir），或绝对路径
+
         Returns:
-            StudentPersona实例
+            StudentPersona 实例
         """
-        # 处理路径
         if os.path.isabs(file_path):
             path = Path(file_path)
+        elif file_path.strip().startswith("custom/"):
+            name = file_path.strip().replace("custom/", "", 1)
+            path = self.custom_dir / name
         else:
             path = self.config_dir / file_path
-        
-        # 确保有.yaml扩展名
+
         if not path.suffix:
-            path = path.with_suffix('.yaml')
-        
+            path = path.with_suffix(".yaml")
+
         if not path.exists():
-            # 尝试在custom目录下查找
             alt_path = self.custom_dir / path.name
             if alt_path.exists():
                 path = alt_path
@@ -340,10 +340,18 @@ class PersonaManager:
         return list(PRESET_PERSONAS.keys())
     
     def list_custom(self) -> List[str]:
-        """列出所有自定义人设"""
+        """列出所有自定义人设；若 custom_dir 为工作区 persona_lib 则递归子目录，返回 id 如 custom/xxx_人设/优秀"""
         if not self.custom_dir.exists():
             return []
-        return [f.stem for f in self.custom_dir.glob("*.yaml")]
+        out = []
+        for p in self.custom_dir.rglob("*.yaml"):
+            try:
+                rel = p.relative_to(self.custom_dir)
+                stem = str(rel.with_suffix("")).replace("\\", "/")
+                out.append(f"custom/{stem}")
+            except ValueError:
+                continue
+        return sorted(out)
     
     def create_custom_persona(
         self,
@@ -676,18 +684,20 @@ class PersonaGenerator:
         output_dir: str = None,
         prefix: str = "generated",
         source_basename: str = None,
+        use_level_filenames_only: bool = False,
     ) -> List[str]:
         """
-        保存生成的角色配置到YAML文件。
+        保存生成的角色配置到 YAML 文件。
 
-        若提供 source_basename，则按「原文档名_优秀/一般/较差」命名，便于识别刚生成的人设。
-        否则沿用 prefix_{i+1}_{safe_name} 格式。
+        若提供 source_basename 且未设置 use_level_filenames_only，则按「原文档名_优秀/一般/较差」命名。
+        若 use_level_filenames_only 为 True 且 output_dir 为子目录（如 xxx_人设），则仅用「优秀/一般/较差.yaml」命名。
 
         Args:
             personas: 角色列表（建议顺序：优秀、一般、较差）
             output_dir: 输出目录
             prefix: 文件名前缀（source_basename 为空时使用）
-            source_basename: 原文档名（不含扩展名），如「实调任务demo2-生物化学」
+            source_basename: 原文档名（不含扩展名）
+            use_level_filenames_only: 为 True 时在 output_dir 下仅写 优秀.yaml、一般.yaml、较差.yaml
 
         Returns:
             保存的文件路径列表
@@ -700,12 +710,13 @@ class PersonaGenerator:
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # 三档人设后缀，与预设 excellent/average/struggling 对应
         level_suffixes = ["优秀", "一般", "较差"]
 
         saved_paths = []
         for i, persona in enumerate(personas):
-            if source_basename and i < len(level_suffixes):
+            if use_level_filenames_only and i < len(level_suffixes):
+                filename = f"{level_suffixes[i]}.yaml"
+            elif source_basename and i < len(level_suffixes):
                 safe_base = source_basename.replace(" ", "_").replace("/", "_")[:40]
                 filename = f"{safe_base}_{level_suffixes[i]}.yaml"
             else:

@@ -1,11 +1,11 @@
 # EduFlow 智慧树卡片注入 - Chrome 插件
 
-任意页面均可打开扩展；拖入 .md 剧本 → 生成卡片 → 在智慧树配置页点击「注入平台」即可完成注入。无需配置 Cookie/课程/任务/节点 ID。
+任意页面均可打开扩展；按六步流程完成「选择文件 → 选框架 → 选人设 → 选评分 → 生成卡片 → 注入平台」。无需配置 Cookie/课程/任务/节点 ID。
 
 ## 使用前提
 
-- **默认**：扩展使用 [eduflows.cn](https://eduflows.cn) 后端（DSPy 生成），无需配置。
-- **本地部署**：若本地运行网站，将「EduFlow 后端」改为 `http://localhost:端口` 即可。
+- **默认**：扩展使用 [eduflows.cn](https://eduflows.cn) 后端，无需配置。
+- **本地部署**：若本地运行网站，在侧边栏展开「EduFlow 后端 API」并改为 `http://localhost:端口`。
 - 注入前需打开**智慧树能力训练配置页**（某门课的卡片编辑页），扩展会自动检测当前标签页是否为该页面。
 
 ## 安装
@@ -14,24 +14,23 @@
 2. 开启右上角「开发者模式」。
 3. 点击「加载已解压的扩展程序」，选择本项目的 `extension` 目录。
 
-## 使用步骤
+## 六步流程
 
-1. **打开扩展**：点击浏览器工具栏的扩展图标，打开侧边栏（任意页面均可打开）。
-2. **确认当前页**：侧边栏顶部会显示「当前页面：智慧树能力训练配置页」或「当前页面不是智慧树配置页」。若尚未打开配置页，请先打开智慧树能力训练配置页。
-3. **（可选）**：默认使用 eduflows.cn 生成，无需配置。若本地部署，可展开「EduFlow 后端」修改地址。
-4. **拖入文件**：将 **.md / .docx / .pdf** 剧本拖入侧边栏的拖放区，或点击选择文件。支持 .docx 和 .pdf 需在 `extension/lib/` 下放入对应库（见下方「可选：.docx / .pdf 支持」）。
-5. **生成卡片**：点击「生成卡片」，等待分幕与卡片生成完成。
+1. **选择文件**：拖入或选择 .md / .docx / .pdf 剧本。后端自动解析、生成 trainset、生成学生角色（人设）。
+2. **选择生成框架**：从下拉选择卡片生成框架（如 dspy）；后续可接入新生成逻辑。
+3. **选择学生角色**：从预设或本次生成的人设中选择；可查看并编辑 YAML 内容后保存。
+4. **选择评分体系**：当前为占位选项（默认）；后续将接入新评分体系。
+5. **生成卡片**：点击「生成卡片」得到 Markdown；可在文本框内编辑后再执行注入。
 6. **注入平台**：确保当前标签页为智慧树能力训练配置页，点击「注入平台」。完成后刷新画布即可看到新卡片。
 
 ## 可选：.docx / .pdf 支持
 
-- 仅 **.md** 时无需额外文件。
-- **.docx**：将 [mammoth.browser.min.js](https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js) 下载并保存为 `extension/lib/mammoth.min.js`，重新加载扩展即可。
-- **.pdf**：将 PDF.js 的浏览器构建（如 `pdf.min.js`）放入 `extension/lib/pdf.min.js` 并重新加载扩展。具体用法见 `extension/lib/README.md`。
+- 使用**后端解析**时，.md / .docx / .pdf 均由服务端解析，无需在扩展内放置额外库。
+- 若需在**未连接后端**时本地预览 .docx / .pdf 文本，可将 mammoth（.docx）或 PDF.js（.pdf）放入 `extension/lib/`，详见原说明。
 
 ## 文件说明
 
 - `manifest.json` - 插件配置与权限（含 sidePanel）。
 - `background.js` - 认证、智慧树 API、当前标签页检测。
-- `sidepanel.html` / `sidepanel.js` / `sidepanel.css` - 侧边栏 UI（拖入文件、生成卡片、注入平台）。
+- `sidepanel.html` / `sidepanel.js` / `sidepanel.css` - 侧边栏六步流程 UI。
 - `content.js` - 仅在智慧树配置页运行，响应「注入平台」并执行注入。

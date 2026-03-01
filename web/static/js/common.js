@@ -158,6 +158,53 @@
       return /^[\x00-\x7F]*$/.test(id) ? id : '';
     }
   }
+
+  /** 全局 Toast：API 失败时统一提示，不打断控制台 */
+  var toastQueue = [];
+  var toastVisible = false;
+  function getToastContainer() {
+    var id = 'eduflow-toast-container';
+    var el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = id;
+      el.className = 'toast-container';
+      el.setAttribute('aria-live', 'polite');
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+  function showToast(message, type) {
+    type = type || 'error';
+    var container = getToastContainer();
+    var item = document.createElement('div');
+    item.className = 'toast-item toast--' + type;
+    item.textContent = message || '请求失败';
+    container.appendChild(item);
+    toastVisible = true;
+    requestAnimationFrame(function() { item.classList.add('toast--show'); });
+    setTimeout(function() {
+      item.classList.remove('toast--show');
+      setTimeout(function() {
+        if (item.parentNode) item.parentNode.removeChild(item);
+        toastVisible = container.children.length > 0;
+      }, 300);
+    }, 3500);
+  }
+  window.showToast = showToast;
+
+  /** 防抖：用于搜索框等，减少无效调用 */
+  function debounce(fn, ms) {
+    var t;
+    return function() {
+      var a = arguments;
+      var self = this;
+      clearTimeout(t);
+      t = setTimeout(function() { fn.apply(self, a); }, ms);
+    };
+  }
+  window.debounce = debounce;
+
   function apiFetch(path, options) {
     options = options || {};
     options.headers = options.headers || {};
@@ -168,7 +215,21 @@
     options.headers['X-Workspace-Id'] = encoded || (wid && /^[\x00-\x7F]*$/.test(wid) ? wid : '');
     var base = (typeof window.API !== 'undefined' && window.API) ? window.API : (window.location.origin || '');
     var url = path.startsWith('http') ? path : (base.replace(/\/$/, '') + (path.startsWith('/') ? path : '/' + path));
-    return fetch(url, options);
+    return fetch(url, options)
+      .then(function(r) {
+        if (!r.ok) {
+          r.clone().text().then(function(text) {
+            var msg = '请求失败';
+            try { var d = JSON.parse(text); msg = d.detail || d.message || msg; } catch (e) { if (text) msg = text.slice(0, 120); }
+            showToast(msg, 'error');
+          }).catch(function() { showToast('请求失败', 'error'); });
+        }
+        return r;
+      })
+      .catch(function(e) {
+        showToast(e.message || '网络错误，请检查连接', 'error');
+        throw e;
+      });
   }
   function safeResponseJson(r) {
     return r.text().then(function(text) {

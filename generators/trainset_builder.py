@@ -5,9 +5,15 @@ Trainset / Dev set 构建与加载
 """
 
 import os
+import re
 import json
+import hashlib
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+
+# 用于 trainset 文件名的安全字符：替换非法与空格
+_TRAINSET_BASENAME_UNSAFE = re.compile(r'[\\/:*?"<>|\s]+')
 
 from parsers import get_parser_for_extension
 from .content_splitter import ContentSplitter
@@ -48,6 +54,57 @@ def _parse_content(file_path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     parser = get_parser_for_extension(ext)
     return parser(path)
+
+
+def compute_content_hash(full_script: str, stages: List[Dict[str, Any]]) -> str:
+    """
+    计算样本内容的稳定哈希，用于去重与缓存判断。
+
+    仅依赖 full_script 与 stages，与额外元数据无关。
+    """
+    payload = {
+        "full_script": full_script,
+        "stages": stages,
+    }
+    data = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def infer_course_and_doc_from_source(source_file: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    根据源文件路径粗略推断 course_id 与 doc_id。
+
+    约定（与工作区 input 目录结构保持兼容）：
+    - 若路径中包含 "input/" 段，则：
+      - course_id 取其后的第一级目录名；
+      - doc_id 取文件名去扩展名。
+    - 否则：
+      - course_id 退化为上级目录名（若存在）；
+      - doc_id 仍取文件名去扩展名。
+    """
+    path = (source_file or "").strip().replace("\\", "/")
+    if not path:
+        return None, None
+
+    tail = path
+    if "input/" in path:
+        tail = path.split("input/", 1)[1]
+
+    parts = [p for p in tail.split("/") if p]
+    course_id: Optional[str] = None
+    if len(parts) >= 2:
+        course_id = parts[0]
+    elif len(parts) == 1:
+        # 没有明确课程目录时，用上级目录名作为 course_id（若存在）
+        parent = os.path.basename(os.path.dirname(path))
+        course_id = parent or None
+
+    basename = os.path.basename(tail)
+    doc_id: Optional[str] = None
+    if basename:
+        doc_id = os.path.splitext(basename)[0] or None
+
+    return course_id, doc_id
 
 
 def build_trainset_from_path(
@@ -103,11 +160,19 @@ def build_trainset_from_path(
                 if verbose:
                     print(f"    [跳过] 未识别出阶段: {fp}")
                 continue
-            examples.append({
+            content_hash = compute_content_hash(content, stages)
+            course_id, doc_id = infer_course_and_doc_from_source(fp)
+            item: Dict[str, Any] = {
                 "full_script": content,
                 "stages": stages,
                 "source_file": fp,
-            })
+                "content_hash": content_hash,
+            }
+            if course_id:
+                item["course_id"] = course_id
+            if doc_id:
+                item["doc_id"] = doc_id
+            examples.append(item)
         except Exception as e:
             if verbose:
                 print(f"    [错误] {fp}: {e}")
@@ -124,6 +189,55 @@ def save_trainset(examples: List[Dict[str, Any]], json_path: str) -> None:
         json.dump(examples, f, ensure_ascii=False, indent=2)
 
 
+def sanitize_trainset_basename(source_filename: str) -> str:
+    """
+    将原文档文件名转为可作 trainset 文件名的安全 basename（无扩展名）。
+    非法字符替换为下划线，截断长度；若结果为空则返回带时间戳的 fallback。
+    """
+    name = (source_filename or "").strip()
+    name = os.path.splitext(name)[0].strip()
+    name = _TRAINSET_BASENAME_UNSAFE.sub("_", name).strip("_")
+    name = name[:40] if len(name) > 40 else name
+    if not name:
+        name = f"document_{int(time.time())}"
+    return name
+
+
+def write_trainset_for_document(
+    output_dir: str,
+    source_filename: str,
+    full_script: str,
+    stages: List[Dict[str, Any]],
+    source_file: str = "",
+) -> Optional[str]:
+    """
+    为单份原文档写入 trainset 到 output_dir/trainset_lib/{basename}_trainset.json。
+    任何异常均不抛出，返回 None；成功则返回相对路径 output/trainset_lib/{basename}_trainset.json。
+    """
+    if not stages:
+        return None
+    try:
+        safe_name = sanitize_trainset_basename(source_filename)
+        lib_dir = os.path.join(output_dir, "trainset_lib")
+        os.makedirs(lib_dir, exist_ok=True)
+        json_path = os.path.join(lib_dir, f"{safe_name}_trainset.json")
+
+        item: Dict[str, Any] = {
+            "full_script": full_script,
+            "stages": stages,
+        }
+        if (source_file or "").strip():
+            item["source_file"] = (source_file or "").strip()
+        try:
+            item["content_hash"] = compute_content_hash(full_script, stages)
+        except Exception:
+            pass
+        save_trainset([item], json_path)
+        return f"output/trainset_lib/{safe_name}_trainset.json"
+    except Exception:
+        return None
+
+
 def load_trainset(json_path: str) -> List[Dict[str, Any]]:
     """从 JSON 文件加载样本列表。"""
     path = os.path.abspath(json_path)
@@ -138,10 +252,16 @@ def append_trainset_example(
     stages: List[Dict[str, Any]],
     json_path: str,
     source_file: str = "",
+    course_id: Optional[str] = None,
+    doc_id: Optional[str] = None,
+    content_hash: Optional[str] = None,
 ) -> int:
     """
     将一条样本追加到 trainset.json；若已存在同 source_file 则替换。
     返回当前 trainset 条数。
+
+    - source_file 用于判定“同一源文件”的样本（便于更新覆盖）；
+    - course_id/doc_id 与 content_hash 为可选元数据，便于后续做按课/文档拆分与缓存判断。
     """
     path = os.path.abspath(json_path)
     try:
@@ -149,12 +269,35 @@ def append_trainset_example(
     except FileNotFoundError:
         examples = []
     key = (source_file or "").strip()
-    new_item = {"full_script": full_script, "stages": stages}
+    item: Dict[str, Any] = {
+        "full_script": full_script,
+        "stages": stages,
+    }
     if key:
-        new_item["source_file"] = key
+        item["source_file"] = key
+    if course_id:
+        item["course_id"] = course_id
+    # 若未显式传入 doc_id，尝试从 source_file 推断
+    if doc_id is None and key:
+        try:
+            _, inferred = infer_course_and_doc_from_source(key)
+        except Exception:
+            inferred = None
+        if inferred:
+            doc_id = inferred
+    if doc_id:
+        item["doc_id"] = doc_id
+    if content_hash is None:
+        try:
+            content_hash = compute_content_hash(full_script, stages)
+        except Exception:
+            content_hash = None
+    if content_hash:
+        item["content_hash"] = content_hash
+
     if key:
         examples = [e for e in examples if (e.get("source_file") or "").strip() != key]
-    examples.append(new_item)
+    examples.append(item)
     save_trainset(examples, path)
     return len(examples)
 
@@ -261,6 +404,46 @@ def check_trainset_file(json_path: str, strict: bool = False, check_eval_alignme
     """
     examples = load_trainset(json_path)
     return validate_trainset(examples, strict=strict, check_eval_alignment=check_eval_alignment)
+
+
+def merge_trainsets(json_paths: List[str], output_path: str) -> int:
+    """
+    合并多个 trainset JSON 文件，按 content_hash / source_file 去重后写入 output_path。
+
+    Args:
+        json_paths: 待合并的 trainset.json 路径列表。
+        output_path: 合并后输出文件路径（通常为 output/optimizer/trainset.json）。
+
+    Returns:
+        合并后的样本数。
+    """
+    merged: Dict[str, Dict[str, Any]] = {}
+    for p in json_paths:
+        path = os.path.abspath(p)
+        if not os.path.isfile(path):
+            continue
+        try:
+            examples = load_trainset(path)
+        except Exception:
+            continue
+        for ex in examples:
+            if not isinstance(ex, dict):
+                continue
+            ch = (ex.get("content_hash") or "").strip()
+            if ch:
+                key = f"h:{ch}"
+            else:
+                sf = (ex.get("source_file") or "").strip()
+                sid = ""
+                stages = ex.get("stages") or []
+                if isinstance(stages, list) and stages:
+                    sid = str(stages[0].get("id", ""))
+                key = f"s:{sf}:{sid}"
+            merged[key] = ex
+
+    merged_list = list(merged.values())
+    save_trainset(merged_list, output_path)
+    return len(merged_list)
 
 
 # ==================== 与评估报告集成的扩展功能 ====================

@@ -16,15 +16,15 @@
 ```
 原始 Word 文档
       ↓
-[1] 解析剧本（上传或按路径）→ 得到 full_content + stages，同时写入 trainset.json
+[1] 解析剧本（上传或按路径）→ 得到 full_content + stages，同时写入 trainset 库 output/trainset_lib/{原文档名}_trainset.json
       ↓
 [2] 生成教学卡片 → 得到 cards_output_xxx.md
       ↓
-[3] 使用「学生模拟测试」或闭环仿真运行对话
+[3] 使用「学生模拟测试」或闭环仿真运行对话（人设来自工作区 output/persona_lib 或预设）
       ↓
 [4] 内部评估器根据 5 大维度自动打分，生成评估报告（evaluation-report-*.md / .json）
       ↓
-[5]（可选）运行 DSPy 优化：用 trainset.json + 闭环评估分数迭代优化生成能力
+[5]（可选）运行 DSPy 优化：选择 trainset（默认库中最新）+ 人设 + 优化器；已跑过的 trainset 可命中缓存，不重跑
 ```
 
 ---
@@ -33,10 +33,10 @@
 
 ### 1. 解析剧本（第一步即生成 trainset）
 
-- **Web**：在「1. 剧本、分析结构并生成教学卡片」中，将 Word 拖入或点选上传；或左侧选文件后使用「按路径解析」。解析完成后会自动在当前项目下写入 `output/optimizer/trainset.json`（同源文件会覆盖一条）。
-- **CLI**：`python main.py --input "path/to/剧本.docx"`，解析后同样会写入 `output/optimizer/trainset.json`。
+- **Web**：在「1. 剧本上传与解析」中上传或按路径解析。解析完成后会写入当前工作区 **trainset 库**：`output/trainset_lib/{原文档名}_trainset.json`（每份原文档对应一个文件，可多份并存）。
+- **CLI**：`python main.py --input "path/to/剧本.docx"` 等，解析后可按需构建 trainset。
 
-结果：得到 **full_content**、**stages**，以及当前项目下的 **trainset.json**（供后续优化使用）。
+结果：得到 **full_content**、**stages**，以及 **trainset 库** 中的一份文件（在「历史生成文件」中可管理，闭环优化时可选或使用默认最新）。
 
 ### 2. 生成教学卡片
 
@@ -52,10 +52,10 @@
 
 ### 4.（可选）根据闭环评分优化生成能力（DSPy）
 
-- **Web**：在「6. 闭环与 DSPy 优化」中填写 Trainset 路径（默认 `output/optimizer/trainset.json`），点击「运行 DSPy 优化」。优化器会使用 **trainset** 中的样本生成卡片，并在每轮内部自动执行「仿真 + 评估」，将多个人设得分求均值作为 metric。
-- **CLI**：`python run_optimizer.py`（默认读 `output/optimizer/trainset.json`）。当前仅支持闭环模式：每轮自动仿真+评估，无需也不再支持外部评估导入分数。
+- **Web**：在「6. 闭环与 DSPy 优化」中选择 **Trainset**（不选则使用 trainset 库中最新一份），点击「运行 DSPy 优化」。优化器使用所选 trainset 生成卡片并在每轮内部执行「仿真 + 评估」。同一 trainset 再次选中时可**命中缓存**，直接返回上次结果不重跑。
+- **CLI**：`python run_optimizer.py`（可指定 `--trainset` 或按 course_id 选 trainset 文件）。闭环模式：每轮自动仿真+评估。
 
-**说明**：DSPy 优化器在子进程中运行，避免与主进程的 dspy.settings 线程冲突。部署时请确保使用该版本，否则若出现「dspy.settings can only be changed by the thread that initially configured it」错误，需检查优化器是否在子进程内执行。
+**说明**：DSPy 优化器在子进程中运行；Web 端缓存按 trainset 文件内容 hash 存储于 `output/optimizer/dspy_cache/`。
 
 ---
 
@@ -63,11 +63,11 @@
 
 | 步骤 | 输入 | 输出 | 说明 |
 |------|------|------|------|
-| 1 解析 | Word / .md 剧本 | full_content, stages, **trainset.json** | 解析即写 trainset，无需单独构建 |
+| 1 解析 | Word / .md 剧本 | full_content, stages, **trainset 库**（每文档一份） | 解析即写 trainset_lib，无需单独构建 |
 | 2 生成卡片 | stages + full_content | cards_output_xxx.md | 使用设置中的 API Key + 模型 |
-| 3 闭环仿真+评估 | cards_output_xxx.md | 会话日志 + 评估报告 | 在系统内完成模拟与评分 |
-| 4 优化（可选） | trainset.json + 闭环评估分数 | 优化后的生成程序/提示 | 用内部评分驱动迭代 |
+| 3 闭环仿真+评估 | cards_output_xxx.md + 人设 | 会话日志 + 评估报告 | 人设来自工作区 persona_lib 或预设 |
+| 4 优化（可选） | 所选 trainset（默认最新）+ 闭环评估 | 优化后的程序/卡片；可缓存 | 同一 trainset 再跑可命中缓存 |
 
 整个系统使用**同一套 API Key**（在 Web 设置中配置），从解析到生成、优化一致生效。
 
-**人设命名**：生成学生人设时，按「原文档名_优秀」「原文档名_一般」「原文档名_较差」命名，便于在「人设」下拉中快速识别刚生成的人设。
+**历史生成文件**：在「工作区文件」页可查看与管理 **输出文件**、**Trainset 库**、**人设库**（output/persona_lib，生成时写入 `{源文件名}_人设/` 下 优秀.yaml、一般.yaml、较差.yaml）。

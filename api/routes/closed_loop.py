@@ -45,6 +45,7 @@ def _run_closed_loop(req: ClosedLoopRequest, workspace_id: str, progress_callbac
     api_url = build_chat_completions_url(base_url)
     _, output_dir, _ = get_project_dirs(workspace_id)
     sim_output = os.path.join(output_dir, "simulator_output", "closed_loop")
+    persona_lib = os.path.join(output_dir, "persona_lib")
 
     kwargs = {
         "cards_path": md_path,
@@ -56,6 +57,7 @@ def _run_closed_loop(req: ClosedLoopRequest, workspace_id: str, progress_callbac
         "verbose": False,
         "api_url": api_url,
         "model_name": model_name,
+        "custom_persona_dir": persona_lib if os.path.isdir(persona_lib) else None,
     }
     if progress_callback is not None:
         kwargs["progress_callback"] = progress_callback

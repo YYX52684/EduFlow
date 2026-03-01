@@ -31,11 +31,13 @@
       <form id="loginForm" class="auth-form">
         <label for="loginIdentifier">邮箱</label>
         <input type="text" id="loginIdentifier" name="identifier" autocomplete="username" required placeholder="用于登录的邮箱">
+        <span id="loginIdentifierError" class="validation-error" aria-live="polite"></span>
         <label for="loginPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="loginPassword" name="password" autocomplete="current-password" required placeholder="请输入密码">
           <button type="button" class="auth-pwd-eye" id="loginPwdEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
+        <span id="loginPasswordError" class="validation-error" aria-live="polite"></span>
         <div id="loginMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">登录</button>
         <p class="auth-link-row"><a href="#" id="linkForgotPassword">忘记密码？</a></p>
@@ -43,22 +45,26 @@
       <form id="registerForm" class="auth-form" style="display:none">
         <label for="registerEmail">邮箱</label>
         <input type="email" id="registerEmail" name="email" autocomplete="email" required placeholder="用于登录与找回密码">
+        <span id="registerEmailError" class="validation-error" aria-live="polite"></span>
         <label for="registerPassword">密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="registerPassword" name="password" autocomplete="new-password" required placeholder="至少 6 位">
           <button type="button" class="auth-pwd-eye" id="regPwdEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
+        <span id="registerPasswordError" class="validation-error" aria-live="polite"></span>
         <label for="registerPasswordAgain">再次输入密码</label>
         <div class="auth-pwd-wrap">
           <input type="password" id="registerPasswordAgain" name="password_again" autocomplete="new-password" required placeholder="请再输入一次密码">
           <button type="button" class="auth-pwd-eye" id="regPwdAgainEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
+        <span id="registerPasswordAgainError" class="validation-error" aria-live="polite"></span>
         <div id="registerMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">注册</button>
       </form>
       <form id="forgotForm" class="auth-form" style="display:none">
         <label for="forgotIdentifier">邮箱</label>
         <input type="text" id="forgotIdentifier" name="identifier" autocomplete="username" placeholder="请输入注册时使用的邮箱">
+        <span id="forgotIdentifierError" class="validation-error" aria-live="polite"></span>
         <div id="forgotMsg" class="auth-msg err"></div>
         <div id="forgotSuccess" class="auth-msg ok" style="display:none"></div>
         <div id="forgotResetLink" class="auth-reset-link" style="display:none"></div>
@@ -78,6 +84,7 @@
           <input type="password" id="resetNewPasswordAgain" name="new_password_again" autocomplete="new-password" required placeholder="请再输入一次">
           <button type="button" class="auth-pwd-eye" id="resetPwdAgainEye" title="显示密码" aria-label="显示密码"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
+        <span id="resetPasswordAgainError" class="validation-error" aria-live="polite"></span>
         <div id="resetMsg" class="auth-msg err"></div>
         <button type="submit" class="auth-submit">确认并重置密码</button>
         <p class="auth-link-row"><a href="#" id="linkResetBackToLogin">返回登录</a></p>
@@ -92,6 +99,7 @@
         <button type="button" id="btnCloseHistoryFiles" class="btn-icon" title="关闭" aria-label="关闭">×</button>
       </div>
       <div class="history-files-toolbar">
+        <input type="text" id="historyFilesSearch" class="history-files-search" placeholder="搜索文件名…" autocomplete="off" aria-label="搜索文件">
         <label class="history-files-sort">
           <span>按时间</span>
           <select id="historyFilesSortOrder">
@@ -104,14 +112,18 @@
       <div class="history-files-tabs">
         <button type="button" class="history-files-tab active" data-category="cards">卡片</button>
         <button type="button" class="history-files-tab" data-category="reports">评估报告</button>
+        <button type="button" class="history-files-tab" data-category="trainset">Trainset 库</button>
+        <button type="button" class="history-files-tab" data-category="personas">人设库</button>
         <button type="button" class="history-files-tab" data-category="other">其他</button>
       </div>
       <div id="historyFilesContent" class="history-files-content">
         <div id="historyFilesCards" class="history-files-list" data-category="cards"></div>
         <div id="historyFilesReports" class="history-files-list" data-category="reports" style="display:none"></div>
+        <div id="historyFilesTrainset" class="history-files-list" data-category="trainset" style="display:none"></div>
+        <div id="historyFilesPersonas" class="history-files-list" data-category="personas" style="display:none"></div>
         <div id="historyFilesOther" class="history-files-list" data-category="other" style="display:none"></div>
       </div>
-      <p id="historyFilesEmpty" class="history-files-empty hint" style="display:none">当前分类下暂无文件</p>
+      <div id="historyFilesEmpty" class="history-files-empty empty-state-wrap" style="display:none"></div>
     </div>
   </div>
   <div id="settingsModal" class="modal-overlay" aria-hidden="true">
@@ -341,6 +353,14 @@
       <div class="closed-loop-subsection" style="margin-top:1rem;">
         <h4 style="font-size:0.95rem;margin:0 0 0.5rem 0;">闭环优化</h4>
         <p class="hint" style="font-size:0.85rem;">多轮生成→仿真→评估，优化卡片质量。</p>
+        <p id="optimizerTrainsetInfo" class="hint" style="font-size:0.8rem;margin:0.25rem 0 0;">
+        </p>
+        <label style="margin-top:0.4rem;">Trainset</label>
+        <div class="picker-ios" style="margin-top:0.25rem;">
+          <select id="optimizerTrainsetSelect" class="select-ios">
+            <option value="">默认（最新）</option>
+          </select>
+        </div>
         <label style="margin-top:0.4rem;">Rounds</label>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;">
           <label class="opt-checkbox-wrap" style="margin:0;"><input type="radio" name="optimizerRoundsMode" value="default" checked class="opt-checkbox"> 默认</label>
@@ -349,13 +369,17 @@
         </div>
         <label style="margin-top:0.4rem;">人设</label>
         <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap;">
-          <select id="personaId" style="flex:1;min-width:8rem;"></select>
+          <div class="picker-ios picker-ios--flex">
+            <select id="personaId" class="select-ios"></select>
+          </div>
           <button type="button" id="btnEditPersona" class="btn-secondary" title="编辑当前人设">编辑人设</button>
           <button type="button" id="btnAddNewPersona" class="btn-secondary" title="添加新人设">添加新人设</button>
         </div>
         <p class="hint" style="font-size:0.8rem;margin:0.25rem 0 0;"></p>
         <label style="margin-top:0.4rem;">优化器</label>
-        <select id="optimizerType" style="width:100%;"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
+        <div class="picker-ios picker-ios--full">
+          <select id="optimizerType" class="select-ios"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
+        </div>
         <div class="btn-row-right" style="margin-top:0.5rem;">
           <button type="button" id="btnRunOptimizer" class="btn-primary">运行优化</button>
         </div>
@@ -386,14 +410,4 @@
   <script src="/static/js/settings.js"></script>
   <script src="/static/js/app.js"></script>
 </body>
-</html>
-
-</html>
-
-</html>
-
-</html>
-
-</html>
-
 </html>

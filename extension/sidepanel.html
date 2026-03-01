@@ -8,33 +8,75 @@
   <h1>EduFlow 卡片注入</h1>
   <div id="tab-status" class="tab-status"></div>
   <details id="eduflow-details" class="llm-details">
-    <summary>EduFlow 后端（DSPy 生成）</summary>
+    <summary>EduFlow 后端 API</summary>
     <div class="llm-fields">
-      <label>API 地址（可选，默认已配置）</label>
+      <label>API 地址</label>
       <input type="text" id="eduflow-api-url" placeholder="https://eduflows.cn" />
-      <p class="hint">默认 eduflows.cn。若本地运行网站，建议改为 http://localhost:端口，可获得与网站相同的 DSPy 生成质量。</p>
+      <p class="hint">默认 eduflows.cn。本地部署可填 http://localhost:端口</p>
     </div>
   </details>
-  <div class="drop-zone" id="drop-zone">
-    <p>拖入 .md / .docx / .pdf 剧本文件，或点击选择</p>
-    <input type="file" id="file-input" accept=".md,.docx,.pdf" hidden />
-  </div>
-  <div id="file-status" class="status"></div>
-  <button type="button" id="btn-generate" class="btn btn-primary" disabled>生成卡片</button>
-  <div id="generate-status" class="status"></div>
-  <div id="generate-progress" class="progress" style="display:none;">
-    <div class="progress-text" id="progress-text">加载中...</div>
-    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-  </div>
-  <div id="cards-ready" class="cards-ready" style="display:none;">
-    <p id="cards-summary"></p>
-    <details class="cards-preview-wrap">
-      <summary>预览生成的卡片</summary>
-      <pre id="cards-preview" class="cards-preview"></pre>
-    </details>
+
+  <section class="step-block" id="step1-block">
+    <h2 class="step-title">1. 选择文件</h2>
+    <div class="drop-zone" id="drop-zone">
+      <p>拖入 .md / .docx / .pdf 剧本文件，或点击选择</p>
+      <input type="file" id="file-input" accept=".md,.docx,.pdf" hidden />
+    </div>
+    <div id="file-status" class="status"></div>
+    <div id="step1-result" class="step-result" style="display:none;"></div>
+  </section>
+
+  <section class="step-block step-block-disabled" id="step2-block">
+    <h2 class="step-title">2. 选择生成框架</h2>
+    <label for="framework-select">框架</label>
+    <select id="framework-select" class="step-select">
+      <option value="">加载中…</option>
+    </select>
+  </section>
+
+  <section class="step-block step-block-disabled" id="step3-block">
+    <h2 class="step-title">3. 选择学生角色</h2>
+    <label for="persona-select">人设</label>
+    <select id="persona-select" class="step-select">
+      <option value="">请先完成步骤 1</option>
+    </select>
+    <div id="persona-content-wrap" class="persona-content-wrap" style="display:none;">
+      <label>人设内容（可编辑后保存）</label>
+      <textarea id="persona-content" class="persona-content" rows="8" readonly></textarea>
+      <button type="button" id="btn-save-persona" class="btn btn-secondary" style="display:none;">保存人设</button>
+      <span id="persona-save-status" class="status"></span>
+    </div>
+  </section>
+
+  <section class="step-block step-block-disabled" id="step4-block">
+    <h2 class="step-title">4. 选择评分体系</h2>
+    <label for="scoring-select">评分体系</label>
+    <select id="scoring-select" class="step-select">
+      <option value="default">默认（当前逻辑）</option>
+    </select>
+  </section>
+
+  <section class="step-block step-block-disabled" id="step5-block">
+    <h2 class="step-title">5. 生成卡片</h2>
+    <button type="button" id="btn-generate" class="btn btn-primary">生成卡片</button>
+    <div id="generate-status" class="status"></div>
+    <div id="generate-progress" class="progress" style="display:none;">
+      <div class="progress-text" id="progress-text">加载中...</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+    <div id="cards-ready" class="cards-ready" style="display:none;">
+      <p id="cards-summary" class="cards-summary"></p>
+      <label>卡片内容（可编辑后再注入）</label>
+      <textarea id="cards-preview" class="cards-preview"></textarea>
+    </div>
+  </section>
+
+  <section class="step-block step-block-disabled" id="step6-block">
+    <h2 class="step-title">6. 注入平台</h2>
     <button type="button" id="btn-inject" class="btn btn-primary">注入平台</button>
-  </div>
-  <div id="inject-status" class="status"></div>
+    <div id="inject-status" class="status"></div>
+  </section>
+
   <script src="sidepanel.js"></script>
 </body>
 </html>

@@ -1,9 +1,14 @@
 /* EduFlow 前端设置：设置弹窗、壁纸、LLM 配置、主题、左侧栏折叠与双击隐藏 */
 (function() {
   'use strict';
+
   var settingsModal = document.getElementById('settingsModal');
+  var btnSettings = document.getElementById('btnSettings');
+  if (!settingsModal || !btnSettings) return;
+
   function updateWallpaperPreview() {
     var wrap = document.getElementById('wallpaperPreview');
+    if (!wrap) return;
     try {
       var dataUrl = localStorage.getItem(window.WALLPAPER_KEY);
       if (dataUrl) {
@@ -15,58 +20,103 @@
       wrap.innerHTML = '<span class="no-preview">当前未设置壁纸</span>';
     }
   }
+
   function loadLlmConfig() {
-    window.apiFetch('/api/llm/config').then(function(r) { return window.safeResponseJson(r); }).then(function(data) {
-      document.getElementById('llmModelType').value = data.model_type || 'deepseek';
-      document.getElementById('llmApiKey').value = '';
-      document.getElementById('llmApiKeyMasked').textContent = data.has_api_key ? '已保存 Key: ' + (data.api_key_masked || '***') : '未设置';
-      document.getElementById('llmBaseUrl').value = data.base_url || '';
-      document.getElementById('llmModelName').value = data.model || '';
-      document.getElementById('llmCustomFields').style.display = (data.model_type === 'openai') ? 'block' : 'none';
-    }).catch(function() {
-      document.getElementById('llmApiKeyMasked').textContent = '加载失败';
-    });
-  }
-  document.getElementById('llmModelType').onchange = function() {
-    document.getElementById('llmCustomFields').style.display = (this.value === 'openai') ? 'block' : 'none';
-  };
-  document.getElementById('btnSaveLlmConfig').onclick = function() {
-    var payload = { model_type: document.getElementById('llmModelType').value };
-    var key = document.getElementById('llmApiKey').value.trim();
-    if (key) payload.api_key = key;
-    if (document.getElementById('llmModelType').value === 'openai') {
-      payload.base_url = document.getElementById('llmBaseUrl').value.trim();
-      payload.model = document.getElementById('llmModelName').value.trim();
-    }
-    document.getElementById('llmConfigMsg').textContent = '保存中…';
-    window.showLongTaskFeedback('保存 LLM 配置中…');
-    window.apiFetch('/api/llm/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    window.apiFetch('/api/llm/config')
       .then(function(r) { return window.safeResponseJson(r); })
       .then(function(data) {
-        document.getElementById('llmConfigMsg').textContent = data.message || '已保存';
-        loadLlmConfig();
+        var el;
+        if ((el = document.getElementById('llmModelType'))) el.value = data.model_type || 'deepseek';
+        if ((el = document.getElementById('llmApiKey'))) el.value = '';
+        if ((el = document.getElementById('llmApiKeyMasked'))) el.textContent = data.has_api_key ? '已保存 Key: ' + (data.api_key_masked || '***') : '未设置';
+        if ((el = document.getElementById('llmBaseUrl'))) el.value = data.base_url || '';
+        if ((el = document.getElementById('llmModelName'))) el.value = data.model || '';
+        if ((el = document.getElementById('llmCustomFields'))) el.style.display = (data.model_type === 'openai') ? 'block' : 'none';
       })
-      .catch(function(e) {
-        document.getElementById('llmConfigMsg').textContent = '保存失败: ' + (e.message || e);
+      .catch(function() {
+        var el = document.getElementById('llmApiKeyMasked');
+        if (el) el.textContent = '加载失败';
+      });
+  }
+
+  var llmModelType = document.getElementById('llmModelType');
+  if (llmModelType) {
+    llmModelType.onchange = function() {
+      var cf = document.getElementById('llmCustomFields');
+      if (cf) cf.style.display = (this.value === 'openai') ? 'block' : 'none';
+    };
+  }
+
+  var btnSaveLlmConfig = document.getElementById('btnSaveLlmConfig');
+  if (btnSaveLlmConfig) {
+    btnSaveLlmConfig.onclick = function() {
+      var payload = { model_type: document.getElementById('llmModelType').value };
+      var key = document.getElementById('llmApiKey').value.trim();
+      if (key) payload.api_key = key;
+      if (document.getElementById('llmModelType').value === 'openai') {
+        payload.base_url = document.getElementById('llmBaseUrl').value.trim();
+        payload.model = document.getElementById('llmModelName').value.trim();
+      }
+      document.getElementById('llmConfigMsg').textContent = '保存中…';
+      window.showLongTaskFeedback('保存 LLM 配置中…');
+      window.apiFetch('/api/llm/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       })
-      .finally(function() { window.hideLongTaskFeedback(); });
-  };
-  document.getElementById('btnSettings').onclick = function() {
+        .then(function(r) { return window.safeResponseJson(r); })
+        .then(function(data) {
+          document.getElementById('llmConfigMsg').textContent = data.message || '已保存';
+          loadLlmConfig();
+        })
+        .catch(function(e) {
+          document.getElementById('llmConfigMsg').textContent = '保存失败: ' + (e.message || e);
+        })
+        .finally(function() { window.hideLongTaskFeedback(); });
+    };
+  }
+
+  btnSettings.onclick = function() {
     updateWallpaperPreview();
     loadLlmConfig();
-    window.openModal(settingsModal, this);
+    if (typeof window.openModal === 'function') {
+      window.openModal(settingsModal, this);
+    } else {
+      settingsModal.classList.add('show');
+      settingsModal.setAttribute('aria-hidden', 'false');
+    }
   };
-  document.getElementById('btnCloseSettings').onclick = function() { window.closeModal(settingsModal); };
-  settingsModal.onclick = function(e) { if (e.target === settingsModal) window.closeModal(settingsModal); };
+
+  var btnCloseSettings = document.getElementById('btnCloseSettings');
+  if (btnCloseSettings) {
+    btnCloseSettings.onclick = function() {
+      if (typeof window.closeModal === 'function') window.closeModal(settingsModal);
+    };
+  }
+
+  settingsModal.onclick = function(e) {
+    if (e.target === settingsModal && typeof window.closeModal === 'function') {
+      window.closeModal(settingsModal);
+    }
+  };
+
   (function initSettingsNav() {
     var navItems = settingsModal.querySelectorAll('.settings-nav-item');
-    var pages = { llm: document.getElementById('settingsPageLlm'), wallpaper: document.getElementById('settingsPageWallpaper') };
+    var pages = {
+      llm: document.getElementById('settingsPageLlm'),
+      wallpaper: document.getElementById('settingsPageWallpaper')
+    };
     navItems.forEach(function(btn) {
       btn.onclick = function() {
         var pageId = this.getAttribute('data-settings-page');
         navItems.forEach(function(b) { b.classList.remove('active'); });
         this.classList.add('active');
-        for (var k in pages) { pages[k].classList.remove('active'); if (k === pageId) pages[k].classList.add('active'); }
+        var keys = Object.keys(pages);
+        for (var i = 0; i < keys.length; i++) {
+          var k = keys[i];
+          pages[k].classList.remove('active');
+          if (k === pageId) pages[k].classList.add('active');
+        }
       };
     });
   })();
@@ -140,7 +190,9 @@
         drawWallpaperEditor();
         wallpaperEditorViewport.classList.add('loaded');
       }
-      requestAnimationFrame(function() { requestAnimationFrame(layoutAndDraw); });
+      requestAnimationFrame(function() {
+        requestAnimationFrame(layoutAndDraw);
+      });
     };
     wallpaperImg.src = dataUrl;
   }
@@ -171,16 +223,31 @@
         initWallpaperEditor(r.result);
       } catch (e) {
         alert('无法加载壁纸，请换一张图片');
-        if (window.closeModal) window.closeModal(wallpaperEditorModal);
+        if (typeof window.closeModal === 'function') window.closeModal(wallpaperEditorModal);
       }
     };
     r.readAsDataURL(file);
   }
-  if (wallpaperDZ) wallpaperDZ.onclick = function() { if (wallpaperInput) wallpaperInput.click(); };
-  if (wallpaperInput) wallpaperInput.onchange = function() { setWallpaperFromFile(this.files[0]); this.value = ''; };
+
   if (wallpaperDZ) {
-    wallpaperDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
-    wallpaperDZ.ondragleave = function() { this.classList.remove('dragover'); };
+    wallpaperDZ.onclick = function() {
+      if (wallpaperInput) wallpaperInput.click();
+    };
+  }
+  if (wallpaperInput) {
+    wallpaperInput.onchange = function() {
+      setWallpaperFromFile(this.files[0]);
+      this.value = '';
+    };
+  }
+  if (wallpaperDZ) {
+    wallpaperDZ.ondragover = function(e) {
+      e.preventDefault();
+      this.classList.add('dragover');
+    };
+    wallpaperDZ.ondragleave = function() {
+      this.classList.remove('dragover');
+    };
     wallpaperDZ.ondrop = function(e) {
       e.preventDefault();
       this.classList.remove('dragover');
@@ -188,12 +255,16 @@
       if (f) setWallpaperFromFile(f);
     };
   }
+
   var btnClear = document.getElementById('btnClearWallpaper');
-  if (btnClear) btnClear.onclick = function() {
-    localStorage.removeItem(window.WALLPAPER_KEY);
-    window.applyWallpaper(null);
-    updateWallpaperPreview();
-  };
+  if (btnClear) {
+    btnClear.onclick = function() {
+      localStorage.removeItem(window.WALLPAPER_KEY);
+      window.applyWallpaper(null);
+      updateWallpaperPreview();
+    };
+  }
+
   (function initThemeSelector() {
     var selector = document.getElementById('themeSelector');
     if (!selector) return;
@@ -255,45 +326,56 @@
       localStorage.setItem(window.WALLPAPER_KEY, dataUrl);
       window.applyWallpaper(dataUrl);
       updateWallpaperPreview();
-      if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+      if (typeof window.closeModal === 'function' && wallpaperEditorModal) {
+        window.closeModal(wallpaperEditorModal);
+      }
     } catch (e) {
       alert('壁纸过大或无法保存，请换一张较小的图片');
     }
   }
+
   var btnWallpaperApply = document.getElementById('btnWallpaperApply');
   var btnWallpaperCancel = document.getElementById('btnWallpaperCancel');
   var btnCloseWallpaperEditor = document.getElementById('btnCloseWallpaperEditor');
   if (btnWallpaperApply) btnWallpaperApply.onclick = applyWallpaperFromEditor;
-  if (btnWallpaperCancel) btnWallpaperCancel.onclick = function() {
-    if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
-  };
-  if (btnCloseWallpaperEditor) btnCloseWallpaperEditor.onclick = function() {
-    if (window.closeModal && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
-  };
+  if (btnWallpaperCancel) {
+    btnWallpaperCancel.onclick = function() {
+      if (typeof window.closeModal === 'function' && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+    };
+  }
+  if (btnCloseWallpaperEditor) {
+    btnCloseWallpaperEditor.onclick = function() {
+      if (typeof window.closeModal === 'function' && wallpaperEditorModal) window.closeModal(wallpaperEditorModal);
+    };
+  }
   if (wallpaperEditorModal) {
     wallpaperEditorModal.onclick = function(e) {
-      if (e.target === wallpaperEditorModal && window.closeModal) window.closeModal(wallpaperEditorModal);
+      if (e.target === wallpaperEditorModal && typeof window.closeModal === 'function') {
+        window.closeModal(wallpaperEditorModal);
+      }
     };
   }
 
-  document.addEventListener('dblclick', function(e) {
+  function onDblClick(e) {
     if (document.body.classList.contains('ui-hidden')) {
       document.body.classList.remove('ui-hidden');
       document.body.classList.add('ui-restoring');
+      function removeRestoring() {
+        document.body.classList.remove('ui-restoring');
+      }
       requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          document.body.classList.remove('ui-restoring');
-        });
+        requestAnimationFrame(removeRestoring);
       });
       return;
     }
-    if (e.target.closest('button, a, input, select, textarea, .modal-overlay, section, header, .drop-zone, pre, .file-list, .breadcrumb, .file-list-item, .nav a, label, [contenteditable]')) return;
+    var ignoreSelector = 'button, a, input, select, textarea, .modal-overlay, section, header, .drop-zone, pre, .file-list, .breadcrumb, .file-list-item, .nav a, label, [contenteditable]';
+    if (e.target.closest(ignoreSelector)) return;
     document.body.classList.add('ui-fade-out');
     setTimeout(function() {
       document.body.classList.add('ui-hidden');
       document.body.classList.remove('ui-fade-out');
     }, 220);
-  });
+  }
 
-  })();
+  document.addEventListener('dblclick', onDblClick);
 })();
