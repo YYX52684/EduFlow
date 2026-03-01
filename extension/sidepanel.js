@@ -516,6 +516,53 @@
     }
   });
 
+  const platformConfigStatus = document.getElementById("platform-config-status");
+  const platformConfigFields = document.getElementById("platform-config-fields");
+  const btnGetPlatformConfig = document.getElementById("btn-get-platform-config");
+
+  if (btnGetPlatformConfig) {
+    btnGetPlatformConfig.addEventListener("click", async () => {
+      setStatus(platformConfigStatus, "获取中…", "info");
+      if (platformConfigFields) platformConfigFields.style.display = "none";
+      try {
+        const res = await chrome.runtime.sendMessage({ type: "GET_PLATFORM_CONFIG" });
+        if (!res.success) {
+          setStatus(platformConfigStatus, res.error || "获取失败", "error");
+          return;
+        }
+        const d = res.data;
+        const urlEl = document.getElementById("platform-config-url");
+        const cookieEl = document.getElementById("platform-config-cookie");
+        const jwtEl = document.getElementById("platform-config-jwt");
+        const startEl = document.getElementById("platform-config-start");
+        const endEl = document.getElementById("platform-config-end");
+        if (urlEl) urlEl.value = d.url || "";
+        if (cookieEl) cookieEl.value = d.cookie || "";
+        if (jwtEl) jwtEl.value = d.jwt || "";
+        if (startEl) startEl.value = d.startNodeId || "";
+        if (endEl) endEl.value = d.endNodeId || "";
+        setStatus(platformConfigStatus, "已获取，可逐项复制到 Web 端", "success");
+        if (platformConfigFields) platformConfigFields.style.display = "block";
+      } catch (e) {
+        setStatus(platformConfigStatus, "获取失败：" + (e.message || ""), "error");
+      }
+    });
+  }
+
+  document.querySelectorAll(".platform-config-fields .btn-copy").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-target");
+      const el = id ? document.getElementById(id) : null;
+      if (!el) return;
+      const text = el.value || "";
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(
+        () => { btn.textContent = "已复制"; setTimeout(() => { btn.textContent = "复制"; }, 1500); },
+        () => { btn.textContent = "复制失败"; setTimeout(() => { btn.textContent = "复制"; }, 1500); }
+      );
+    });
+  });
+
   (async function init() {
     await loadFrameworks();
     await loadExtensionLlmConfig();
