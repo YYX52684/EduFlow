@@ -34,7 +34,7 @@ def check_platform_config() -> bool:
         print("\n[警告] 以下配置项缺失:")
         for item in missing:
             print(f"  - {item}")
-        print("\n请在 .env 文件中设置这些配置")
+        print("\n请在前端工作区「智慧树平台配置」中填写（或使用 Web/API 注入时由工作区配置提供）")
         return False
     return True
 

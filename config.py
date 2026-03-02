@@ -32,21 +32,16 @@ MAX_TOKENS = 4096
 TEMPERATURE = 0.7
 
 # 智慧树平台配置
+# 实际生效配置来自前端：用户在工作区设置页填写，存于 workspaces/<id>/platform_config.json，
+# API 注入时通过 get_merged_platform_config(workspace_id) 合并使用。
 PLATFORM_CONFIG = {
-    # API基础URL（注意：实际API在cloudapi子域名）
-    "base_url": os.getenv("PLATFORM_BASE_URL", "https://cloudapi.polymas.com"),
-    # 认证Cookie
-    "cookie": os.getenv("PLATFORM_COOKIE", ""),
-    # Authorization JWT Token
-    "authorization": os.getenv("PLATFORM_AUTHORIZATION", ""),
-    # 课程ID
-    "course_id": os.getenv("PLATFORM_COURSE_ID", ""),
-    # 训练任务ID
-    "train_task_id": os.getenv("PLATFORM_TRAIN_TASK_ID", ""),
-    # 起始节点ID（训练开始）
-    "start_node_id": os.getenv("PLATFORM_START_NODE_ID", ""),
-    # 结束节点ID（训练结束）
-    "end_node_id": os.getenv("PLATFORM_END_NODE_ID", ""),
+    "base_url": "https://cloudapi.polymas.com",
+    "cookie": "",
+    "authorization": "",
+    "course_id": "",
+    "train_task_id": "",
+    "start_node_id": "",
+    "end_node_id": "",
 }
 
 # 平台API端点配置
@@ -65,13 +60,13 @@ PLATFORM_ENDPOINTS = {
 # 这些配置项用于创建卡片节点时的默认值
 CARD_DEFAULTS = {
     # AI模型ID (modelId)
-    "model_id": os.getenv("CARD_MODEL_ID", ""),
+    "model_id": "Doubao-Seed-1.6",
     # 历史记录数量 (historyRecordNum)：0=不保留，-1=全部
-    "history_num": int(os.getenv("CARD_HISTORY_NUM", "0")),
+    "history_num": -1,
     # 虚拟训练官名字 (trainerName)
-    "trainer_name": os.getenv("CARD_TRAINER_NAME", ""),
+    "trainer_name": "agent",
     # 默认交互轮次 (interactiveRounds)，如果LLM未指定
-    "default_interaction_rounds": int(os.getenv("CARD_DEFAULT_INTERACTION_ROUNDS", "5")),
+    "default_interaction_rounds": 5,
 }
 
 # 卡片生成器配置

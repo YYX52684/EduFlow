@@ -72,7 +72,7 @@ def _write_workspace_config(path: str, data: dict) -> None:
 
 def get_merged_platform_config(workspace_id: str) -> dict:
     """
-    读取平台配置：以 PLATFORM_CONFIG（.env）为底，工作区 JSON 中非空值覆盖。
+    读取平台配置：以 PLATFORM_CONFIG（config.py 默认）为底，工作区 JSON 中非空值覆盖。
     注入、校验等需要「最终生效配置」时使用此函数。
     """
     merged = dict(PLATFORM_CONFIG)
@@ -87,7 +87,7 @@ def get_merged_platform_config(workspace_id: str) -> dict:
 
 @router.get("/config")
 def get_platform_config(workspace_id: str = Depends(require_workspace_owned)):
-    """返回当前工作区智慧树平台配置；无则回退到服务端 .env。"""
+    """返回当前工作区智慧树平台配置；无则回退到 config 默认。"""
     path = _workspace_config_path(workspace_id)
     cfg = _read_workspace_config(path)
     if cfg:

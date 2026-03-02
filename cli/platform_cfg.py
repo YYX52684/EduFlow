@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
-"""CLI 平台配置：从 URL 提取并写入 .env。"""
+"""CLI 平台配置：从 URL 提取课程/任务 ID，写入工作区 platform_config.json。"""
+import json
 import os
-import re
 import sys
 
 from api.routes.platform_config import extract_course_and_task_from_url
+from api.workspace import get_workspace_dirs, get_workspace_file_path
 
 
-def set_project_from_url(url: str):
-    """从智慧树页面 URL 提取课程 ID 和训练任务 ID，并更新 .env。"""
+def set_project_from_url(url: str, workspace_id: str = None):
+    """从智慧树页面 URL 提取课程 ID 和训练任务 ID；若提供 workspace_id 则写入该工作区配置。"""
     print("=" * 60)
     print("从URL提取项目配置")
     print("=" * 60)
@@ -25,32 +26,29 @@ def set_project_from_url(url: str):
     print(f"提取到的配置:")
     print(f"  课程ID: {course_id}")
     print(f"  训练任务ID: {train_task_id}")
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    env_path = os.path.join(root, ".env")
-    if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            env_content = f.read()
-        if "PLATFORM_COURSE_ID=" in env_content:
-            env_content = re.sub(r"PLATFORM_COURSE_ID=.*", f"PLATFORM_COURSE_ID={course_id}", env_content)
-        else:
-            env_content += f"\nPLATFORM_COURSE_ID={course_id}"
-        if "PLATFORM_TRAIN_TASK_ID=" in env_content:
-            env_content = re.sub(r"PLATFORM_TRAIN_TASK_ID=.*", f"PLATFORM_TRAIN_TASK_ID={train_task_id}", env_content)
-        else:
-            env_content += f"\nPLATFORM_TRAIN_TASK_ID={train_task_id}"
-        with open(env_path, "w", encoding="utf-8") as f:
-            f.write(env_content)
-        print(f"\n[成功] 已更新 .env 文件")
-        print("\n" + "=" * 50)
-        print("[重要] 还需要手动获取以下配置:")
-        print("=" * 50)
-        print("打开浏览器开发者工具(F12)，在Console中找到：")
-        print("  1. 训练开始节点 (type: 'SCRIPT_START') 的 id")
-        print("  2. 训练结束节点 (type: 'SCRIPT_END') 的 id")
-        print("\n然后在 .env 中设置:")
-        print("  PLATFORM_START_NODE_ID=<训练开始节点ID>")
-        print("  PLATFORM_END_NODE_ID=<训练结束节点ID>")
-        print("=" * 50)
-    else:
-        print(f"\n[警告] .env 文件不存在: {env_path}")
-        print(f"请手动添加: PLATFORM_COURSE_ID={course_id}, PLATFORM_TRAIN_TASK_ID={train_task_id}")
+
+    if not workspace_id or not workspace_id.strip():
+        print("\n[提示] 平台配置已按工作区管理，请指定工作区以写入配置：")
+        print("  python main.py --set-project <URL> --workspace <工作区名>")
+        print("或在前端「智慧树平台配置」中填写。")
+        return
+
+    workspace_id = workspace_id.strip()
+    get_workspace_dirs(workspace_id)
+    path = get_workspace_file_path(workspace_id, "platform_config.json")
+    current = {}
+    if os.path.isfile(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except Exception:
+            pass
+    current["course_id"] = course_id
+    current["train_task_id"] = train_task_id
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(current, f, ensure_ascii=False, indent=2)
+    print(f"\n[成功] 已写入工作区「{workspace_id}」: {path}")
+    print("\n" + "=" * 50)
+    print("[重要] 还需在前端或本工作区配置中填写：")
+    print("  start_node_id（SCRIPT_START）、end_node_id（SCRIPT_END）、cookie、authorization")
+    print("=" * 50)

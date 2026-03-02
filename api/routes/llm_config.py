@@ -75,13 +75,19 @@ def get_llm_config(workspace_id: Optional[str] = None) -> dict:
     api_key = (cfg.get("api_key") or "").strip()
     if not api_key:
         api_key = (env_key_db if model_type == "doubao" else env_key_ds) or ""
-    # 用户未设置时，使用 .env 中已有的豆包 Key（LLM_API_KEY）作为默认，不向用户暴露
+    # 用户未在界面设置时，使用 .env 中已有的 Key 作为默认，使不填 API Key 也能生成卡片
     if not api_key and env_key_db:
         api_key = (env_key_db or "").strip()
         if api_key:
             model_type = "doubao"
             base_url = PRESETS["doubao"][0]
             model_name = PRESETS["doubao"][1]
+    if not api_key and env_key_ds:
+        api_key = (env_key_ds or "").strip()
+        if api_key:
+            model_type = "deepseek"
+            base_url = PRESETS["deepseek"][0]
+            model_name = PRESETS["deepseek"][1]
 
     return {
         "api_key": api_key,

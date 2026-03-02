@@ -83,7 +83,7 @@ def main():
 
     if args.set_project:
         from cli.platform_cfg import set_project_from_url
-        set_project_from_url(args.set_project)
+        set_project_from_url(args.set_project, workspace_id=args.workspace)
         return
     if args.list_frameworks:
         from cli.frameworks import run_list_frameworks

@@ -21,7 +21,7 @@ from config import PLATFORM_CONFIG
 
 @dataclass
 class PlatformTrainConfig:
-    """平台训练任务配置（从 .env / platform_config.json 读取）"""
+    """平台训练任务配置（config 默认 + 工作区 platform_config.json）"""
 
     base_url: str
     cookie: str
@@ -47,7 +47,7 @@ class PlatformTrainConfig:
         if missing:
             raise ValueError(
                 "平台配置不完整，缺少: " + ", ".join(missing)
-                + "。请在平台配置页面或 .env 中填写。"
+                + "。请在前端工作区「智慧树平台配置」中填写。"
             )
 
         return cls(

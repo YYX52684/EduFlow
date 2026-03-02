@@ -406,6 +406,12 @@ def _default_persona_generator_config():
     }
 
 
+# 人设生成时传入 LLM 的材料最大字符数（不缩短，以保证角色设计充分依据原文）
+PERSONA_MATERIAL_MAX_CHARS = 8000
+# 单次生成 3 个人设的 JSON 约 1500–2500 token，设上限以缩短生成时间
+PERSONA_MAX_TOKENS = 2500
+
+
 class PersonaGenerator:
     """
     角色人设生成器。默认使用 DeepSeek 根据原始教学材料生成推荐的学生角色配置；
@@ -506,7 +512,7 @@ class PersonaGenerator:
         return f"""你是一名专业的教学设计专家。请根据以下教学材料，生成{num_personas}个适合该教学场景的学生角色配置。
 
 ## 教学材料
-{material_content[:8000]}
+{material_content[:PERSONA_MATERIAL_MAX_CHARS]}
 
 {type_guidance}
 
@@ -569,7 +575,7 @@ class PersonaGenerator:
 {type_desc}
 
 ## 教学材料
-{material_content[:8000]}
+{material_content[:PERSONA_MATERIAL_MAX_CHARS]}
 {extra}
 
 ## 输出要求
@@ -620,7 +626,7 @@ class PersonaGenerator:
         payload = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": 4000,
+            "max_tokens": PERSONA_MAX_TOKENS,
             "temperature": 0.7,
         }
         
@@ -629,7 +635,7 @@ class PersonaGenerator:
                 self.api_url,
                 headers=headers,
                 json=payload,
-                timeout=120
+                timeout=90,
             )
             response.raise_for_status()
             
