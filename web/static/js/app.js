@@ -1162,6 +1162,39 @@
     }
     runLoadPersonasWhenReady();
 
+    /** 根据当前登录用户是否具备优化器高级权限，控制「优化器类型」选择器的可见性。 */
+    function applyOptimizerAdminVisibility() {
+      var sel = document.getElementById('optimizerType');
+      if (!sel) return;
+      var label = null;
+      try {
+        var wrapper = sel.parentNode;
+        if (wrapper && wrapper.previousElementSibling && wrapper.previousElementSibling.tagName === 'LABEL') {
+          label = wrapper.previousElementSibling;
+        }
+      } catch (e) {}
+      var isAdmin = !!(window.AUTH_USER && window.AUTH_USER.is_optimizer_admin);
+      if (!isAdmin) {
+        if (sel) sel.style.display = 'none';
+        if (sel && sel.parentNode && sel.parentNode.style) sel.parentNode.style.display = 'none';
+        if (label) label.style.display = 'none';
+      } else {
+        if (sel) sel.style.display = '';
+        if (sel && sel.parentNode && sel.parentNode.style) sel.parentNode.style.display = '';
+        if (label) label.style.display = '';
+      }
+    }
+    (function setupOptimizerAdminVisibility() {
+      if (window.AUTH_READY) {
+        applyOptimizerAdminVisibility();
+        return;
+      }
+      document.addEventListener('eduflow:authReady', function onReady() {
+        document.removeEventListener('eduflow:authReady', onReady);
+        applyOptimizerAdminVisibility();
+      }, { once: true });
+    })();
+
     var lastLoadedPlatformConfig = {};
     function setPlatformFormValues(d) {
       lastLoadedPlatformConfig = {
@@ -1248,12 +1281,15 @@
         var maxRounds = (roundsDefault && roundsDefault.checked) ? null : (parseInt(document.getElementById('optimizerMaxRoundsInput').value, 10) || 1);
         var trainsetSel = document.getElementById('optimizerTrainsetSelect');
         var trainsetPath = (trainsetSel && trainsetSel.value) ? trainsetSel.value.trim() : null;
+        var isAdmin = !!(window.AUTH_USER && window.AUTH_USER.is_optimizer_admin);
+        var optimizerTypeSelect = document.getElementById('optimizerType');
+        var optimizerType = (isAdmin && optimizerTypeSelect && optimizerTypeSelect.value) || 'bootstrap';
         const body = {
           trainset_path: trainsetPath || null,
           devset_path: null,
           cards_output_path: null,
           export_path: null,
-          optimizer_type: (document.getElementById('optimizerType') && document.getElementById('optimizerType').value) || 'bootstrap',
+          optimizer_type: optimizerType,
           use_auto_eval: true,
           max_rounds: maxRounds,
           persona_id: (document.getElementById('personaId') && document.getElementById('personaId').value) || 'excellent',
