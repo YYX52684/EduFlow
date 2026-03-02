@@ -54,6 +54,12 @@ if _is_production:
 # 开发环境可使用默认密钥；生产环境必须在 .env 中配置 JWT_SECRET（见上方 production 分支）
 
 
+# 允许手动选择 DSPy 优化器类型的账户（按邮箱白名单控制）
+_OPTIMIZER_ADMIN_EMAILS = {
+    "1124360866@qq.com",
+}
+
+
 class RegisterBody(BaseModel):
     """仅支持邮箱注册；phone/username 保留为可选以兼容旧客户端，注册逻辑中不使用。"""
     phone: Optional[str] = None
@@ -277,10 +283,21 @@ def admin_set_password(body: AdminSetPasswordBody):
 
 @router.get("/me")
 def me(current_user: dict = Depends(get_current_user)):
-    """当前用户信息及绑定的工作区。"""
+    """当前用户信息及绑定的工作区。
+
+    为前端提供最小必要的用户信息，并附带是否拥有「优化器高级选项」权限。
+    """
     workspace_id = get_user_workspace(current_user["id"])
+    user_full = get_user_by_id(current_user["id"])
+    email = (user_full.get("email") or "").strip().lower() if user_full else ""
+    is_optimizer_admin = email in _OPTIMIZER_ADMIN_EMAILS
     return {
-        "user": current_user,
+        "user": {
+            "id": current_user["id"],
+            "username": current_user["username"],
+            "email": email or None,
+            "is_optimizer_admin": is_optimizer_admin,
+        },
         "workspace_id": workspace_id or "",
     }
 
