@@ -1,4 +1,9 @@
     /* 使用 common.js / auth.js / settings.js 提供的全局 API；仅保留应用逻辑 */
+    /** 从接口响应中取可安全展示给用户的错误文案，无则用 fallback */
+    function getUserMsg(d, fallback) {
+      if (d && typeof d === 'object' && (d.user_message || d.message)) return String(d.user_message || d.message);
+      return fallback;
+    }
     var handleStack = [];
     var pathNames = [];
     var treeRoot = null;
@@ -230,10 +235,7 @@
         msg.textContent = '解析与分幕中…（首次约 10–30 秒，同内容会走缓存）';
         var r = await apiFetch('/api/script/upload', { method: 'POST', body: fd });
         var d = await safeResponseJson(r);
-        if (!r.ok) {
-          var friendly = typeof window.getUserFriendlyLlmErrorMessage === 'function' ? window.getUserFriendlyLlmErrorMessage(d) : '';
-          throw new Error(friendly || d.message || d.detail || '上传解析失败');
-        }
+        if (!r.ok) throw new Error(getUserMsg(d, '上传解析失败，请稍后重试'));
         lastUploadData = d;
         var fn = file && file.name ? file.name : (d.filename || '');
         updateScriptDropZoneDisplay(fn);
@@ -245,7 +247,7 @@
         if (tc && typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
       } catch (err) {
         msg.classList.add('err');
-        msg.innerHTML = '<span class="err">' + (err.message || String(err)) + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(err.message || '上传解析失败，请稍后重试') + '</span>';
         lastUploadData = null;
         if (genBtn) genBtn.disabled = true;
         if (personaBtn) personaBtn.disabled = !window.lastScriptFile;
@@ -258,7 +260,7 @@
         if (file) await runUploadAndAnalyze(file);
       } catch (err) {
         var msg = document.getElementById('uploadMsg');
-        msg.innerHTML = '<span class="err">' + err.message + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(err.message || '解析失败，请稍后重试') + '</span>';
       }
     }
 
@@ -379,7 +381,7 @@
           bodyEl.textContent = '不支持预览该格式';
         }
       } catch (e) {
-        bodyEl.innerHTML = '<p class="err">预览失败: ' + (e.message || e) + '</p>';
+        bodyEl.innerHTML = '<p class="err">预览失败，请稍后重试</p>';
       }
     }
     function renderContentEditPreview() {
@@ -440,7 +442,7 @@
       try {
         var r = await apiFetch('/api/output/read?path=' + encodeURIComponent(path));
         var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(getUserMsg(d, '加载失败，请稍后重试'));
         ta.value = (d && d.content) || '';
         ta.placeholder = '在此编辑卡片内容…';
         ta.dataset.editPath = path;
@@ -451,7 +453,7 @@
         }
       } catch (e) {
         ta.placeholder = '';
-        if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+        if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '加载失败，请稍后重试') + '</span>';
       }
     }
     /** 从左侧栏文件打开查看/编辑（.md 支持预览+编辑，.docx 仅预览） */
@@ -503,7 +505,7 @@
           if (msgEl) msgEl.innerHTML = '<span class="err">不支持该格式</span>';
         }
       } catch (e) {
-        if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+        if (msgEl) msgEl.innerHTML = '<span class="err">加载失败，请稍后重试</span>';
       }
     }
     function setWorkspaceFromFolderName(folderName) {
@@ -557,11 +559,11 @@
           try {
             var r = await apiFetch('/api/output/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: path, content: content }) });
             var d = await safeResponseJson(r);
-            if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+            if (!r.ok) throw new Error(getUserMsg(d, '保存失败，请稍后重试'));
             if (msgEl) msgEl.textContent = '已保存';
             if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
           } catch (e) {
-            if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+            if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '保存失败，请稍后重试') + '</span>';
           }
           return;
         }
@@ -579,11 +581,11 @@
           try {
             var r = await apiFetch('/api/personas/content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona_id: personaId, content: content }) });
             var d = await safeResponseJson(r);
-            if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+            if (!r.ok) throw new Error(getUserMsg(d, '保存失败，请稍后重试'));
             if (msgEl) msgEl.textContent = '已保存';
             if (typeof loadPersonas === 'function') loadPersonas();
           } catch (e) {
-            if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+            if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '保存失败，请稍后重试') + '</span>';
           }
         }
       };
@@ -611,11 +613,11 @@
         try {
           var r = await apiFetch('/api/personas/content', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ persona_id: personaId, content: content }) });
           var d = await safeResponseJson(r);
-          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          if (!r.ok) throw new Error(getUserMsg(d, '保存失败，请稍后重试'));
           if (msgEl) msgEl.textContent = '已保存为 ' + personaId;
           if (typeof loadPersonas === 'function') loadPersonas();
         } catch (e) {
-          if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+          if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '保存失败，请稍后重试') + '</span>';
         }
       };
       var newPersonaTemplate = 'name: 新人设\npersona_type: custom\nbackground: ""\npersonality: ""\ngoal: ""\nengagement_level: normal\nresponse_length: medium\n';
@@ -637,7 +639,7 @@
         try {
           var r = await apiFetch('/api/personas/content?persona_id=' + encodeURIComponent(personaId));
           var d = await safeResponseJson(r);
-          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          if (!r.ok) throw new Error(getUserMsg(d, '加载失败，请稍后重试'));
           ta.value = (d && d.content) || '';
           ta.placeholder = 'YAML 格式，编辑后点击保存。预设人设只读，可保存为自定义。';
           ta.dataset.personaId = personaId;
@@ -648,7 +650,7 @@
           }
         } catch (e) {
           ta.placeholder = '';
-          if (msgEl) msgEl.innerHTML = '<span class="err">加载失败: ' + (e.message || e) + '</span>';
+          if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '加载失败，请稍后重试') + '</span>';
         }
       };
       window.openNewPersonaModal = function() {
@@ -689,12 +691,12 @@
           fd.append('num_personas', '3');
           var r = await apiFetch('/api/personas/generate', { method: 'POST', body: fd });
           var d = await safeResponseJson(r);
-          if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+          if (!r.ok) throw new Error(getUserMsg(d, '生成人设失败，请稍后重试'));
           var n = (d && d.count) || 0;
           if (typeof loadPersonas === 'function') loadPersonas();
           if (msgEl) msgEl.innerHTML = '<span class="ok">已生成 ' + n + ' 个人设并已保存，可直接在「人设」下拉中选择使用。</span>';
         } catch (e) {
-          if (msgEl) msgEl.innerHTML = '<span class="err">' + (e.message || e) + '</span>';
+          if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '生成人设失败，请稍后重试') + '</span>';
         }
         btnGen.disabled = !window.lastScriptFile;
       };
@@ -1220,14 +1222,11 @@
         if (r.status === 401) { if (msgEl) msgEl.textContent = ''; if (window.showAuthScreen) window.showAuthScreen(); return; }
         const d = await safeResponseJson(r);
         if (r.status === 403 || r.status === 400) { if (msgEl) msgEl.textContent = ''; return; }
-        if (!r.ok) throw new Error(d.message || d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(getUserMsg(d, '加载配置失败，请稍后重试'));
         setPlatformFormValues(d);
         if (msgEl) msgEl.textContent = '已加载当前配置';
       } catch (e) {
-        var m = e.message || String(e);
-        if (msgEl && m.indexOf('无权限') === -1 && m.indexOf('FORBIDDEN') === -1 && m.indexOf('403') === -1)
-          msgEl.innerHTML = '<span class="err">' + m + '</span>';
-        else if (msgEl) msgEl.textContent = '';
+        if (msgEl) msgEl.innerHTML = '<span class="err">' + esc(e.message || '加载配置失败，请稍后重试') + '</span>';
       }
     }
     document.getElementById('btnLoadConfig').onclick = async () => {
@@ -1252,11 +1251,11 @@
           body: JSON.stringify(body),
         });
         const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(getUserMsg(d, '加载配置失败，请稍后重试'));
         setPlatformFormValues(d);
         msg.textContent = d.message || '已加载配置';
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + (e.message || String(e)) + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '加载配置失败，请稍后重试') + '</span>';
       }
     };
     document.getElementById('btnRunOptimizer').onclick = async function() {
@@ -1375,15 +1374,15 @@
                 if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
                 if (typeof window.updateSimProgress === 'function') window.updateSimProgress({3: true});
               } else if (event === 'error') {
-                throw new Error(d.detail || data);
+                throw new Error(getUserMsg(d, '优化失败，请稍后重试'));
               }
             } catch (parseErr) {
-              if (event === 'error') throw new Error(data);
+              if (event === 'error') throw new Error('优化失败，请稍后重试');
             }
           }
         }
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + (e.message || '优化失败') + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '优化失败，请稍后重试') + '</span>';
         pre.style.display = 'none';
       } finally {
         if (optBtn) optBtn.disabled = false;
@@ -1411,12 +1410,12 @@
         fd.append('subpath', 'optimizer');
         fd.append('save_as', 'export_score.json');
         apiFetch('/api/output/upload', { method: 'POST', body: fd }).then(function(r) { return safeResponseJson(r).then(function(d) { return { r: r, d: d }; }); }).then(function(o) {
-          if (!o.r.ok) throw new Error(o.d.error || o.d.detail || JSON.stringify(o.d));
+          if (!o.r.ok) throw new Error(getUserMsg(o.d, '上传失败，请稍后重试'));
           msg.textContent = '已上传至 output/optimizer/export_score.json';
           if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
         }).catch(function(e) {
           msg.classList.add('err');
-          msg.innerHTML = '<span class="err">' + (e.message || '上传失败') + '</span>';
+          msg.innerHTML = '<span class="err">' + esc(e.message || '上传失败，请稍后重试') + '</span>';
         });
       }
       dz.onclick = function() { fileInput.click(); };
@@ -1512,10 +1511,10 @@
                 if (progressMsg) progressMsg.textContent = '完成';
                 if (progressPct) progressPct.textContent = '100%';
               } else if (event === 'error') {
-                throw new Error(data.detail || dataStr);
+                throw new Error(getUserMsg(data, '生成失败，请稍后重试'));
               }
             } catch (parseErr) {
-              if (event === 'error') throw new Error(dataStr || parseErr.message);
+              if (event === 'error') throw new Error('生成失败，请稍后重试');
             }
           }
         }
@@ -1529,7 +1528,7 @@
           if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
         }
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + (e.message || '生成失败') + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '生成失败，请稍后重试') + '</span>';
       } finally {
         if (genBtn) genBtn.disabled = false;
         if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 8000);
@@ -1741,12 +1740,12 @@
           body: JSON.stringify({ cards_path: path }),
         });
         const d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(d.detail || JSON.stringify(d));
+        if (!r.ok) throw new Error(getUserMsg(d, '预览失败，请稍后重试'));
         msg.textContent = d.summary || ('A类 ' + d.total_a + '，B类 ' + d.total_b);
         pre.style.display = 'block';
         pre.textContent = JSON.stringify(d, null, 2);
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '预览失败，请稍后重试') + '</span>';
         pre.style.display = 'none';
       }
     };
@@ -1767,16 +1766,14 @@
           body: JSON.stringify({ cards_path: path, task_name: taskName, description: description }),
         });
         const d = await safeResponseJson(r);
-        if (!r.ok) {
-          throw new Error(d.detail || JSON.stringify(d));
-        }
+        if (!r.ok) throw new Error(getUserMsg(d, '注入失败，请稍后重试'));
         msg.textContent = d.message || (d.success ? '注入成功' : '注入完成，请查看详情');
         if (d.success && typeof window.updateSimProgress === 'function') window.updateSimProgress({4: true});
-        if (!d.success) msg.innerHTML = '<span class="err">' + (msg.textContent) + '</span>';
+        if (!d.success) msg.innerHTML = '<span class="err">' + esc(msg.textContent) + '</span>';
         pre.style.display = 'block';
         pre.textContent = JSON.stringify(d, null, 2);
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + e.message + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '注入失败，请稍后重试') + '</span>';
         pre.style.display = 'none';
       } finally {
         hideLongTaskFeedback();
