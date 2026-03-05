@@ -86,7 +86,7 @@ python main.py --set-project "https://hike-teaching-center.polymas.com/tch-hike/
 
 trainset 用于 DSPy 优化和卡片生成，要**符合外部评估标准**，需同时满足：
 
-1. **结构**：每条样本含 `full_script`（完整剧本文本）、`stages`（阶段列表）；每个 stage 含 `id, title, description, role, task, key_points, content_excerpt`（与 ContentSplitter 输出一致）。缺字段会导致生成或评估失败。
+1. **结构**：每条样本含 `full_script`（完整剧本文本）、`stages`（阶段列表）；每个 stage 含 `id, title, description, role, task, key_points, content_excerpt`（与 ContentSplitter 输出一致）。缺字段会导致生成或评估失败。其中 `description` 为学生可见的阶段介绍，仅描述「本阶段在做什么」，不得包含具体问诊要点、诊断结论、需鉴别的病种等会泄露答案的内容。
 2. **内容对齐**：外部评估会看「目标达成度」「知识点覆盖率」「环节准出」等维度，这些维度依赖剧本中的**任务目标**和**评分标准**。建议 `full_script` 中保留剧本原有的「任务目标」「评分标准」等段落，这样生成的卡片和对话才有明确的评估依据；各 stage 的 `task`、`key_points` 应覆盖该阶段要考察的知识点或能力，便于环节准出检查有据可依。
 
 运行 `python main.py --validate-trainset "output/optimizer/trainset_xxx.json"` 会做结构校验，并对缺少「任务目标」「评分标准」等给出建议（不强制，仅提示）。
