@@ -88,8 +88,6 @@ export const ConsolePage = () => {
   const [injectPreview, setInjectPreview] = useState<unknown>(null);
   const [injecting, setInjecting] = useState(false);
   const [injectMessage, setInjectMessage] = useState<string | null>(null);
-  const [injectTaskName, setInjectTaskName] = useState("");
-  const [injectDescription, setInjectDescription] = useState("");
 
   // 步骤 6：闭环/优化
   const [closedLoopRunning, setClosedLoopRunning] = useState(false);
@@ -327,8 +325,6 @@ export const ConsolePage = () => {
     try {
       const res = await apiPostJson("/inject/run", {
         cards_path: path,
-        task_name: injectTaskName.trim() || null,
-        description: injectDescription.trim() || null,
       });
       const d = res as { success?: boolean; message?: string };
       setInjectMessage(d.message || (d.success ? "注入成功" : "注入完成"));
@@ -641,30 +637,6 @@ export const ConsolePage = () => {
               <option key={f.path} value={f.path.startsWith("output/") ? f.path : `output/${f.path}`} />
             ))}
           </datalist>
-
-          <label className="field-label" style={{ marginTop: 8 }}>
-            任务名称（可选）
-          </label>
-          <input
-            type="text"
-            className="field-input"
-            value={injectTaskName}
-            onChange={(e) => setInjectTaskName(e.target.value)}
-            placeholder="例如：自动控制原理实训三"
-            style={{ maxWidth: 400 }}
-          />
-
-          <label className="field-label" style={{ marginTop: 8 }}>
-            任务描述（可选）
-          </label>
-          <input
-            type="text"
-            className="field-input"
-            value={injectDescription}
-            onChange={(e) => setInjectDescription(e.target.value)}
-            placeholder="为训练任务补充一句话说明，便于平台展示"
-            style={{ maxWidth: 400 }}
-          />
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button

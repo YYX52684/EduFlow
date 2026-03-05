@@ -80,6 +80,58 @@ class CardAPrologueSignature(dspy.Signature):
     prologue: str = dspy.OutputField(desc="开场白：NPC角色的自我介绍或场景引入，建议50-80字，用于在交互开始前展示给学生。不使用任何括号。")
 
 
+class CardAEndingSignature(dspy.Signature):
+    """生成结尾用A类卡片（轮次为0，仅收尾用）"""
+
+    full_script: str = dspy.InputField(desc="完整的原始剧本内容，用于理解整体剧情与学习目标。")
+    total_stages: int = dspy.InputField(desc="总阶段数")
+    last_stage_title: str = dspy.InputField(desc="最后一幕的场景标题或小结标题。")
+    last_stage_role: str = dspy.InputField(desc="最后一幕的NPC角色描述（例如：主治医师、患者、带教老师、学生等）。")
+    last_stage_goal: str = dspy.InputField(desc="最后一幕的场景目标或任务描述。")
+    last_stage_key_points: str = dspy.InputField(desc="最后一幕的关键剧情点或知识点摘要。")
+    last_stage_excerpt: str = dspy.InputField(desc="最后一幕对应的原文关键内容或对话摘要。")
+
+    # 输出字段：仍然使用 Role/Context/Interaction/Transition/Constraints 结构，但强调是最后一轮
+    role_section: str = dspy.OutputField(
+        desc=(
+            "# Role 部分：说明你要继续沉浸在最后一幕的NPC身份中，用与剧本一致的说话方式做本次对话的收尾。"
+            "不要重新发明新身份，只需用一句话提醒自己「你是谁」。"
+        )
+    )
+    context_section: str = dspy.OutputField(
+        desc=(
+            "# Context 部分：说明这是本次实训/剧情中的最后一轮交流。"
+            "基于 `last_stage_title`、`last_stage_goal` 和 `last_stage_excerpt`，用自然语言概括现在所处的情境，"
+            "不要使用「本环节」「本阶段」等流程化说法。"
+            "如果在剧本中你是医生/患者/老师/学生等，应根据剧本里的身份自然选择合适的收尾方向（如医生嘱托、患者致谢、老师鼓励、学生感谢），但不要生硬罗列这些身份。"
+        )
+    )
+    interaction_section: str = dspy.OutputField(
+        desc=(
+            "# Interaction 部分：写出 NPC 在最后一轮中要说的一整段收尾台词，"
+            "可以包含1-2句对刚才表现/病情/学习收获的简要评价或回应，再加1-2句感谢、嘱托或鼓励，最后用一句自然的告别语结束。"
+            "整段发言控制在150字以内，语气真诚自然，不要再提出新问题或开启新的任务。"
+            "不要使用括号，不要解释系统行为。"
+        )
+    )
+    transition_section: str = dspy.OutputField(
+        desc=(
+            "# Transition 部分：用自然语言说明「说完这段话后，本次实训/剧情就此结束」，"
+            "禁止写任何卡片编号或技术性跳转指令，也不要出现「现在结束本环节/训练」等流程语，只用角色视角表达结束。"
+        )
+    )
+    constraints_section: str = dspy.OutputField(
+        desc=(
+            "# Constraints 部分：列出这张结尾卡的限制，例如："
+            "（1）轮次为0，只说这一轮就结束；"
+            "（2）不再提出新问题或任务；"
+            "（3）避免流程化用语和卡片编号；"
+            "（4）严禁括号和元叙述；"
+            "（5）整体长度建议150字以内。"
+        )
+    )
+
+
 class CardBSignature(dspy.Signature):
     """生成B类卡片（场景过渡卡片）的签名 - 用于同一角色的场景间过渡
     
@@ -191,6 +243,45 @@ class CardAGeneratorModule(dspy.Module):
             options_section=result.options_section,
             prologue=prologue
         )
+
+
+class CardAEndingGeneratorModule(dspy.Module):
+    """结尾A类卡片生成模块（轮次为0，仅收尾）"""
+
+    ENDING_FIELDS = [
+        "role_section",
+        "context_section",
+        "interaction_section",
+        "transition_section",
+        "constraints_section",
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.generate_ending = dspy.Predict(CardAEndingSignature)
+
+    def forward(
+        self,
+        full_script: str,
+        total_stages: int,
+        last_stage_title: str,
+        last_stage_role: str,
+        last_stage_goal: str,
+        last_stage_key_points: str,
+        last_stage_excerpt: str,
+    ) -> dspy.Prediction:
+        """生成结尾A类卡片（不包含Prologue和Options）"""
+        result = self.generate_ending(
+            full_script=full_script,
+            total_stages=total_stages,
+            last_stage_title=last_stage_title,
+            last_stage_role=last_stage_role,
+            last_stage_goal=last_stage_goal,
+            last_stage_key_points=last_stage_key_points,
+            last_stage_excerpt=last_stage_excerpt,
+        )
+        post_process_fields(result, self.ENDING_FIELDS)
+        return result
 
 
 class CardBGeneratorModule(dspy.Module):
@@ -307,6 +398,7 @@ class DSPyCardGenerator:
 
         # 初始化生成模块（传入LM以避免全局配置）
         self.card_a_generator = CardAGeneratorModule()
+        self.card_a_ending_generator = CardAEndingGeneratorModule()
         self.card_b_generator = CardBGeneratorModule()
 
     def _create_lm(self, api_key_override: Optional[str] = None) -> dspy.LM:
@@ -474,7 +566,99 @@ class DSPyCardGenerator:
                 "- **控制输出长度**：# Output部分30-80字，所有文字可直接朗读。"
             ))
 
-        return "\n".join(sections)
+        # 在所有B类卡片正文最前面追加占位参数，供平台使用
+        body = "\n".join(sections)
+        return "${previous_dialogue}\n\n" + body
+
+    def _generate_ending_card_a(self, stages: List[dict], original_content: str) -> str:
+        """
+        在所有卡片之后追加一张结尾用 A 类卡片：
+        - 卡片ID固定为 卡片0A
+        - 轮次（interaction_rounds）固定为 0
+        - 说完则结束整个流程，不再跳转到B卡或其他卡片
+        - 根据最后一幕 NPC 身份生成不同风格的收尾话术指令
+        """
+        last_stage = stages[-1] if stages else {}
+        npc_role = str(last_stage.get("role", "") or "")
+
+        # 阶段元数据：轮次设为 0，标题/描述尽量沿用剧本信息做自然收尾
+        base_title = str(last_stage.get("title") or "").strip()
+        if base_title:
+            ending_title = f"{base_title}（收尾）"
+        elif npc_role:
+            ending_title = f"{npc_role}（收尾）"
+        else:
+            ending_title = "结尾收尾卡片"
+
+        base_desc = str(last_stage.get("description") or last_stage.get("task") or "").strip()
+        if base_desc:
+            ending_desc = (
+                f"围绕「{base_title or npc_role or '本次实训'}」场景做自然收尾，"
+                "用于结束本次剧情的A类卡片，轮次为0，说完则结束整个流程。"
+            )
+        else:
+            ending_desc = "用于结束剧情的A类卡片，轮次为0，说完则结束整个流程。"
+
+        ending_stage_meta = self._create_stage_meta(
+            {
+                "title": ending_title,
+                "description": ending_desc,
+                "interaction_rounds": 0,
+            }
+        )
+
+        # 使用DSPy模型基于完整剧本与最后一幕信息动态生成收尾内容
+        with _dspy_lm_lock:
+            dspy.configure(lm=self.lm)
+            ending_result = self.card_a_ending_generator(
+                full_script=original_content,
+                total_stages=len(stages),
+                last_stage_title=str(last_stage.get("title", "") or ""),
+                last_stage_role=npc_role,
+                last_stage_goal=str(last_stage.get("task", "") or ""),
+                last_stage_key_points=", ".join(last_stage.get("key_points", [])),
+                last_stage_excerpt=str(last_stage.get("content_excerpt", "") or ""),
+            )
+
+        # 对结尾卡的Constraints再补充关键约束，避免模型遗漏
+        constraints = ending_result.constraints_section or ""
+        constraints = ensure_constraint(
+            constraints,
+            "轮次",
+            "轮次为0，只进行这一轮收尾发言，说完即结束本次实训，不再继续追问或开启新话题。",
+        )
+        constraints = ensure_constraint(
+            constraints,
+            "跳转",
+            "结束语中不要提及任何卡片编号或下一阶段，也不要使用任何形式的跳转指令，只用角色视角自然结束对话。",
+        )
+        constraints = ensure_constraint(
+            constraints,
+            "流程用语",
+            "避免使用「本环节结束」「现在训练结束」「下一阶段」等流程化用语，只在角色语境中自然收尾。",
+        )
+        constraints = ensure_constraint(
+            constraints,
+            "括号",
+            "严禁使用括号和元叙述（例如说明系统行为或后续流程），所有内容都以角色台词形式呈现。",
+        )
+        constraints = ensure_constraint(
+            constraints,
+            "长度",
+            "整段收尾发言建议控制在150字以内，语句简洁自然、易于朗读。",
+        )
+
+        sections = [
+            ending_stage_meta,
+            format_card_section("Role", ending_result.role_section),
+            format_card_section("Context", ending_result.context_section),
+            format_card_section("Interaction", ending_result.interaction_section),
+            format_card_section("Transition", ending_result.transition_section),
+            format_card_section("Constraints", constraints),
+        ]
+
+        card_body = "\n\n".join(sections)
+        return f"# 卡片0A\n\n{card_body}"
 
     @Retryable(max_retries=3, exceptions=(Exception,))
     def generate_card_a(self, stage: dict, stage_index: int, total_stages: int,
@@ -605,7 +789,28 @@ class DSPyCardGenerator:
                     progress_callback(i * 2, total_stages * 2,
                                     f"第{i}幕B类卡片生成失败，继续...")
 
-        # 用分隔线连接所有卡片
+        # 追加一张结尾用 A 类卡片（卡片0A，轮次为0）
+        try:
+            ending_card = self._generate_ending_card_a(stages, original_content)
+            all_cards.append(ending_card)
+            if card_callback:
+                card_callback("卡片0A", ending_card)
+        except Exception as e:
+            # 结尾卡片生成失败不应影响主流程，静默降级为简单结束提示
+            fallback = (
+                "# 卡片0A\n\n"
+                "# Role\n简单收尾角色。\n\n"
+                "# Context\n本次实训到此结束。\n\n"
+                "# Interaction\n感谢你的参与，今天就先到这里，我们下次再继续。\n\n"
+                "# Transition\n说完这句话后结束本次实训，对话结束。\n\n"
+                "# Constraints\n- 结束\n"
+                f"<!-- ending_card_error: {e} -->"
+            )
+            all_cards.append(fallback)
+            if card_callback:
+                card_callback("卡片0A", fallback)
+
+        # 用分隔线连接所有卡片（含结尾卡片）
         return "\n\n---\n\n".join(all_cards)
 
     def generate_all_cards(self, stages: List[dict], original_content: str,
