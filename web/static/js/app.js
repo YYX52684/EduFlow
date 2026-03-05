@@ -204,7 +204,7 @@
       var dz = document.getElementById('scriptDropZone');
       var textEl = document.getElementById('scriptDropZoneText');
       var hintEl = document.getElementById('scriptDropZoneHint');
-      var emptyText = (dz && dz.getAttribute('data-empty-text')) || '将 .md / .docx / .doc / .pdf 拖至此处，或点击选取';
+      var emptyText = (dz && dz.getAttribute('data-empty-text')) || '将 .md / .docx / .pdf 拖至此处，或点击选取';
       if (!dz || !textEl) return;
       if (filename) {
         textEl.textContent = '已加载：' + filename;
@@ -1752,8 +1752,6 @@
 
     document.getElementById('btnInjectRun').onclick = async () => {
       const path = document.getElementById('injectCardsPath').value.trim();
-      const taskName = document.getElementById('injectTaskName').value.trim() || null;
-      const description = document.getElementById('injectDescription').value.trim() || null;
       const msg = document.getElementById('injectMsg');
       const pre = document.getElementById('injectResult');
       if (!path) { msg.innerHTML = '<span class="err">请从右侧工作区文件列表拖入或点击文件填入卡片</span>'; return; }
@@ -1763,7 +1761,7 @@
         const r = await apiFetch( '/api/inject/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cards_path: path, task_name: taskName, description: description }),
+          body: JSON.stringify({ cards_path: path }),
         });
         const d = await safeResponseJson(r);
         if (!r.ok) throw new Error(getUserMsg(d, '注入失败，请稍后重试'));
