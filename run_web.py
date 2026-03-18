@@ -32,7 +32,6 @@ def _print_lan_urls(port=8000, use_https=False):
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
         s.close()
-        print("\n  同事访问地址: %s://%s:%s  （HTTPS 下「选择目录」可用）\n" % (scheme, ip, port))
     except Exception:
         pass
     print("  本机访问: %s://127.0.0.1:%s\n" % (scheme, port))
