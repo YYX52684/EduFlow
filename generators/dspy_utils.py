@@ -4,8 +4,82 @@ DSPy 卡片生成器的统一工具函数
 """
 
 import re
+import hashlib
+import threading
 import functools
-from typing import List, Optional, Callable, Any
+from collections import deque
+from typing import List, Optional, Callable, Any, Sequence
+
+
+_POSITIVE_FEEDBACK_KEYWORDS = [
+    "很好", "很棒", "不错", "太棒了", "做得好", "做得不错", "回答得不错",
+    "思路清晰", "表达清楚", "表述准确", "理解到位", "抓住重点", "抓到关键",
+    "方向对了", "分析到位", "判断准确", "回答完整", "有理有据", "说得很清楚",
+    "肯定", "认可", "鼓励", "表扬", "赞赏", "亮点"
+]
+
+_GENERIC_POSITIVE_FEEDBACK_PHRASES = [
+    "这个判断抓住重点了，我们继续往下推一层。",
+    "你已经碰到关键点了，再把理由说扎实一点。",
+    "这个方向是对的，继续顺着这个思路展开。",
+    "你把核心意思说到了，下面再补一层细节。",
+    "这个回答有章法，继续保持这样的思路。",
+    "你抓到重点了，再把最关键的一步讲清楚。",
+    "这个切入点不错，我们接着往实处落。",
+    "回答方向没偏，下面把关键依据补完整。",
+    "这个理解已经很接近完整答案了，再往前走一步。",
+    "你已经说到要害了，继续把重点展开。",
+    "这一步把住了主线，我们继续往下推进。",
+    "你的理解基本到位了，下面再细化一下。",
+    "这个回答有抓手，继续往深一层想。",
+    "你已经把核心脉络理出来了，接着补足细节。",
+    "这个点抓得准，下面再把关键信息说实。",
+    "这一步回应得不错，我们继续顺着往下问。",
+    "你已经把主要问题扣住了，接着完善关键一环。",
+    "这个回答有基础了，再把最能支撑结论的部分补出来。",
+]
+
+_EVIDENCE_POSITIVE_FEEDBACK_PHRASES = [
+    "能把依据讲出来，说明你不是在凭感觉回答。",
+    "你已经开始用证据支撑判断了，这一点很好。",
+    "这个回答有依据，可信度就上来了。",
+    "能说到判断依据，说明你抓住了关键。",
+    "你把支撑理由带出来了，方向是对的。",
+    "这不是泛泛而谈，能落到依据上就很有价值。",
+    "能把判断和依据连起来，这一步很关键。",
+    "你已经不只是在给结论了，证据意识不错。",
+    "这个回答有理有据，继续保持这种表达方式。",
+    "把依据说清楚之后，答案就更站得住了。",
+]
+
+_PROCESS_POSITIVE_FEEDBACK_PHRASES = [
+    "步骤脉络已经理顺了，接着把关键环节补完整。",
+    "你对先后顺序抓得不错，再把每一步的目的说清楚。",
+    "这个流程意识是对的，继续把关键节点补出来。",
+    "顺序没有乱，下面再把重点步骤压实。",
+    "你已经把操作路径理出来了，再把风险点带上。",
+    "这条流程线基本清楚了，继续把关键动作说具体。",
+    "步骤抓得住，接着把最容易出错的地方补上。",
+    "你已经把主流程说出来了，下面补关键判断点。",
+    "这个操作思路是顺的，再把关键细节压实一点。",
+    "流程框架已经出来了，继续把决定成败的环节说清楚。",
+]
+
+_REASONING_POSITIVE_FEEDBACK_PHRASES = [
+    "这个判断不是泛泛而谈，说明你在动脑分析。",
+    "你已经抓到问题的逻辑了，接着把原因展开。",
+    "这个理解比较到位，再把关键原理补一层。",
+    "概念没有说偏，继续把背后的逻辑讲清楚。",
+    "你已经摸到核心原理了，再把它和情境扣紧。",
+    "这个分析方向对，再把判断链条补完整。",
+    "你抓住了关键关系，继续把推理讲顺。",
+    "表述已经比较准确了，下面再把最关键的原因说透。",
+    "逻辑主线是清楚的，继续把决定性的那一点补足。",
+    "你的分析已经接近核心了，再把关键差异说出来。",
+]
+
+_POSITIVE_FEEDBACK_HISTORY = deque(maxlen=10)
+_POSITIVE_FEEDBACK_LOCK = threading.Lock()
 
 
 def contains_brackets(text: str) -> bool:
@@ -37,39 +111,135 @@ def strip_brackets(text: str) -> str:
     return text
 
 
-def post_process_fields(obj: Any, fields: List[str]) -> None:
+def reset_positive_feedback_history() -> None:
+    """在每次生成新文档前重置短语历史，避免跨文档串味。"""
+    with _POSITIVE_FEEDBACK_LOCK:
+        _POSITIVE_FEEDBACK_HISTORY.clear()
+
+
+def has_explicit_positive_feedback(text: str) -> bool:
+    """文本中是否已经包含明显的正向反馈。"""
+    if not text:
+        return False
+    return any(keyword in text for keyword in _POSITIVE_FEEDBACK_KEYWORDS)
+
+
+def _dedupe_preserve_order(items: Sequence[str]) -> List[str]:
+    seen = set()
+    result: List[str] = []
+    for item in items:
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def _build_positive_feedback_pool(text: str) -> List[str]:
+    pool: List[str] = list(_GENERIC_POSITIVE_FEEDBACK_PHRASES)
+    if re.search(r"数据|依据|证据|参数|标准|指标|计算|结果", text):
+        pool.extend(_EVIDENCE_POSITIVE_FEEDBACK_PHRASES)
+    if re.search(r"步骤|流程|顺序|工序|环节|操作|过程", text):
+        pool.extend(_PROCESS_POSITIVE_FEEDBACK_PHRASES)
+    if re.search(r"原理|逻辑|概念|判断|分析|推理|关系", text):
+        pool.extend(_REASONING_POSITIVE_FEEDBACK_PHRASES)
+    if len(pool) == len(_GENERIC_POSITIVE_FEEDBACK_PHRASES):
+        pool.extend(_REASONING_POSITIVE_FEEDBACK_PHRASES[:5])
+    return _dedupe_preserve_order(pool)
+
+
+def select_diverse_phrase(
+    seed_text: str,
+    phrases: Sequence[str],
+    recent_phrases: Optional[Sequence[str]] = None,
+) -> str:
+    """
+    基于 seed_text 稳定排序短语，并尽量避开最近刚用过的表达。
+    """
+    candidates = _dedupe_preserve_order(phrases)
+    if not candidates:
+        raise ValueError("phrases 不能为空")
+
+    ranked = sorted(
+        candidates,
+        key=lambda phrase: hashlib.sha256(
+            f"{seed_text}\n{phrase}".encode("utf-8")
+        ).hexdigest(),
+    )
+    recent = set(recent_phrases or [])
+    for phrase in ranked:
+        if phrase not in recent:
+            return phrase
+    return ranked[0]
+
+
+def should_inject_positive_feedback(text: str) -> bool:
+    """
+    仅在文本明显缺少正向反馈时，稀疏地补一条激励语，避免每张卡都同一腔调。
+    """
+    if not text:
+        return False
+
+    stripped = text.strip()
+    if not stripped or has_explicit_positive_feedback(stripped):
+        return False
+
+    # 文本本身已经较丰满时，不再强行补一句。
+    if len(stripped) >= 180:
+        return False
+    if len(re.findall(r"[。！？!?；;]", stripped)) >= 4:
+        return False
+
+    # 稀疏注入：让“补一句表扬”退回兜底策略，而不是每张卡的固定尾巴。
+    bucket = int(hashlib.sha256(stripped.encode("utf-8")).hexdigest()[:8], 16) % 100
+    return bucket < 35
+
+
+def _append_sentence(text: str, sentence: str) -> str:
+    stripped = text.rstrip()
+    if not stripped:
+        return sentence
+    if stripped.endswith(("。", "！", "？", "；", "!", "?", ";")):
+        return f"{stripped}{sentence}"
+    return f"{stripped}。{sentence}"
+
+
+def inject_optional_positive_feedback(text: str) -> str:
+    """在极少数缺少鼓励语的交互说明里补一条更自然、可去重的正向反馈。"""
+    if not should_inject_positive_feedback(text):
+        return text
+
+    with _POSITIVE_FEEDBACK_LOCK:
+        chosen = select_diverse_phrase(
+            text,
+            _build_positive_feedback_pool(text),
+            list(_POSITIVE_FEEDBACK_HISTORY),
+        )
+        _POSITIVE_FEEDBACK_HISTORY.append(chosen)
+    return _append_sentence(text, chosen)
+
+
+def post_process_fields(
+    obj: Any,
+    fields: List[str],
+    inject_positive_feedback: bool = True,
+) -> None:
     """
     对对象的指定字段进行后处理：移除括号内容
     
     Args:
         obj: 包含字段的对象（如 dspy.Prediction）
         fields: 需要处理的字段名列表
+        inject_positive_feedback: 是否对 interaction_section 兜底补充正向反馈
     """
-    def inject_positive_feedback(text: str) -> str:
-        if not text:
-            return text
-        # 针对 interaction_section，若文本中未出现明确正向反馈，给出多样化的正向激励
-        positive_keywords = ["很好", "很棒", "思路清晰", "数据支撑很好", "表述准确", "清晰"]
-        if any(p in text for p in positive_keywords):
-            return text
-        phrases = [
-            "很棒，这个思路很清晰。",
-            "不错，思路清晰，数据支撑也到位。",
-            "很好，这个回答很具体，继续保持。"
-        ]
-        # 使用文本长度来挑选一个固定的短语，避免完全随机带来不可重复性
-        chosen = phrases[len(text) % len(phrases)]
-        return text.rstrip() + " " + chosen
-
     for field in fields:
         text = getattr(obj, field, '')
         if text and contains_brackets(text):
             setattr(obj, field, strip_brackets(text))
         # 针对交互体验性强的字段，注入正向激励（使用当前值，确保括号已清理）
-        if field == 'interaction_section':
+        if inject_positive_feedback and field == 'interaction_section':
             current = getattr(obj, field, '')
             if isinstance(current, str) and current:
-                setattr(obj, field, inject_positive_feedback(current))
+                setattr(obj, field, inject_optional_positive_feedback(current))
 
 
 def with_bracket_cleanup(fields: List[str]):
