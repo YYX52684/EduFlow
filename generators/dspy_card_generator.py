@@ -39,7 +39,8 @@ from .dspy_utils import (
     is_same_role,
     Retryable,
     format_card_section,
-    ensure_constraint
+    ensure_constraint,
+    reset_positive_feedback_history,
 )
 
 
@@ -221,7 +222,7 @@ class CardAGeneratorModule(dspy.Module):
         )
 
         # 后处理：移除括号内容
-        post_process_fields(result, self.A_CARD_FIELDS)
+        post_process_fields(result, self.A_CARD_FIELDS, inject_positive_feedback=True)
 
         # 如果需要开场白（第一张卡片）
         prologue = ""
@@ -231,7 +232,7 @@ class CardAGeneratorModule(dspy.Module):
                 npc_role=npc_role,
                 scene_goal=scene_goal
             )
-            post_process_fields(prologue_result, ['prologue'])
+            post_process_fields(prologue_result, ['prologue'], inject_positive_feedback=False)
             prologue = prologue_result.prologue
 
         return dspy.Prediction(
@@ -280,7 +281,7 @@ class CardAEndingGeneratorModule(dspy.Module):
             last_stage_key_points=last_stage_key_points,
             last_stage_excerpt=last_stage_excerpt,
         )
-        post_process_fields(result, self.ENDING_FIELDS)
+        post_process_fields(result, self.ENDING_FIELDS, inject_positive_feedback=False)
         return result
 
 
@@ -342,7 +343,7 @@ class CardBGeneratorModule(dspy.Module):
                 next_card_id=next_card_id,
                 is_last_stage=is_last_stage
             )
-            post_process_fields(result, self.NARRATOR_FIELDS)
+            post_process_fields(result, self.NARRATOR_FIELDS, inject_positive_feedback=False)
         else:
             # 角色相同，使用简洁版
             result = self.generate_simple(
@@ -355,7 +356,7 @@ class CardBGeneratorModule(dspy.Module):
                 next_card_id=next_card_id,
                 is_last_stage=is_last_stage
             )
-            post_process_fields(result, self.SIMPLE_FIELDS)
+            post_process_fields(result, self.SIMPLE_FIELDS, inject_positive_feedback=False)
 
         # 标记是否使用了旁白
         result.use_narrator = use_narrator
@@ -737,6 +738,7 @@ class DSPyCardGenerator:
         if not (self.base_url and self.model):
             override = DEEPSEEK_API_KEY if self.model_type != "doubao" else DOUBAO_API_KEY
         self.lm = self._create_lm(api_key_override=override)
+        reset_positive_feedback_history()
 
         all_cards = []
         total_stages = len(stages)
