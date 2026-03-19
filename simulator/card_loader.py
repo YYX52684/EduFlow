@@ -48,11 +48,33 @@ class CardData:
         return ""
 
     def get_transition_output(self) -> str:
-        """获取过渡类卡片的输出"""
+        """获取过渡类卡片的静态兜底输出"""
         from config import CARD_TYPE_ROLE
         if CARD_TYPE_ROLE.get(self.card_type) == "transition":
             return self.output or self.transition_prompt
         return ""
+
+    def get_transition_prompt(self) -> str:
+        """获取过渡类卡片的完整提示词"""
+        from config import CARD_TYPE_ROLE
+        if CARD_TYPE_ROLE.get(self.card_type) == "transition":
+            return self.transition_prompt or self.full_content
+        return ""
+
+    def render_transition_prompt(self, previous_dialogue: str = "") -> str:
+        """将上一张A卡的对话记录注入 B 类卡片提示词。"""
+        prompt = (self.get_transition_prompt() or "").strip()
+        dialogue = (previous_dialogue or "").strip()
+        if not prompt:
+            return dialogue
+
+        if "${previous_dialogue}" in prompt:
+            replacement = dialogue or "上一张A卡暂无可用对话记录。若无法判断最后一轮细节，就先做一句自然承接，再进入下一环节。"
+            return prompt.replace("${previous_dialogue}", replacement).strip()
+
+        if dialogue:
+            return f"{dialogue}\n\n{prompt}".strip()
+        return prompt
 
 
 def _card_type_regex():
@@ -151,7 +173,7 @@ class LocalCardLoader:
         if role == "dialogue":
             card.llm_prompt = self._build_a_card_prompt(content, card)
         else:
-            card.transition_prompt = card.output
+            card.transition_prompt = self._build_b_card_prompt(content)
 
         return card
     
@@ -170,6 +192,13 @@ class LocalCardLoader:
             next_section = re.search(r'\n#\s+\w+\s*\n', rest)
             body_end = next_section.start() if next_section else len(rest)
             prompt = prompt[: match.end()] + card.interaction.strip() + "\n\n" + rest[body_end:].lstrip()
+        return prompt.strip()
+
+    def _build_b_card_prompt(self, content: str) -> str:
+        """构建过渡类卡片的完整提示词，保留 Role/Context/Output/Constraints。"""
+        prompt = content
+        prompt = re.sub(r'^#\s*卡片\d+[A-Z]+\s*\n', '', prompt.strip())
+        prompt = re.sub(r'<!--\s*STAGE_META:\s*\{.*?\}\s*-->\s*\n?', '', prompt)
         return prompt.strip()
     
     def _extract_stage_meta(self, content: str) -> Optional[Dict[str, Any]]:

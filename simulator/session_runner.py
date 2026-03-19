@@ -440,13 +440,82 @@ class SessionRunner:
             None
         )
         
-        if b_card and b_card.output:
-            # 输出B类卡片的过渡内容
-            print(f"\n[过渡] {b_card.get_transition_output()}")
-            self._log_turn(b_card.card_id, "npc", b_card.get_transition_output())
+        if b_card:
+            transition_text = self._run_transition_card(b_card, current_card)
+            if transition_text:
+                print(f"\n[过渡] {transition_text}")
+                self._log_turn(b_card.card_id, "npc", transition_text)
         
         # 移动到下一张A类卡片
         self.current_card_index += 1
+
+    def _run_transition_card(self, b_card: CardData, current_card: CardData) -> str:
+        """执行 B 类卡片：基于上一张A卡最后一轮对话做回应，再过渡。"""
+        prompt = b_card.render_transition_prompt(
+            self._build_transition_dialogue_context(current_card)
+        )
+        if not prompt:
+            return b_card.get_transition_output()
+
+        try:
+            transition_npc = self._build_transition_npc(prompt, b_card)
+            response = transition_npc.respond(
+                "请根据系统提示，先回应上一张A卡最后一轮学生回答，再自然衔接下一环节。不要做泛泛的整体总结。"
+            )
+            clean_response = transition_npc.get_clean_response(response)
+            return clean_response or b_card.get_transition_output()
+        except Exception as e:
+            print(f"\n[警告] B类卡片执行失败，回退到静态输出: {e}")
+            return b_card.get_transition_output()
+
+    def _build_transition_npc(self, prompt: str, card: CardData) -> LLMNPC:
+        """创建一个临时 NPC 来执行 B 类卡片。"""
+        if self.npc is not None:
+            return LLMNPC(
+                prompt,
+                {
+                    "api_url": self.npc.api_url,
+                    "api_key": self.npc.api_key,
+                    "model": self.npc.model,
+                    "service_code": self.npc.service_code,
+                    "max_tokens": self.npc.max_tokens,
+                    "temperature": self.npc.temperature,
+                },
+            )
+        if self.config.npc_config:
+            return LLMNPC(prompt, self.config.npc_config)
+        return NPCFactory.create_with_card_config(prompt, card.model_id)
+
+    def _build_transition_dialogue_context(self, current_card: CardData) -> str:
+        """整理上一张A卡的对话记录，并突出最后一轮，供 B 类卡片回应。"""
+        turns = [turn for turn in self.log.dialogue if turn.card_id == current_card.card_id]
+        if not turns:
+            return "上一张A卡暂无可用对话记录。若无法判断最后一轮细节，就先做一句自然承接，再进入下一环节。"
+
+        lines = ["## 上一张A卡对话记录"]
+        for turn in turns:
+            speaker_label = "NPC" if turn.speaker == "npc" else "学生"
+            lines.append(f"{speaker_label}: {turn.content}")
+
+        last_student_idx = max(
+            (idx for idx, turn in enumerate(turns) if turn.speaker == "student"),
+            default=-1,
+        )
+        if last_student_idx >= 0:
+            lines.extend(["", "## 最后一轮重点"])
+            previous_npc = next(
+                (
+                    turns[idx].content
+                    for idx in range(last_student_idx - 1, -1, -1)
+                    if turns[idx].speaker == "npc"
+                ),
+                "",
+            )
+            if previous_npc:
+                lines.append(f"上一问: {previous_npc}")
+            lines.append(f"学生最后一轮回答: {turns[last_student_idx].content}")
+
+        return "\n".join(lines)
     
     def _log_turn(self, card_id: str, speaker: str, content: str):
         """记录对话轮次"""
