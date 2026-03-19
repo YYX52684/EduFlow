@@ -137,7 +137,7 @@ class CardBSignature(dspy.Signature):
     """生成B类卡片（场景过渡卡片）的签名 - 用于同一角色的场景间过渡
     
     当前后A类卡片是同一角色时使用此签名，生成简洁的功能性过渡。
-    重要：过渡语应根据上一环节实际对话表现来写——学生做得好就肯定，做得不好就简要指出问题，然后开启下一环节。不要一律中性或一律表扬，要根据事实。
+    重要：过渡语不是做整段总评，而是先接住上一张A卡最后一轮学生回答，再自然开启下一环节。
     """
     # 输入字段
     full_script: str = dspy.InputField(desc="完整的原始剧本内容")
@@ -145,13 +145,15 @@ class CardBSignature(dspy.Signature):
     total_stages: int = dspy.InputField(desc="总阶段数")
     current_stage_title: str = dspy.InputField(desc="当前阶段标题，用于在过渡语中自然带出刚讨论完的内容（勿用「本环节」等流程词）。")
     current_stage_goal: str = dspy.InputField(desc="当前阶段目标，应与该阶段的 key_points 和任务描述对应，过渡语需要根据是否达成这些目标来选择不同表述。")
+    current_stage_key_points: str = dspy.InputField(desc="当前阶段关键要点，用逗号分隔。B卡回应时应优先围绕这些要点判断学生最后一轮回答哪里答到了、哪里遗漏或答偏。")
+    current_stage_excerpt: str = dspy.InputField(desc="当前阶段原文摘录或关键内容。用于在回应里引用更具体的术语、事实或错误点，避免泛泛而谈。")
     next_stage_title: str = dspy.InputField(desc="下一阶段标题（如果有）")
     next_card_id: str = dspy.InputField(desc="下一张卡片ID，如'卡片2A'或'结束'")
     is_last_stage: bool = dspy.InputField(desc="是否是最后一个阶段")
 
-    # 输出字段 - 简洁版，无旁白；根据事实：好则肯定，不好则指出并自然带出下一话题。必须沉浸角色，禁止流程用语。
-    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。学生达标时用肯定口吻自然带出下一话题，未达标时简短点出不足再带出下一话题。不要「无论您是否……」类无条件推进。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：过渡语模板或示例，建议30-80字。根据当前NPC身份与剧情情境自然衔接，不固定口吻——例如同事/研发讨论可自然带出下一话题，患者可说「谢谢医生」，医生可简短嘱托，带教可总结再约等。可写两种表述（肯定版/指出不足版）。严禁使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语。不要第三人称场景描写。")
+    # 输出字段 - 简洁版，无旁白；先接住上一张A卡最后一轮学生回答，再自然开启下一话题。
+    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。B卡运行时会获得 `${previous_dialogue}`，其中包含上一张A卡的对话记录。你必须优先回应最后一轮学生回答：答对时点明答对处并顺手补一句，答偏/答错/犹豫时只纠正最关键的一点，再自然带出下一话题。不要脱离最后一轮直接做整段总评。1-2句话。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：给学生听的一段过渡话，建议40-90字。必须先针对上一张A卡最后一轮学生回答做回应，再用一句话带出下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。严禁使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语。不要第三人称场景描写。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -159,7 +161,7 @@ class CardBNarratorSignature(dspy.Signature):
     """生成B类卡片（旁白过渡卡片）的签名 - 用于不同角色之间的切换
     
     当前后A类卡片是不同角色时使用此签名，需要旁白来衔接角色转换。
-    重要：过渡语应根据上一环节实际表现——学生做得好就肯定，做得不好就简要指出问题，然后开启下一环节、介绍新角色。根据事实，不要一律中性或一律表扬。
+    重要：过渡语不是做整段总评，而是先接住上一张A卡最后一轮学生回答，再自然开启下一环节、介绍新角色。
     """
     # 输入字段
     full_script: str = dspy.InputField(desc="完整的原始剧本内容")
@@ -167,16 +169,18 @@ class CardBNarratorSignature(dspy.Signature):
     total_stages: int = dspy.InputField(desc="总阶段数")
     current_stage_title: str = dspy.InputField(desc="当前阶段标题")
     current_stage_goal: str = dspy.InputField(desc="当前阶段目标")
+    current_stage_key_points: str = dspy.InputField(desc="当前阶段关键要点，用逗号分隔。B卡回应时应优先围绕这些要点判断学生最后一轮回答哪里答到了、哪里遗漏或答偏。")
+    current_stage_excerpt: str = dspy.InputField(desc="当前阶段原文摘录或关键内容。用于在回应里引用更具体的术语、事实或错误点，避免泛泛而谈。")
     current_stage_role: str = dspy.InputField(desc="当前阶段NPC角色")
     next_stage_title: str = dspy.InputField(desc="下一阶段标题（如果有）")
     next_stage_role: str = dspy.InputField(desc="下一阶段NPC角色（如果有）")
     next_card_id: str = dspy.InputField(desc="下一张卡片ID，如'卡片2A'或'结束'")
     is_last_stage: bool = dspy.InputField(desc="是否是最后一个阶段")
 
-    # 输出字段 - 旁白版，用于角色切换；根据事实：好则肯定，不好则指出并开启下一步
+    # 输出字段 - 旁白版，用于角色切换；先接住上一张A卡最后一轮学生回答，再开启下一步
     role_section: str = dspy.OutputField(desc="# Role 部分：旁白/叙述者的定位，1句话。")
-    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。学生达标时用肯定口吻自然衔接角色切换，未达标时简短点出不足再带出下一角色。不要「无论您是否……」类无条件推进。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议50-80字。根据当前剧情与下一角色身份自然衔接，不固定口吻——可情境句带出下一角色（如「病房里，责任护士已备好报告」），或患者致谢、医生嘱托等角色化收尾。严禁「本环节」「本阶段」「现在请进入下一阶段」等流程用语。少用长段第三人称旁白。不使用括号。")
+    context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。B卡运行时会获得 `${previous_dialogue}`，其中包含上一张A卡的对话记录。你必须优先回应最后一轮学生回答：答对时点明答对处并顺手补一句，答偏/答错/犹豫时只纠正最关键的一点，再自然衔接角色切换或下一角色。不要「无论您是否……」类无条件推进，也不要脱离最后一轮直接做整段总评。1-2句话。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议50-90字。必须先针对上一张A卡最后一轮学生回答做回应，再自然引出下一角色或下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。严禁「本环节」「本阶段」「现在请进入下一阶段」等流程用语。少用长段第三人称旁白。不使用括号。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -309,6 +313,8 @@ class CardBGeneratorModule(dspy.Module):
         total_stages: int,
         current_stage_title: str,
         current_stage_goal: str,
+        current_stage_key_points: str = "",
+        current_stage_excerpt: str = "",
         current_stage_role: str = "",
         next_stage_title: str = "",
         next_stage_role: str = ""
@@ -337,6 +343,8 @@ class CardBGeneratorModule(dspy.Module):
                 total_stages=total_stages,
                 current_stage_title=current_stage_title,
                 current_stage_goal=current_stage_goal,
+                current_stage_key_points=current_stage_key_points,
+                current_stage_excerpt=current_stage_excerpt,
                 current_stage_role=current_stage_role,
                 next_stage_title=next_stage_title,
                 next_stage_role=next_stage_role,
@@ -352,6 +360,8 @@ class CardBGeneratorModule(dspy.Module):
                 total_stages=total_stages,
                 current_stage_title=current_stage_title,
                 current_stage_goal=current_stage_goal,
+                current_stage_key_points=current_stage_key_points,
+                current_stage_excerpt=current_stage_excerpt,
                 next_stage_title=next_stage_title,
                 next_card_id=next_card_id,
                 is_last_stage=is_last_stage
@@ -549,9 +559,10 @@ class DSPyCardGenerator:
             sections.append(format_card_section("Context", result.context_section))
             sections.append(format_card_section("Output", result.output_section))
             sections.append(format_card_section("Constraints",
-                "- **根据事实**：学生达标时用肯定口吻自然衔接，未达标时简短点出不足再带出下一话题；不要「无论您是否……」类无条件推进。\n"
+                "- **先回应再过渡**：基于 `${previous_dialogue}`，优先回应上一张A卡最后一轮学生回答。答对时点明答对处并顺手补一句；答偏、答错或犹豫时只纠正最关键的一点，再自然带出下一话题。\n"
+                "- **不要做评分式总结**：少用「整体不错」「这一段掌握得还可以」这类泛泛评价；重点是接住最后一轮，而不是给整段下结论。\n"
                 "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接（如患者致谢、医生嘱托、同事带出下一话题等）。\n"
-                "- **避免长篇旁白**：优先用1-2句简短情境提示和评价，不要写大段第三人称叙述。\n"
+                "- **避免长篇旁白**：优先用1-2句简短情境提示和回应，不要写大段第三人称叙述。\n"
                 "- **严禁任何括号内容**\n"
                 "- **控制输出长度**：# Output部分50-80字，所有文字可直接朗读。"
             ))
@@ -560,7 +571,8 @@ class DSPyCardGenerator:
             sections.append(format_card_section("Context", result.context_section))
             sections.append(format_card_section("Output", result.output_section))
             sections.append(format_card_section("Constraints",
-                "- **根据事实**：学生达标时用肯定口吻自然衔接，未达标时简短点出不足再带出下一话题；不要「无论您是否……」类无条件推进。\n"
+                "- **先回应再过渡**：基于 `${previous_dialogue}`，优先回应上一张A卡最后一轮学生回答。答对时点明答对处并顺手补一句；答偏、答错或犹豫时只纠正最关键的一点，再自然带出下一话题。\n"
+                "- **不要做评分式总结**：少用「整体不错」「这一段掌握得还可以」这类泛泛评价；重点是接住最后一轮，而不是给整段下结论。\n"
                 "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接或收尾（如患者可致谢、医生可嘱托、同事可带出下一话题等，不固定一种口吻）。\n"
                 "- **严禁任何括号内容**\n"
                 "- **严禁第三人称长篇场景叙述**：用一句情境式台词自然过渡即可。\n"
@@ -719,6 +731,8 @@ class DSPyCardGenerator:
                 total_stages=total_stages,
                 current_stage_title=stage.get('title', ''),
                 current_stage_goal=stage.get('task', ''),
+                current_stage_key_points=', '.join(stage.get('key_points', [])),
+                current_stage_excerpt=stage.get('content_excerpt', ''),
                 current_stage_role=stage.get('role', ''),
                 next_stage_title=next_stage.get('title', '') if next_stage else '',
                 next_stage_role=next_stage.get('role', '') if next_stage else ''
