@@ -43,6 +43,21 @@ from .dspy_utils import (
     reset_positive_feedback_history,
 )
 
+# ========== 指导/讲解模式检测 ==========
+
+_GUIDANCE_KEYWORDS = ("讲解", "指导型", "讲授", "展示步骤", "指导讲解")
+_QA_OVERRIDE_KEYWORDS = ("提问", "追问", "考核", "评价", "诊断", "鉴别")
+
+
+def _is_guidance_stage(stage: dict) -> bool:
+    """检测该阶段是否为指导/讲解型（而非问答考核型）。
+    若 role+task 含指导关键词且不含问答关键词则判定为指导型。"""
+    text = f"{stage.get('role', '')} {stage.get('task', '')}"
+    has_guidance = any(kw in text for kw in _GUIDANCE_KEYWORDS)
+    if not has_guidance:
+        return False
+    return not any(kw in text for kw in _QA_OVERRIDE_KEYWORDS)
+
 
 # ========== DSPy 签名定义 ==========
 
@@ -472,23 +487,39 @@ class DSPyCardGenerator:
         if getattr(result, "options_section", ""):
             sections.append(format_card_section("Options", result.options_section))
 
-        # 确保Constraints包含关键约束
+        # 确保Constraints包含关键约束（根据指导/问答模式分别注入）
         constraints = result.constraints_section
-        constraints = ensure_constraint(
-            constraints, "每轮",
-            "**每轮只问1-2个问题**，避免连续追问让学生疲惫。"
-        )
-        constraints = ensure_constraint(
-            constraints, "追问",
-            "学生答对后，至少追问1次「为什么/依据/还需要注意什么」，再进入下一问或下一环节。"
-        )
+        is_guidance = _is_guidance_stage(stage)
+
+        if is_guidance:
+            constraints = ensure_constraint(
+                constraints, "每轮",
+                "**每轮先讲解1-2个步骤或原理**，讲完后再让学生用一句话复述关键顺序、参数或禁忌，不要一上来就问问题。"
+            )
+            constraints = ensure_constraint(
+                constraints, "复述",
+                "学生复述后，补充纠偏或强调最关键的风险点，确认无误再进入下一步。不要连续追问多个问题。"
+            )
+            constraints = ensure_constraint(
+                constraints, "角色",
+                "你（NPC）负责讲解步骤与原理、让学生复述、纠偏补充，不要替对方说出复述答案。"
+            )
+        else:
+            constraints = ensure_constraint(
+                constraints, "每轮",
+                "**每轮只问1-2个问题**，避免连续追问让学生疲惫。"
+            )
+            constraints = ensure_constraint(
+                constraints, "追问",
+                "学生答对后，至少追问1次「为什么/依据/还需要注意什么」，再进入下一问或下一环节。"
+            )
+            constraints = ensure_constraint(
+                constraints, "角色",
+                "你（NPC）只负责提问、点评或引导，不要替对方（剧情中的角色，由剧本设定）说出答案、思路或设计方案。"
+            )
         constraints = ensure_constraint(
             constraints, "编号",
             "涉及英文/代码/长串时，必须提供编号选项，引导学生说编号或简短中文，不要要求朗读原文。"
-        )
-        constraints = ensure_constraint(
-            constraints, "角色",
-            "你（NPC）只负责提问、点评或引导，不要替对方（剧情中的角色，由剧本设定）说出答案、思路或设计方案。"
         )
         constraints = ensure_constraint(
             constraints, "括号",
@@ -496,7 +527,7 @@ class DSPyCardGenerator:
         )
         constraints = ensure_constraint(
             constraints, "台词",
-            "回复时只输出角色台词（提问、点评、引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会当台词念出、破坏沉浸感。"
+            "回复时只输出角色台词（讲解、提问、点评、引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会当台词念出、破坏沉浸感。"
         )
         # 基于 key_points 与 content_excerpt 做简单覆盖度自检：
         # 抽取若干原文要点，若在各段落中未直接出现，则在约束中提醒需要特别关注。
@@ -586,7 +617,7 @@ class DSPyCardGenerator:
     def _generate_ending_card_a(self, stages: List[dict], original_content: str) -> str:
         """
         在所有卡片之后追加一张结尾用 A 类卡片：
-        - 卡片ID固定为 卡片0A
+        - 卡片ID为 卡片{N+1}A（N=总阶段数），确保排序时位于最后
         - 轮次（interaction_rounds）固定为 0
         - 说完则结束整个流程，不再跳转到B卡或其他卡片
         - 根据最后一幕 NPC 身份生成不同风格的收尾话术指令
@@ -671,7 +702,8 @@ class DSPyCardGenerator:
         ]
 
         card_body = "\n\n".join(sections)
-        return f"# 卡片0A\n\n{card_body}"
+        ending_num = len(stages) + 1
+        return f"# 卡片{ending_num}A\n\n{card_body}"
 
     @Retryable(max_retries=3, exceptions=(Exception,))
     def generate_card_a(self, stage: dict, stage_index: int, total_stages: int,
@@ -689,6 +721,16 @@ class DSPyCardGenerator:
             生成的A类卡片内容
         """
         include_prologue = (stage_index == 1)
+        is_guidance = _is_guidance_stage(stage)
+
+        content_excerpt = stage.get('content_excerpt', '')
+        if is_guidance:
+            guidance_prefix = (
+                "【指导讲解模式】本幕为讲解指导型，NPC 的主要任务是先把步骤、原理和风险讲清楚，"
+                "再让学生用一两句话复述关键顺序或禁忌。不要一上来就问问题，也不要把大量操作步骤"
+                "变成连续追问。讲解与复述确认的比例大约 7:3。\n\n"
+            )
+            content_excerpt = guidance_prefix + content_excerpt
 
         with _dspy_lm_lock:
             dspy.configure(lm=self.lm)
@@ -700,7 +742,7 @@ class DSPyCardGenerator:
                 npc_role=stage.get('role', ''),
                 scene_goal=stage.get('task', ''),
                 key_points=', '.join(stage.get('key_points', [])),
-                content_excerpt=stage.get('content_excerpt', ''),
+                content_excerpt=content_excerpt,
                 include_prologue=include_prologue
             )
 
@@ -805,16 +847,17 @@ class DSPyCardGenerator:
                     progress_callback(i * 2, total_stages * 2,
                                     f"第{i}幕B类卡片生成失败，继续...")
 
-        # 追加一张结尾用 A 类卡片（卡片0A，轮次为0）
+        # 追加一张结尾用 A 类卡片（卡片{N+1}A，轮次为0）
+        ending_num = total_stages + 1
+        ending_label = f"卡片{ending_num}A"
         try:
             ending_card = self._generate_ending_card_a(stages, original_content)
             all_cards.append(ending_card)
             if card_callback:
-                card_callback("卡片0A", ending_card)
+                card_callback(ending_label, ending_card)
         except Exception as e:
-            # 结尾卡片生成失败不应影响主流程，静默降级为简单结束提示
             fallback = (
-                "# 卡片0A\n\n"
+                f"# {ending_label}\n\n"
                 "# Role\n简单收尾角色。\n\n"
                 "# Context\n本次实训到此结束。\n\n"
                 "# Interaction\n感谢你的参与，今天就先到这里，我们下次再继续。\n\n"
@@ -824,7 +867,7 @@ class DSPyCardGenerator:
             )
             all_cards.append(fallback)
             if card_callback:
-                card_callback("卡片0A", fallback)
+                card_callback(ending_label, fallback)
 
         # 用分隔线连接所有卡片（含结尾卡片）
         return "\n\n---\n\n".join(all_cards)

@@ -949,6 +949,11 @@
       var historyFilesCache = [];
       var currentCategory = 'cards';
       var historySearchQuery = '';
+      function forceClearHistorySearch() {
+        var input = document.getElementById('historyFilesSearch');
+        historySearchQuery = '';
+        if (input) input.value = '';
+      }
 
       var emptyStateIconSvg = '<svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v4M16 4v4M2 12h20"/></svg>';
       function getHistoryEmptyStateHTML(cat) {
@@ -1031,13 +1036,13 @@
           var timeStr = formatTime(f.mtime);
           var escPath = String(path).replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           var escName = String(name).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          var canOpen = path.toLowerCase().endsWith('.md');
           html += '<div class="history-file-item" data-path="' + escPath + '">';
           html += '<span class="history-file-name" title="' + escPath + '">' + escName + '</span>';
           html += '<span class="history-file-time">' + timeStr + '</span>';
           html += '<span class="history-file-actions">';
-          if (canOpen) html += '<button type="button" class="history-file-open" data-path="' + escPath + '">打开</button>';
+          html += '<button type="button" class="history-file-open" data-path="' + escPath + '">打开</button>';
           html += '<button type="button" class="history-file-dl" data-path="' + escPath + '">下载</button>';
+          html += '<button type="button" class="history-file-del" data-path="' + escPath + '" data-name="' + escName + '">删除</button>';
           html += '</span></div>';
         });
         container.innerHTML = html || '';
@@ -1051,6 +1056,28 @@
           btn.onclick = function() {
             var p = btn.getAttribute('data-path');
             if (p && typeof downloadOutputFile === 'function') downloadOutputFile(p);
+          };
+        });
+        container.querySelectorAll('.history-file-del').forEach(function(btn) {
+          btn.onclick = async function() {
+            var p = btn.getAttribute('data-path');
+            var n = btn.getAttribute('data-name') || p;
+            if (!p) return;
+            if (!confirm('确定删除「' + n + '」？此操作不可撤销。')) return;
+            try {
+              var r = await apiFetch('/api/output/delete', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: p }),
+              });
+              var d = await safeResponseJson(r);
+              if (!r.ok) throw new Error(getUserMsg(d, '删除失败'));
+              loadHistoryFiles();
+              if (typeof refreshWorkspaceFileList === 'function') refreshWorkspaceFileList();
+              if (typeof loadPersonas === 'function') loadPersonas();
+            } catch (e) {
+              alert('删除失败：' + (e.message || '未知错误'));
+            }
           };
         });
       }
@@ -1106,16 +1133,28 @@
       }
 
       btnOpen.onclick = function() {
+        // 每次打开都重置；并在弹窗打开后延迟多次清空，覆盖浏览器延迟自动填充
+        forceClearHistorySearch();
         loadHistoryFiles();
         if (typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
         if (typeof window.openModal === 'function') window.openModal(modal, null);
+        setTimeout(forceClearHistorySearch, 0);
+        setTimeout(forceClearHistorySearch, 120);
+        setTimeout(forceClearHistorySearch, 500);
       };
       if (btnClose) btnClose.onclick = function() { if (typeof window.closeModal === 'function') window.closeModal(modal); };
       if (modal) modal.onclick = function(e) { if (e.target === modal && typeof window.closeModal === 'function') window.closeModal(modal); };
       if (btnRefresh) btnRefresh.onclick = loadHistoryFiles;
       if (sortSelect) sortSelect.onchange = renderAll;
       var searchInput = document.getElementById('historyFilesSearch');
+      function unlockHistorySearchInput() {
+        if (!searchInput) return;
+        if (searchInput.hasAttribute('readonly')) searchInput.removeAttribute('readonly');
+      }
       if (searchInput && typeof debounce === 'function') {
+        searchInput.onfocus = unlockHistorySearchInput;
+        searchInput.onmousedown = unlockHistorySearchInput;
+        searchInput.ontouchstart = unlockHistorySearchInput;
         searchInput.oninput = debounce(function() {
           historySearchQuery = searchInput.value || '';
           renderAll();

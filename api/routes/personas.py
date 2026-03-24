@@ -11,8 +11,9 @@ from pydantic import BaseModel
 from api.routes.auth import require_workspace_owned
 from api.workspace import get_project_dirs
 from api.exceptions import BadRequestError
-from simulator import PersonaManager, PersonaGeneratorFactory
-from simulator.student_persona import PRESET_PERSONAS
+from api.routes.llm_config import require_llm_config, build_chat_completions_url
+from simulator import PersonaManager
+from simulator.student_persona import PRESET_PERSONAS, PersonaGenerator
 
 router = APIRouter()
 
@@ -77,7 +78,14 @@ async def generate_personas(
                 text = parse_doc(tmp_path)
             else:
                 text = parse_pdf(tmp_path)
-        generator = PersonaGeneratorFactory.create_from_env()
+        llm = require_llm_config(workspace_id)
+        generator = PersonaGenerator(
+            {
+                "api_url": build_chat_completions_url(llm.get("base_url") or ""),
+                "api_key": llm.get("api_key") or "",
+                "model": llm.get("model") or "",
+            }
+        )
         personas = generator.generate_from_material(
             material_content=text,
             num_personas=num_personas,
@@ -92,8 +100,8 @@ async def generate_personas(
         saved_paths = generator.save_personas(
             personas,
             output_dir,
-            source_basename=source_basename,
-            use_level_filenames_only=True,
+            source_basename=f"{safe_name}_人设",
+            use_level_filenames_only=False,
         )
         return {
             "count": len(personas),
