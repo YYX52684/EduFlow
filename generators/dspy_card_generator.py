@@ -79,11 +79,11 @@ class CardASignature(dspy.Signature):
     next_card_id: str = dspy.InputField(desc="下一张卡片ID，如'卡片1B'")
 
     # 输出字段（人称约定：卡片给 NPC 用，「你」=NPC，「学生/对方」=学生，不用「我」）
-    role_section: str = dspy.OutputField(desc="# Role 部分：NPC是谁，背景、性格、说话方式。建议50-100字，简洁自然即可。用「你」指代 NPC，例如「你是张经理，食品厂设备采购经理……」。需要结合本幕 `content_excerpt` 与 `key_points` 中的关键信息，避免过度抽象的人设描述。")
-    context_section: str = dspy.OutputField(desc="# Context 部分：当前场景背景，对方（学生）扮演什么角色。建议50-100字。用「你」指 NPC、「学生/对方」指学生。须嵌入本幕原文中的关键信息点（如角色关系、场景前提、重要道具/数据），而不是只写「你和学生正在交流」这类空泛语句。若本环节紧接在角色切换之后（上一张A卡是不同NPC），须写明：开场第一句须含简短情境承接（如时间、场景或身份，例如「好的，我们到病房了」「术后第二天了」「护士，我们明天要出院了」），再进入本角色第一句台词，避免学生感到突兀。")
-    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：你（NPC）如何与学生/对方对话、推进剧情。建议80-150字。用「你」指 NPC、「学生/对方」指学生。重要：1）只写NPC要说的台词、提问或点评要点，不要写「你微笑着说道」「你看向学生」等动作/神态描写，否则智能体会把描写当台词念出来；2）每轮只问1-2个问题，不要连续追问；3）严禁机械连接词如「你提到」「第一...第二...」等；4）学生答对时给予具体正向激励；5）在对话中渗透 `key_points` 要点；6）严禁括号内暴露思考、元叙述。")
-    transition_section: str = dspy.OutputField(desc="# Transition 部分：什么情况下视为情景进展到转折点。用「你」指 NPC、「学生/对方」指学生。必须基于本幕关键知识点和任务目标来判断是否达标：明确写出学生需要展示哪些要点（可引用 `key_points` 或 `content_excerpt` 中的关键信息）才算完成本环节。达标时用「视为情景进展到转折点」表述；未达标时写明可继续追问/引导。建议50-80字。")
-    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：你（NPC）扮演时的限制和注意事项。使用短横线列表格式。必须包含：1）每轮只问1-2个问题，每轮回复控制在250字以内；2）严禁机械连接词「你提到」「第一...第二...」「哦？」等；3）学生答对时给予具体正向激励，答对后至少追问1次为什么/依据；4）使用多样化自然表达，覆盖 `key_points` 要点；5）严禁括号暴露思考、元叙述；6）回复时只输出角色台词（提问/点评/引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会被当台词念出、破坏沉浸感。")
+    role_section: str = dspy.OutputField(desc="# Role 部分：NPC是谁，背景、性格、说话方式。建议80-140字。用「你」指代 NPC，例如「你是张经理，食品厂设备采购经理……」。需要结合本幕 `content_excerpt` 与 `key_points` 中的关键信息，至少落地2个具体事实（人物经历/事件/术语/数据/关系），避免抽象空话。")
+    context_section: str = dspy.OutputField(desc="# Context 部分：当前场景背景，对方（学生）扮演什么角色。建议90-160字。用「你」指 NPC、「学生/对方」指学生。须嵌入本幕原文中的关键信息点（如角色关系、场景前提、重要道具/数据），至少覆盖2个原文锚点，而不是只写「你和学生正在交流」这类空泛语句。若本环节紧接在角色切换之后（上一张A卡是不同NPC），须写明：开场第一句须含简短情境承接（如时间、场景或身份，例如「好的，我们到病房了」「术后第二天了」「护士，我们明天要出院了」），再进入本角色第一句台词，避免学生感到突兀。")
+    interaction_section: str = dspy.OutputField(desc="# Interaction 部分：你（NPC）如何与学生/对方对话、推进剧情。建议160-260字。用「你」指 NPC、「学生/对方」指学生。必须体现信息密度：至少覆盖3个来自 `key_points` 或 `content_excerpt` 的具体锚点（术语、事实、细节、原话片段均可），避免泛泛鼓励。重要：1）只写NPC要说的台词、提问或点评要点，不要写「你微笑着说道」「你看向学生」等动作/神态描写，否则智能体会把描写当台词念出来；2）每轮只问1-2个问题，不要连续追问；3）严禁机械连接词如「你提到」「第一...第二...」等；4）学生答对时给予具体正向激励；5）严禁括号内暴露思考、元叙述。")
+    transition_section: str = dspy.OutputField(desc="# Transition 部分：什么情况下视为情景进展到转折点。用「你」指 NPC、「学生/对方」指学生。必须基于本幕关键知识点和任务目标来判断是否达标：明确写出学生需要展示哪些要点（可引用 `key_points` 或 `content_excerpt` 中的关键信息）才算完成本环节。请列出2-4个可观察的达标条件；达标时用「视为情景进展到转折点」表述；未达标时写明可继续追问/引导。优先使用行为与任务语言（如“完成自我介绍”“准确复述风险点”“提出可执行方案”），尽量避免情绪化词汇或情绪转折句式（如“从悲伤转向欣喜”）。建议80-140字。")
+    constraints_section: str = dspy.OutputField(desc="# Constraints 部分：你（NPC）扮演时的限制和注意事项。使用短横线列表格式。必须包含：1）每轮只问1-2个问题，每轮回复控制在250字以内；2）严禁机械连接词「你提到」「第一...第二...」「哦？」等；3）学生答对时给予具体正向激励，答对后至少追问1次为什么/依据；4）使用多样化自然表达，覆盖 `key_points` 要点；5）严禁括号暴露思考、元叙述；6）回复时只输出角色台词（提问/点评/引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会被当台词念出、破坏沉浸感；7）尽量避免情绪化词汇堆砌，优先描述可观察行为、事实依据与任务达成情况。")
     options_section: str = dspy.OutputField(desc="# Options（可选）部分：仅当涉及英文/代码/长串需语音输入时提供。列出 3-5 个编号选项，中文描述清晰，包含正确/常见误区/部分正确。若无需选项则返回空字符串。避免让学生朗读英文或代码，提示其说编号或简短中文。")
 
 
@@ -168,7 +168,7 @@ class CardBSignature(dspy.Signature):
 
     # 输出字段 - 简洁版，无旁白；先接住上一张A卡最后一轮学生回答，再自然开启下一话题。
     context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。B卡运行时会获得 `${previous_dialogue}`，其中包含上一张A卡的对话记录。你必须优先回应最后一轮学生回答：答对时点明答对处并顺手补一句，答偏/答错/犹豫时只纠正最关键的一点，再自然带出下一话题。不要脱离最后一轮直接做整段总评。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：给学生听的一段过渡话，建议40-90字。必须先针对上一张A卡最后一轮学生回答做回应，再用一句话带出下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。严禁使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语。不要第三人称场景描写。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：给学生听的一段过渡话，建议80-150字。必须先针对上一张A卡最后一轮学生回答做回应，再用一句话带出下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。至少包含1个具体锚点（例如关键术语、错误点、情境事实），避免空泛赞扬。优先使用行为达成/事实纠偏语言，尽量避免情绪化词汇和“情绪转折”表达。严禁使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语。不要第三人称场景描写。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -195,7 +195,7 @@ class CardBNarratorSignature(dspy.Signature):
     # 输出字段 - 旁白版，用于角色切换；先接住上一张A卡最后一轮学生回答，再开启下一步
     role_section: str = dspy.OutputField(desc="# Role 部分：旁白/叙述者的定位，1句话。")
     context_section: str = dspy.OutputField(desc="# Context 部分：说明过渡语使用原则。B卡运行时会获得 `${previous_dialogue}`，其中包含上一张A卡的对话记录。你必须优先回应最后一轮学生回答：答对时点明答对处并顺手补一句，答偏/答错/犹豫时只纠正最关键的一点，再自然衔接角色切换或下一角色。不要「无论您是否……」类无条件推进，也不要脱离最后一轮直接做整段总评。1-2句话。")
-    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议50-90字。必须先针对上一张A卡最后一轮学生回答做回应，再自然引出下一角色或下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。严禁「本环节」「本阶段」「现在请进入下一阶段」等流程用语。少用长段第三人称旁白。不使用括号。")
+    output_section: str = dspy.OutputField(desc="# Output 部分：过渡内容，建议90-160字。必须先针对上一张A卡最后一轮学生回答做回应，再自然引出下一角色或下一阶段。回应时尽量引用 `current_stage_key_points` 或 `current_stage_excerpt` 中的具体术语、事实或错误点；少用「整体不错」「这一段掌握得还可以」这类泛泛评价。至少包含1个具体锚点（关键术语、错误点、情境事实）。优先使用行为达成/事实纠偏语言，尽量避免情绪化词汇和“情绪转折”表达。严禁「本环节」「本阶段」「现在请进入下一阶段」等流程用语。少用长段第三人称旁白。不使用括号。")
     transition_section: str = dspy.OutputField(desc="# Transition 部分：仅包含跳转指令，格式为 **卡片XA** 或 **结束**")
 
 
@@ -347,8 +347,9 @@ class CardBGeneratorModule(dspy.Module):
                 use_narrator=False
             )
 
-        # 判断是否需要旁白（角色是否切换）
-        use_narrator = not is_same_role(current_stage_role, next_stage_role)
+        # 旁白版已禁用：当前统一使用简洁版B卡（即使发生角色切换也不走旁白分支）。
+        # 如需恢复旧行为，可改回：use_narrator = not is_same_role(current_stage_role, next_stage_role)
+        use_narrator = False
 
         if use_narrator:
             # 角色不同，使用旁白版
@@ -456,14 +457,54 @@ class DSPyCardGenerator:
             temperature=TEMPERATURE
         )
 
-    def _create_stage_meta(self, stage: dict) -> str:
+    def _create_stage_meta(self, stage: dict, default_interaction_rounds: int = 5) -> str:
         """创建阶段元数据块"""
         meta = {
             "stage_name": stage.get("title", ""),
             "description": stage.get("description", ""),
-            "interaction_rounds": stage.get("interaction_rounds", 5),
+            "interaction_rounds": stage.get("interaction_rounds", default_interaction_rounds),
         }
         return f"<!-- STAGE_META: {json.dumps(meta, ensure_ascii=False)} -->\n"
+
+    def _build_stage_coverage_hints(self, stage: dict) -> List[str]:
+        """抽取本幕需要覆盖的原文锚点（用于A卡覆盖度自检与补强重试）。"""
+        coverage_hints: List[str] = []
+        stage_key_points = stage.get("key_points") or []
+        if isinstance(stage_key_points, list):
+            for kp in stage_key_points:
+                if isinstance(kp, str):
+                    text = kp.strip()
+                    if len(text) >= 2:
+                        coverage_hints.append(text[:40])
+                if len(coverage_hints) >= 10:
+                    break
+
+        # key_points 不足时，从 content_excerpt 补充候选锚点
+        if len(coverage_hints) < 4:
+            excerpt = str(stage.get("content_excerpt") or "").strip()
+            if excerpt:
+                candidates = re.split(r"[，。；;,.、\n]", excerpt)
+                for c in candidates:
+                    t = c.strip()
+                    if 4 <= len(t) <= 30 and t not in coverage_hints:
+                        coverage_hints.append(t)
+                    if len(coverage_hints) >= 10:
+                        break
+        return coverage_hints
+
+    def _calc_missing_anchors(self, result: dspy.Prediction, coverage_hints: List[str]) -> List[str]:
+        """计算A卡中未显式覆盖的锚点。"""
+        if not coverage_hints:
+            return []
+        combined = " ".join(
+            [
+                getattr(result, "role_section", "") or "",
+                getattr(result, "context_section", "") or "",
+                getattr(result, "interaction_section", "") or "",
+                getattr(result, "transition_section", "") or "",
+            ]
+        )
+        return [p for p in coverage_hints if p and p not in combined]
 
     def _format_card_a(self, result: dspy.Prediction, stage_index: int, stage_meta: str, stage: dict) -> str:
         """格式化A类卡片输出，并基于原始阶段信息做覆盖度自检"""
@@ -529,48 +570,30 @@ class DSPyCardGenerator:
             constraints, "台词",
             "回复时只输出角色台词（讲解、提问、点评、引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会当台词念出、破坏沉浸感。"
         )
+        constraints = ensure_constraint(
+            constraints, "去情绪化",
+            "尽量避免情绪化词汇与“情绪转折”句式（如“从悲伤转向欣喜”）；优先使用可观察行为、事实依据与任务达成描述。"
+        )
+        constraints = ensure_constraint(
+            constraints, "信息密度",
+            "Interaction 必须保持信息密度：每轮尽量引用原文具体信息（人物经历、情境事实、术语、数据、原话片段），不要只给抽象鼓励或泛化表述。"
+        )
+        constraints = ensure_constraint(
+            constraints, "覆盖",
+            "Interaction 至少覆盖3个来自 key_points/content_excerpt 的具体锚点；Context 至少覆盖2个锚点。若学生遗漏关键锚点，优先追问遗漏项。"
+        )
         # 基于 key_points 与 content_excerpt 做简单覆盖度自检：
         # 抽取若干原文要点，若在各段落中未直接出现，则在约束中提醒需要特别关注。
         try:
-            coverage_hints: List[str] = []
-            stage_key_points = stage.get("key_points") or []
-            if isinstance(stage_key_points, list):
-                for kp in stage_key_points:
-                    if isinstance(kp, str):
-                        text = kp.strip()
-                        if len(text) >= 2:
-                            coverage_hints.append(text[:40])
-                    if len(coverage_hints) >= 6:
-                        break
-            # 若 key_points 不足，则从 content_excerpt 中补充 1-2 个较长片段
-            if len(coverage_hints) < 3:
-                excerpt = str(stage.get("content_excerpt") or "").strip()
-                if excerpt:
-                    candidates = re.split(r"[，。；;,.、\n]", excerpt)
-                    for c in candidates:
-                        t = c.strip()
-                        if 4 <= len(t) <= 30 and t not in coverage_hints:
-                            coverage_hints.append(t)
-                        if len(coverage_hints) >= 6:
-                            break
-            # 检查这些要点是否已在当前输出中直接出现
-            if coverage_hints:
-                combined = " ".join(
-                    [
-                        result.role_section or "",
-                        result.context_section or "",
-                        result.interaction_section or "",
-                        result.transition_section or "",
-                    ]
+            coverage_hints = self._build_stage_coverage_hints(stage)
+            missing = self._calc_missing_anchors(result, coverage_hints)
+            if missing:
+                display = "、".join(missing[:8])
+                coverage_text = (
+                    f"在实际对话与反馈中，请特别确保围绕以下原文要点展开，"
+                    f"不得只作概括性说明：{display}。"
                 )
-                missing = [p for p in coverage_hints if p and p not in combined]
-                if missing:
-                    display = "、".join(missing[:6])
-                    coverage_text = (
-                        f"在实际对话与反馈中，请特别确保围绕以下原文要点展开，"
-                        f"不得只作概括性说明：{display}。"
-                    )
-                    constraints = ensure_constraint(constraints, "原文要点", coverage_text)
+                constraints = ensure_constraint(constraints, "原文要点", coverage_text)
         except Exception:
             # 自检失败不应影响正常生成，静默忽略
             pass
@@ -594,8 +617,9 @@ class DSPyCardGenerator:
                 "- **不要做评分式总结**：少用「整体不错」「这一段掌握得还可以」这类泛泛评价；重点是接住最后一轮，而不是给整段下结论。\n"
                 "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接（如患者致谢、医生嘱托、同事带出下一话题等）。\n"
                 "- **避免长篇旁白**：优先用1-2句简短情境提示和回应，不要写大段第三人称叙述。\n"
+                "- **去情绪化表达**：尽量避免「从XX转向XX」等情绪转折句式，优先描述学生行为是否达标、事实是否准确、下一步任务是什么。\n"
                 "- **严禁任何括号内容**\n"
-                "- **控制输出长度**：# Output部分50-80字，所有文字可直接朗读。"
+                "- **控制输出长度**：# Output部分80-150字，所有文字可直接朗读。"
             ))
         else:
             # 简洁版：无Role部分
@@ -605,9 +629,10 @@ class DSPyCardGenerator:
                 "- **先回应再过渡**：基于 `${previous_dialogue}`，优先回应上一张A卡最后一轮学生回答。答对时点明答对处并顺手补一句；答偏、答错或犹豫时只纠正最关键的一点，再自然带出下一话题。\n"
                 "- **不要做评分式总结**：少用「整体不错」「这一段掌握得还可以」这类泛泛评价；重点是接住最后一轮，而不是给整段下结论。\n"
                 "- **严禁出戏**：严禁在 Output 中使用「本环节」「本阶段」「您在本环节已经/尚未/未能」「现在请进入下一阶段」等流程用语；根据当前NPC身份与剧情自然衔接或收尾（如患者可致谢、医生可嘱托、同事可带出下一话题等，不固定一种口吻）。\n"
+                "- **去情绪化表达**：尽量避免情绪化词汇堆砌和情绪转折句式，优先用可观察行为与任务达成语言表达过渡。\n"
                 "- **严禁任何括号内容**\n"
                 "- **严禁第三人称长篇场景叙述**：用一句情境式台词自然过渡即可。\n"
-                "- **控制输出长度**：# Output部分30-80字，所有文字可直接朗读。"
+                "- **控制输出长度**：# Output部分80-150字，所有文字可直接朗读。"
             ))
 
         # 在所有B类卡片正文最前面追加占位参数，供平台使用
@@ -648,7 +673,8 @@ class DSPyCardGenerator:
                 "title": ending_title,
                 "description": ending_desc,
                 "interaction_rounds": 0,
-            }
+            },
+            default_interaction_rounds=0,
         )
 
         # 使用DSPy模型基于完整剧本与最后一幕信息动态生成收尾内容
@@ -701,6 +727,18 @@ class DSPyCardGenerator:
             format_card_section("Constraints", constraints),
         ]
 
+        # 防御性校验：结尾A卡轮次必须是0，避免任何路径回退为5
+        if '"interaction_rounds": 0' not in ending_stage_meta:
+            ending_stage_meta = self._create_stage_meta(
+                {
+                    "title": ending_title,
+                    "description": ending_desc,
+                    "interaction_rounds": 0,
+                },
+                default_interaction_rounds=0,
+            )
+            sections[0] = ending_stage_meta
+
         card_body = "\n\n".join(sections)
         ending_num = len(stages) + 1
         return f"# 卡片{ending_num}A\n\n{card_body}"
@@ -724,6 +762,17 @@ class DSPyCardGenerator:
         is_guidance = _is_guidance_stage(stage)
 
         content_excerpt = stage.get('content_excerpt', '')
+        stage_key_points_text = ', '.join(stage.get('key_points', []))
+        coverage_hints = self._build_stage_coverage_hints(stage)
+        if coverage_hints:
+            must_cover_text = "、".join(coverage_hints[:10])
+            content_excerpt = (
+                "【分幕全覆盖要求】所有A卡合起来必须覆盖完整文档。你负责第"
+                f"{stage_index}幕，必须尽量覆盖本幕 content_excerpt/key_points 的核心信息，"
+                "不得只给抽象总结。\n"
+                f"【本幕必覆盖锚点】{must_cover_text}\n\n"
+                f"{content_excerpt}"
+            )
         if is_guidance:
             guidance_prefix = (
                 "【指导讲解模式】本幕为讲解指导型，NPC 的主要任务是先把步骤、原理和风险讲清楚，"
@@ -741,10 +790,33 @@ class DSPyCardGenerator:
                 stage_title=stage.get('title', ''),
                 npc_role=stage.get('role', ''),
                 scene_goal=stage.get('task', ''),
-                key_points=', '.join(stage.get('key_points', [])),
+                key_points=stage_key_points_text,
                 content_excerpt=content_excerpt,
                 include_prologue=include_prologue
             )
+
+        # 覆盖度不足时自动补强重试一次：强化“本幕必覆盖锚点”后再生成。
+        missing = self._calc_missing_anchors(result, coverage_hints) if coverage_hints else []
+        if missing:
+            retry_excerpt = (
+                "【覆盖补强重试】上一版输出仍有锚点遗漏。请在 Role/Context/Interaction/Transition 中"
+                "明确纳入以下遗漏锚点，避免泛化表达。\n"
+                f"【遗漏锚点】{'、'.join(missing[:10])}\n\n"
+                f"{content_excerpt}"
+            )
+            with _dspy_lm_lock:
+                dspy.configure(lm=self.lm)
+                result = self.card_a_generator(
+                    full_script=full_script,
+                    stage_index=stage_index,
+                    total_stages=total_stages,
+                    stage_title=stage.get('title', ''),
+                    npc_role=stage.get('role', ''),
+                    scene_goal=stage.get('task', ''),
+                    key_points=stage_key_points_text,
+                    content_excerpt=retry_excerpt,
+                    include_prologue=include_prologue
+                )
 
         stage_meta = self._create_stage_meta(stage)
         return self._format_card_a(result, stage_index, stage_meta, stage)
