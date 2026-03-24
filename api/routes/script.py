@@ -100,7 +100,7 @@ async def upload_and_analyze(file: UploadFile = File(...), workspace_id: str = D
             out["trainset_count"] = 1
         return out
     except Exception as e:
-        raise LLMError("上传解析或分析失败", details={"reason": str(e)})
+        raise LLMError("上传解析或分析失败，"+str(e), details={"reason": str(e)})
     finally:
         try:
             os.unlink(path)

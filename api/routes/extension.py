@@ -171,7 +171,8 @@ async def upload_parse(file: UploadFile = File(...)):
         from parsers import get_parser_for_extension
         from generators import ContentSplitter
         from generators.trainset_builder import write_trainset_for_document
-        from simulator import PersonaGeneratorFactory
+        from simulator.student_persona import PersonaGenerator
+        from api.routes.llm_config import build_chat_completions_url
 
         full_content = get_parser_for_extension(suffix)(path)
         llm = _get_llm_config()
@@ -195,7 +196,13 @@ async def upload_parse(file: UploadFile = File(...)):
             source_file=file.filename or "",
         )
 
-        generator = PersonaGeneratorFactory.create_from_env()
+        generator = PersonaGenerator(
+            {
+                "api_url": build_chat_completions_url(llm.get("base_url") or ""),
+                "api_key": llm.get("api_key") or "",
+                "model": llm.get("model") or "",
+            }
+        )
         personas = generator.generate_from_material(
             material_content=full_content,
             num_personas=3,
@@ -210,8 +217,8 @@ async def upload_parse(file: UploadFile = File(...)):
         generator.save_personas(
             personas,
             output_dir=persona_output_dir,
-            source_basename=source_basename,
-            use_level_filenames_only=True,
+            source_basename=f"{safe_name}_人设",
+            use_level_filenames_only=False,
         )
 
         persona_dir = f"output/{PERSONA_LIB_SUBDIR}/{subdir}"
