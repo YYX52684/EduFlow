@@ -904,7 +904,7 @@
         if (jwtEl) jwtEl.value = d.jwt || "";
         if (startEl) startEl.value = d.startNodeId || "";
         if (endEl) endEl.value = d.endNodeId || "";
-        setStatus(platformConfigStatus, "已获取，可逐项复制到 Web 端", "success");
+        setStatus(platformConfigStatus, "已获取平台配置，可按需复制", "success");
         if (platformConfigFields) platformConfigFields.style.display = "block";
       } catch (e) {
         setStatus(platformConfigStatus, "获取失败：" + (e.message || ""), "error");

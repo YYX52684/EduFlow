@@ -56,5 +56,6 @@ def test_render_transition_prompt_prepends_dialogue_when_placeholder_missing():
 
     rendered = card.render_transition_prompt("学生最后一轮回答: bacterium。")
 
-    assert rendered.startswith("学生最后一轮回答: bacterium。")
+    assert "学生最后一轮回答: bacterium。" in rendered
+    assert "【对话历史优先规则】" in rendered
     assert "# Role" in rendered
