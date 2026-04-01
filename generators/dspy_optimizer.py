@@ -10,12 +10,8 @@ import time
 from typing import List, Dict, Any, Optional, Callable
 
 import dspy
-from .dspy_card_generator import (
-    DSPyCardGenerator,
-    CardAGeneratorModule,
-    CardBGeneratorModule,
-    _optimizer_context,
-)
+from .dspy_card_orchestrator import DSPyCardGenerator
+from .dspy_card_runtime import _optimizer_context
 
 
 def make_card_generator_program(
@@ -80,6 +76,9 @@ def run_bootstrap_optimizer(
     Returns:
         优化后的 dspy.Module（CardGeneratorProgram）。
     """
+    if not use_auto_eval:
+        raise ValueError("当前仅支持闭环自动评估（use_auto_eval=True）")
+
     program = make_card_generator_program(api_key=api_key, model_type=model_type)
     dspy.configure(lm=program._generator.lm)
 
@@ -170,6 +169,9 @@ def run_mipro_optimizer(
     Returns:
         优化后的 dspy.Module（CardGeneratorProgram）。
     """
+    if not use_auto_eval:
+        raise ValueError("当前仅支持闭环自动评估（use_auto_eval=True）")
+
     program = make_card_generator_program(api_key=api_key, model_type=model_type)
     dspy.configure(lm=program._generator.lm)
 
@@ -214,11 +216,18 @@ def run_mipro_optimizer(
 
     # 使用 MIPROv2 优化器（auto 模式默认 "light"，与 num_candidates 互斥，不传 num_candidates）
     # num_threads 固定为 1：dspy.settings 为线程局部，多线程会导致 "can only be changed by the thread that initially configured it"
+    effective_threads = max(1, min(int(num_threads or 1), 1))
+    mipro_config = {
+        "metric": metric_fn,
+        "init_temperature": init_temperature,
+        "verbose": verbose,
+        "num_threads": effective_threads,
+    }
+    if num_candidates is not None:
+        mipro_config["num_candidates"] = num_candidates
+    mipro_config.update(mipro_kwargs)
     optimizer = dspy.MIPROv2(
-        metric=metric_fn,
-        init_temperature=init_temperature,
-        verbose=verbose,
-        num_threads=1,
+        **mipro_config,
     )
 
     _optimizer_context.running = True

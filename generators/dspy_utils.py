@@ -19,24 +19,12 @@ _POSITIVE_FEEDBACK_KEYWORDS = [
 ]
 
 _GENERIC_POSITIVE_FEEDBACK_PHRASES = [
-    "这个判断抓住重点了，我们继续往下推一层。",
-    "你已经碰到关键点了，再把理由说扎实一点。",
-    "这个方向是对的，继续顺着这个思路展开。",
-    "你把核心意思说到了，下面再补一层细节。",
-    "这个回答有章法，继续保持这样的思路。",
-    "你抓到重点了，再把最关键的一步讲清楚。",
-    "这个切入点不错，我们接着往实处落。",
-    "回答方向没偏，下面把关键依据补完整。",
-    "这个理解已经很接近完整答案了，再往前走一步。",
-    "你已经说到要害了，继续把重点展开。",
-    "这一步把住了主线，我们继续往下推进。",
-    "你的理解基本到位了，下面再细化一下。",
-    "这个回答有抓手，继续往深一层想。",
-    "你已经把核心脉络理出来了，接着补足细节。",
-    "这个点抓得准，下面再把关键信息说实。",
-    "这一步回应得不错，我们继续顺着往下问。",
-    "你已经把主要问题扣住了，接着完善关键一环。",
-    "这个回答有基础了，再把最能支撑结论的部分补出来。",
+    "方向对了。",
+    "这个点抓住了。",
+    "思路基本正确。",
+    "这个判断可用。",
+    "主线没偏。",
+    "这个回答到位。",
 ]
 
 _EVIDENCE_POSITIVE_FEEDBACK_PHRASES = [
@@ -191,7 +179,7 @@ def should_inject_positive_feedback(text: str) -> bool:
 
     # 稀疏注入：让“补一句表扬”退回兜底策略，而不是每张卡的固定尾巴。
     bucket = int(hashlib.sha256(stripped.encode("utf-8")).hexdigest()[:8], 16) % 100
-    return bucket < 35
+    return bucket < 15
 
 
 def _append_sentence(text: str, sentence: str) -> str:
@@ -218,6 +206,66 @@ def inject_optional_positive_feedback(text: str) -> str:
     return _append_sentence(text, chosen)
 
 
+def normalize_interaction_text(text: str) -> str:
+    """将 Interaction 规范为结构化文本，保留必要换行与要点格式。"""
+    if not text:
+        return text
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return ""
+
+    paragraphs = []
+    for chunk in re.split(r"\n\s*\n+", normalized):
+        item = chunk.strip()
+        if not item:
+            continue
+        item = re.sub(r"^#\s*Interaction[:：]?\s*", "", item, flags=re.IGNORECASE)
+        # 仅清理每行首尾空白，保留多轮策略所需的标题/要点结构
+        item = "\n".join(line.strip() for line in item.split("\n") if line.strip())
+        if item:
+            paragraphs.append(item)
+
+    return "\n\n".join(paragraphs)
+
+
+def _sanitize_dialogue_line(line: str) -> str:
+    """对单行互动文本做反 AI 味净化，不处理 markdown 结构行。"""
+    s = line.strip()
+    if not s:
+        return s
+    if s.startswith(("#", "-", "*")):
+        return s
+
+    # 去掉教学提示腔
+    s = re.sub(r"(^|[。！？!?；;])\s*提示[:：]\s*", r"\1", s)
+    # 去掉“你提到的...”开头复述腔
+    s = re.sub(r"(^|[。！？!?；;])\s*你提到的(?:这些)?", r"\1", s)
+
+    # 压缩冗长表扬前缀，改为短反馈
+    praise_words = ("不错", "很好", "很专业", "很全面", "很到位", "挺好")
+    m = re.match(r"^\s*([^。！？!?]{18,140})([。！？!?])", s)
+    if m and any(word in m.group(1) for word in praise_words):
+        rest = s[m.end():].lstrip()
+        if rest:
+            s = f"这个方向对了。{rest}"
+
+    # 清理多余空白与标点
+    s = re.sub(r"\s+", " ", s).strip()
+    s = re.sub(r"[，、]\s*[，、]+", "，", s)
+    s = re.sub(r"[。！？!?；;]\s*[。！？!?；;]+", "。", s)
+    return s
+
+
+def sanitize_interaction_style(text: str) -> str:
+    """净化 Interaction 文风：去提示腔、去复述腔、压缩冗长表扬。"""
+    if not text:
+        return text
+    lines = text.split("\n")
+    cleaned = [_sanitize_dialogue_line(line) for line in lines]
+    return "\n".join(cleaned).strip()
+
+
 def post_process_fields(
     obj: Any,
     fields: List[str],
@@ -235,6 +283,12 @@ def post_process_fields(
         text = getattr(obj, field, '')
         if text and contains_brackets(text):
             setattr(obj, field, strip_brackets(text))
+        if field == 'interaction_section':
+            current = getattr(obj, field, '')
+            if isinstance(current, str) and current:
+                current = normalize_interaction_text(current)
+                current = sanitize_interaction_style(current)
+                setattr(obj, field, current)
         # 针对交互体验性强的字段，注入正向激励（使用当前值，确保括号已清理）
         if inject_positive_feedback and field == 'interaction_section':
             current = getattr(obj, field, '')

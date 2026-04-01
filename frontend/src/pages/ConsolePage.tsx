@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
     ApiError,
     apiGet,
@@ -28,6 +29,35 @@ interface GenerateResponse {
   content_preview?: string;
 }
 
+interface UploadBatchItem extends UploadResponse {
+  index: number;
+  success: boolean;
+  error?: string;
+}
+
+interface UploadBatchResponse {
+  results: UploadBatchItem[];
+  total_count: number;
+  success_count: number;
+  failure_count: number;
+  max_concurrency: number;
+}
+
+interface GenerateBatchItem extends Partial<GenerateResponse> {
+  index: number;
+  success: boolean;
+  source_filename?: string;
+  error?: string;
+}
+
+interface GenerateBatchResponse {
+  results: GenerateBatchItem[];
+  total_count: number;
+  success_count: number;
+  failure_count: number;
+  max_concurrency: number;
+}
+
 interface WorkspaceFile {
   name: string;
   path: string;
@@ -52,6 +82,12 @@ interface TrainsetListResponse {
   files: TrainsetFile[];
 }
 
+interface AuthMeResponse {
+  user?: {
+    is_optimizer_admin?: boolean;
+  };
+}
+
 function normalizeCardsPath(p: string): string {
   const s = (p || "").trim();
   return s.startsWith("output/") ? s : s ? `output/${s}` : "";
@@ -59,13 +95,18 @@ function normalizeCardsPath(p: string): string {
 
 export const ConsolePage = () => {
   const [analyzing, setAnalyzing] = useState(false);
+  const [selectedScriptFiles, setSelectedScriptFiles] = useState<File[]>([]);
   const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
+  const [uploadResults, setUploadResults] = useState<UploadBatchItem[]>([]);
   const [analyzeMessage, setAnalyzeMessage] = useState<string | null>(null);
+  const [personaGenerating, setPersonaGenerating] = useState(false);
+  const [personaGenerateMessage, setPersonaGenerateMessage] = useState<string | null>(null);
 
   const [generating, setGenerating] = useState(false);
   const [generateResult, setGenerateResult] = useState<GenerateResponse | null>(
     null,
   );
+  const [generateResults, setGenerateResults] = useState<GenerateBatchItem[]>([]);
   const [generateMessage, setGenerateMessage] = useState<string | null>(null);
 
   const [outputFiles, setOutputFiles] = useState<WorkspaceFile[]>([]);
@@ -97,26 +138,46 @@ export const ConsolePage = () => {
   const [optimizerProgress, setOptimizerProgress] = useState("");
   const [optimizerResult, setOptimizerResult] = useState<unknown>(null);
   const [optimizerMessage, setOptimizerMessage] = useState<string | null>(null);
+  const [isOptimizerAdmin, setIsOptimizerAdmin] = useState(false);
+  const [optimizerType, setOptimizerType] = useState<"bootstrap" | "mipro">("bootstrap");
+  const [optimizerPersonaId, setOptimizerPersonaId] = useState("excellent");
+  const [optimizerRoundsMode, setOptimizerRoundsMode] = useState<"default" | "custom">("default");
+  const [optimizerMaxRoundsInput, setOptimizerMaxRoundsInput] = useState("1");
+  const [optimizerNoCache, setOptimizerNoCache] = useState(false);
+
+  async function refreshConsoleData() {
+    const [filesResp, personasResp, trainsetResp] = await Promise.all([
+      apiGet<FilesResponse>("/output/files"),
+      apiGet<PersonasResponse>("/personas"),
+      apiGet<TrainsetListResponse>("/trainset/list"),
+    ]);
+    setOutputFiles((filesResp?.files as WorkspaceFile[]) || []);
+    setPersonas(personasResp || null);
+    setTrainsetFiles(trainsetResp?.files || []);
+  }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [filesResp, personasResp, trainsetResp] = await Promise.all([
+        const [filesResp, personasResp, trainsetResp, meResp] = await Promise.all([
           apiGet<FilesResponse>("/output/files"),
           apiGet<PersonasResponse>("/personas"),
           apiGet<TrainsetListResponse>("/trainset/list"),
+          apiGet<AuthMeResponse>("/auth/me"),
         ]);
         if (!cancelled) {
           setOutputFiles((filesResp?.files as WorkspaceFile[]) || []);
           setPersonas(personasResp || null);
           setTrainsetFiles(trainsetResp?.files || []);
+          setIsOptimizerAdmin(!!meResp?.user?.is_optimizer_admin);
         }
       } catch {
         if (!cancelled) {
           setOutputFiles([]);
           setPersonas(null);
           setTrainsetFiles([]);
+          setIsOptimizerAdmin(false);
         }
       }
     })();
@@ -139,74 +200,140 @@ export const ConsolePage = () => {
     ...(personas?.custom || []),
   ];
 
+  useEffect(() => {
+    if (!personaOptions.includes(optimizerPersonaId)) {
+      setOptimizerPersonaId(personaOptions[0] || "excellent");
+    }
+  }, [optimizerPersonaId, personaOptions]);
+
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const input = e.currentTarget.elements.namedItem(
       "script_file",
     ) as HTMLInputElement | null;
-    const file = input?.files?.[0];
-    if (!file) {
-      setAnalyzeMessage("请先选择一个剧本文件。");
+    const files = Array.from(input?.files || []);
+    if (!files.length) {
+      setAnalyzeMessage("请先选择至少一个剧本文件。");
       return;
     }
+    setSelectedScriptFiles(files);
     const form = new FormData();
-    form.append("file", file);
+    files.forEach((file) => form.append("files", file));
+    if (files.length > 1) {
+      form.append("max_concurrency", String(Math.min(files.length, 3)));
+    }
 
     setAnalyzing(true);
     setAnalyzeMessage(null);
     setUploadResult(null);
+    setUploadResults([]);
     setGenerateResult(null);
+    setGenerateResults([]);
     setGenerateMessage(null);
+    setPersonaGenerateMessage(null);
     try {
-      const data = await apiRequest<UploadResponse>({
-        path: "/script/upload",
+      const data = await apiRequest<UploadBatchResponse>({
+        path: "/script/upload-batch",
         method: "POST",
         body: form,
       });
-      setUploadResult(data);
-      const note = data.truncated_note ? `（${data.truncated_note}）` : "";
-      const trainsetInfo =
-        data.trainset_count != null
-          ? `；Trainset 已更新（共 ${data.trainset_count} 条），闭环优化时将使用。`
-          : "";
-      setAnalyzeMessage(
-        `已解析「${data.filename}」：共 ${data.stages_count} 个阶段，原文长度 ${data.full_content_length} 字${note}${trainsetInfo}`,
+      const results = data.results || [];
+      const successItems = results.filter(
+        (item) => item.success && item.full_content && item.stages_count > 0,
       );
+      setUploadResults(results);
+      setUploadResult(successItems[0] || null);
+      const successCount = data.success_count ?? successItems.length;
+      const failureCount = data.failure_count ?? Math.max(0, results.length - successCount);
+      setAnalyzeMessage(
+        `批量解析完成：成功 ${successCount} 个，失败 ${failureCount} 个。`,
+      );
+      if (successCount > 0) {
+        await refreshConsoleData();
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setAnalyzeMessage(err.message);
       } else {
-        setAnalyzeMessage("解析失败，请稍后重试。");
+        setAnalyzeMessage("批量解析失败，请稍后重试。");
       }
     } finally {
       setAnalyzing(false);
     }
   }
 
+  async function handleGeneratePersonas() {
+    if (selectedScriptFiles.length !== 1) {
+      setPersonaGenerateMessage("请先只选择一个剧本文件，再生成人设。");
+      return;
+    }
+    setPersonaGenerating(true);
+    setPersonaGenerateMessage("正在根据剧本生成学生人设…");
+    try {
+      const form = new FormData();
+      form.append("file", selectedScriptFiles[0]);
+      form.append("num_personas", "3");
+      const data = await apiRequest<{ count?: number }>({
+        path: "/personas/generate",
+        method: "POST",
+        body: form,
+      });
+      setPersonaGenerateMessage(`已生成 ${data.count ?? 0} 个人设，并已写入人设库。`);
+      await refreshConsoleData();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setPersonaGenerateMessage(err.message);
+      } else {
+        setPersonaGenerateMessage("生成人设失败，请稍后重试。");
+      }
+    } finally {
+      setPersonaGenerating(false);
+    }
+  }
+
   async function handleGenerate() {
-    if (!uploadResult) {
-      setGenerateMessage("请先上传并解析剧本。");
+    const validItems = uploadResults.filter(
+      (item) => item.success && item.full_content && item.stages && item.stages.length,
+    );
+    if (!validItems.length) {
+      setGenerateMessage("请先上传并解析至少一个可用剧本。");
       return;
     }
     setGenerating(true);
-    setGenerateMessage("正在生成卡片…");
+    setGenerateMessage(`正在并发生成 ${validItems.length} 份卡片…`);
     setGenerateResult(null);
+    setGenerateResults([]);
     try {
-      const res = await apiPostJson<GenerateResponse>("/cards/generate", {
-        full_content: uploadResult.full_content,
-        stages: uploadResult.stages,
-        framework_id: "dspy",
-        source_filename: uploadResult.filename,
+      const res = await apiPostJson<GenerateBatchResponse>("/cards/generate-batch", {
+        items: validItems.map((item) => ({
+          full_content: item.full_content,
+          stages: item.stages,
+          framework_id: "dspy",
+          source_filename: item.filename,
+        })),
+        max_concurrency: validItems.length,
       });
-      setGenerateResult(res);
-      setGenerateMessage(
-        `已生成卡片：${res.output_path}（阶段数 ${res.stages_count}，估算卡片数 ${res.cards_count}）`,
+      const results = res.results || [];
+      const successItems = results.filter(
+        (item) => item.success && item.output_path,
       );
+      setGenerateResults(results);
+      setGenerateResult((successItems[0] as GenerateResponse | undefined) || null);
+      const firstOutputPath = successItems[0]?.output_path;
+      if (firstOutputPath) {
+        setCardsPath(normalizeCardsPath(firstOutputPath));
+      }
+      setGenerateMessage(
+        `批量生成完成：成功 ${res.success_count ?? successItems.length} 个，失败 ${res.failure_count ?? Math.max(0, results.length - successItems.length)} 个。`,
+      );
+      if (results.length > 0) {
+        await refreshConsoleData();
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setGenerateMessage(err.message);
       } else {
-        setGenerateMessage("生成失败，请稍后重试。");
+        setGenerateMessage("批量生成失败，请稍后重试。");
       }
     } finally {
       setGenerating(false);
@@ -382,8 +509,14 @@ export const ConsolePage = () => {
         "/optimizer/run-stream",
         {
           ...(selectedTrainsetPath ? { trainset_path: selectedTrainsetPath } : {}),
+          optimizer_type: optimizerType,
+          persona_id: optimizerPersonaId || "excellent",
+          max_rounds:
+            optimizerRoundsMode === "custom"
+              ? Math.max(1, parseInt(optimizerMaxRoundsInput || "1", 10) || 1)
+              : null,
+          no_cache: optimizerNoCache,
           use_auto_eval: true,
-          optimizer_type: "bootstrap",
         },
         {
           onProgress: (d) => {
@@ -393,7 +526,8 @@ export const ConsolePage = () => {
             setOptimizerResult(d);
             setOptimizerProgress("完成");
             const hint = (d as { hint?: string })?.hint;
-            setOptimizerMessage(hint || "优化完成");
+            const cacheHit = !!(d as { cache_hit?: boolean })?.cache_hit;
+            setOptimizerMessage(hint || (cacheHit ? "命中缓存，未重跑优化" : "优化完成"));
           },
           onError: (msg) => {
             setOptimizerMessage(msg);
@@ -416,15 +550,15 @@ export const ConsolePage = () => {
       <section className="page-section">
         <div className="page-section-title">
           <h2>1. 剧本上传与解析</h2>
-          <span className="pill">支持 .md / .docx / .doc / .pdf</span>
+          <span className="pill">支持 .md / .docx / .doc / .pdf；支持批量</span>
         </div>
         <p className="page-section-desc">
-          上传教学剧本，解析为阶段结构并写入 trainset 库，为闭环优化做准备。
+          一次可选择多个教学剧本，批量解析为阶段结构并写入 trainset 库，为后续并发生成卡片做准备。
         </p>
 
         <form onSubmit={handleUpload} className="stack-v">
           <label className="field-label" htmlFor="script-file">
-            选择剧本文件
+            选择一个或多个剧本文件
           </label>
           <input
             id="script-file"
@@ -432,48 +566,119 @@ export const ConsolePage = () => {
             type="file"
             className="field-input"
             accept=".md,.docx,.doc,.pdf"
+            multiple
+            onChange={(e) =>
+              setSelectedScriptFiles(Array.from(e.target.files || []))
+            }
           />
-          <button type="submit" className="btn btn-primary" disabled={analyzing}>
-            {analyzing ? "解析中…" : "上传并解析"}
-          </button>
+          {selectedScriptFiles.length > 0 && (
+            <div className="hint">
+              已选择 {selectedScriptFiles.length} 个文件
+              {selectedScriptFiles.length === 1
+                ? `：${selectedScriptFiles[0].name}`
+                : "，解析后可并发生成卡片。"}
+            </div>
+          )}
+          <div className="stack-h">
+            <button type="submit" className="btn btn-primary" disabled={analyzing}>
+              {analyzing ? "解析中…" : "上传并解析"}
+            </button>
+            <button
+              type="button"
+              className="btn secondary"
+              disabled={personaGenerating || selectedScriptFiles.length !== 1}
+              onClick={handleGeneratePersonas}
+            >
+              {personaGenerating ? "生成人设中…" : "根据单份剧本生成人设"}
+            </button>
+          </div>
         </form>
 
         {analyzeMessage && (
           <div
             className={
-              "hint" + (uploadResult ? " text-success" : " text-danger")
+              "hint" +
+              (uploadResults.some((item) => item.success)
+                ? " text-success"
+                : " text-danger")
             }
             style={{ marginTop: 8 }}
           >
             {analyzeMessage}
           </div>
         )}
+
+        {personaGenerateMessage && (
+          <div
+            className={
+              "hint" +
+              (personaGenerateMessage.includes("已生成")
+                ? " text-success"
+                : " text-danger")
+            }
+          >
+            {personaGenerateMessage}
+          </div>
+        )}
+
+        {uploadResults.length > 0 && (
+          <div className="stack-v" style={{ marginTop: 8 }}>
+            {uploadResults.map((item) => (
+              <div key={`${item.index}-${item.filename}`} className="card-muted">
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ wordBreak: "break-word" }}>{item.filename}</span>
+                  <strong
+                    style={{
+                      color: item.success ? "var(--accent-strong)" : "#b2523c",
+                    }}
+                  >
+                    {item.success ? "解析成功" : "解析失败"}
+                  </strong>
+                </div>
+                {item.success ? (
+                  <div className="hint" style={{ marginTop: 6 }}>
+                    阶段数：{item.stages_count}；原文长度：{item.full_content_length} 字
+                  </div>
+                ) : (
+                  <div className="hint text-danger" style={{ marginTop: 6 }}>
+                    {item.error || "解析失败"}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="page-section">
         <div className="page-section-title">
-          <h2>2. 生成教学卡片</h2>
-          <span className="pill">调用 /api/cards/generate</span>
+          <h2>2. 批量生成教学卡片</h2>
+          <span className="pill">调用 /api/cards/generate-batch</span>
         </div>
         <p className="page-section-desc">
-          在解析基础上使用 LLM 生成 A/B 类教学卡片，写入 output/ 目录。
+          在解析基础上并发生成多份 A/B 类教学卡片，输出文件默认命名为 `cards_文件名.md`。
         </p>
 
         <div className="stack-v">
           <button
             type="button"
             className="btn btn-primary"
-            disabled={generating || !uploadResult}
+            disabled={
+              generating ||
+              !uploadResults.some(
+                (item) => item.success && item.stages && item.stages.length,
+              )
+            }
             onClick={handleGenerate}
           >
-            {generating ? "生成中…" : "生成卡片 Markdown"}
+            {generating ? "批量生成中…" : "并发生成卡片 Markdown"}
           </button>
 
           {generateMessage && (
             <div
               className={
                 "hint" +
-                (generateResult && generateResult.output_path
+                (generateResults.some((item) => item.success)
                   ? " text-success"
                   : " text-danger")
               }
@@ -482,20 +687,57 @@ export const ConsolePage = () => {
             </div>
           )}
 
+          {generateResults.length > 0 && (
+            <div className="stack-v">
+              {generateResults.map((item, idx) => (
+                <div
+                  key={`${item.index}-${item.source_filename || idx}`}
+                  className="card-muted"
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span style={{ wordBreak: "break-word" }}>
+                      {item.source_filename || `文件 ${idx + 1}`}
+                    </span>
+                    <strong
+                      style={{
+                        color: item.success ? "var(--accent-strong)" : "#b2523c",
+                      }}
+                    >
+                      {item.success ? "生成成功" : "生成失败"}
+                    </strong>
+                  </div>
+                  {item.success && item.output_path ? (
+                    <div className="hint" style={{ marginTop: 6 }}>
+                      输出路径：<code>{item.output_path}</code>
+                      {" · "}
+                      <Link
+                        to={`/workspace?kind=output&open=${encodeURIComponent(item.output_path)}`}
+                      >
+                        打开并编辑
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="hint text-danger" style={{ marginTop: 6 }}>
+                      {item.error || "生成失败"}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {generateResult && (
             <div className="card-muted">
               <div>
-                生成文件路径：
+                默认选中的卡片路径：
                 <code>{generateResult.output_path}</code>
+                {" · "}
+                <Link
+                  to={`/workspace?kind=output&open=${encodeURIComponent(generateResult.output_path)}`}
+                >
+                  去工作区查看
+                </Link>
               </div>
-              {generateResult.content_preview && (
-                <details style={{ marginTop: 6 }}>
-                  <summary className="hint">预览前 2k 字</summary>
-                  <pre style={{ whiteSpace: "pre-wrap" }}>
-                    {generateResult.content_preview}
-                  </pre>
-                </details>
-              )}
             </div>
           )}
         </div>
@@ -736,6 +978,72 @@ export const ConsolePage = () => {
               <p className="hint" style={{ marginTop: 8, marginBottom: 8 }}>
                 基于 trainset 迭代优化，闭环模式自动用三档人设（优秀/一般/较差）并行评估取均值。
               </p>
+              <label className="field-label">优化人设</label>
+              <select
+                className="field-input"
+                value={optimizerPersonaId}
+                onChange={(e) => setOptimizerPersonaId(e.target.value)}
+                style={{ maxWidth: 240 }}
+              >
+                {personaOptions.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+              <label className="field-label">Rounds</label>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <label className="hint">
+                  <input
+                    type="radio"
+                    name="reactOptimizerRounds"
+                    checked={optimizerRoundsMode === "default"}
+                    onChange={() => setOptimizerRoundsMode("default")}
+                  />{" "}
+                  默认
+                </label>
+                <label className="hint">
+                  <input
+                    type="radio"
+                    name="reactOptimizerRounds"
+                    checked={optimizerRoundsMode === "custom"}
+                    onChange={() => setOptimizerRoundsMode("custom")}
+                  />{" "}
+                  自定义
+                </label>
+                <input
+                  type="number"
+                  className="field-input"
+                  min={1}
+                  max={99}
+                  disabled={optimizerRoundsMode !== "custom"}
+                  value={optimizerMaxRoundsInput}
+                  onChange={(e) => setOptimizerMaxRoundsInput(e.target.value)}
+                  style={{ width: 100 }}
+                />
+              </div>
+              {isOptimizerAdmin && (
+                <>
+                  <label className="field-label">优化器</label>
+                  <select
+                    className="field-input"
+                    value={optimizerType}
+                    onChange={(e) => setOptimizerType(e.target.value as "bootstrap" | "mipro")}
+                    style={{ maxWidth: 240 }}
+                  >
+                    <option value="bootstrap">bootstrap</option>
+                    <option value="mipro">mipro</option>
+                  </select>
+                </>
+              )}
+              <label className="hint">
+                <input
+                  type="checkbox"
+                  checked={optimizerNoCache}
+                  onChange={(e) => setOptimizerNoCache(e.target.checked)}
+                />{" "}
+                强制重跑（跳过缓存）
+              </label>
               <button
                 type="button"
                 className="btn secondary"

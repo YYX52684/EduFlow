@@ -252,16 +252,18 @@
   </div>
   <div class="section-body">
   <label>拖入或点选原文档（剧本）</label>
-  <div id="scriptDropZone" class="drop-zone script-dropzone" data-empty-text="将 .md / .docx / .pdf 拖至此处，或点击选取">
-    <span id="scriptDropZoneText">将 .md / .docx / .pdf 拖至此处，或点击选取</span>
+  <div id="scriptDropZone" class="drop-zone script-dropzone" data-empty-text="将一个或多个 .md / .docx / .pdf 拖至此处，或点击选取">
+    <span id="scriptDropZoneText">将一个或多个 .md / .docx / .pdf 拖至此处，或点击选取</span>
     <span id="scriptDropZoneHint" class="script-dropzone-hint" style="display:none">点击或拖入新文件可更换</span>
   </div>
-  <input type="file" id="scriptFile" accept=".md,.docx,.doc,.pdf">
+  <input type="file" id="scriptFile" accept=".md,.docx,.doc,.pdf" multiple>
   <div class="gen-cards-row">
     <button type="button" id="btnGenCards" disabled title="请先上传并解析剧本，再生成卡片">生成卡片</button>
     <button type="button" id="btnGenPersonaFromScript" class="btn-secondary" disabled title="使用上方已选剧本生成学生人设，并自动添加到人设库">生成学生人设</button>
   </div>
   <div id="uploadMsg" class="msg"></div>
+  <div id="scriptBatchSummary" class="hint" style="display:none;margin-top:0.35rem;"></div>
+  <div id="scriptBatchList" style="display:none;margin-top:0.5rem;"></div>
   <div id="personaGenMsg" class="msg" style="margin-top:0.25rem;"></div>
   <div id="cardGenProgressWrap" class="card-gen-progress" style="display:none;margin-top:0.5rem;">
     <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--natsume-ink-light);">
@@ -374,6 +376,9 @@
         <div class="picker-ios picker-ios--full">
           <select id="optimizerType" class="select-ios"><option value="bootstrap">bootstrap</option><option value="mipro">mipro</option></select>
         </div>
+        <label class="opt-checkbox-wrap" style="margin-top:0.4rem;">
+          <input type="checkbox" id="optimizerNoCache" class="opt-checkbox"> 强制重跑（跳过缓存）
+        </label>
         <div class="btn-row-right" style="margin-top:0.5rem;">
           <button type="button" id="btnRunOptimizer" class="btn-primary">运行优化</button>
         </div>

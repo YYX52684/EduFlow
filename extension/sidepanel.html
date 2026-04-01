@@ -7,30 +7,53 @@
 <body>
   <h1>EduFlow 卡片注入</h1>
   <div id="tab-status" class="tab-status"></div>
-  <details id="eduflow-details" class="llm-details">
-    <summary>EduFlow 后端 API</summary>
-    <div class="llm-fields">
-      <label>API 地址</label>
+  <section class="settings-module" id="settings-module">
+    <div class="settings-header" id="settings-header">
+      <h2 class="settings-title">LLM 设置</h2>
+      <span class="settings-summary" id="llm-status-summary">加载中…</span>
+      <span class="settings-toggle" id="settings-toggle">展开</span>
+    </div>
+    <div class="settings-body" id="settings-body" style="display:none;">
+      <label>EduFlow 后端地址</label>
       <input type="text" id="eduflow-api-url" placeholder="https://eduflows.cn" />
       <p class="hint">默认 eduflows.cn。本地部署可填 http://localhost:端口</p>
-    </div>
-  </details>
-  <details id="extension-llm-details" class="llm-details">
-    <summary>API 与模型</summary>
-    <div class="llm-fields">
+
+      <label for="extension-workspace-id">Web 工作区 ID（一键写入平台配置用）</label>
+      <input type="text" id="extension-workspace-id" placeholder="如 u1124360866 或项目名" autocomplete="off" />
+      <p class="hint">与浏览器打开 Web 端 <code>/app/w/工作区</code> 路径一致；可点「刷新列表」从后端拉取目录名</p>
+      <button type="button" id="btn-refresh-workspaces" class="btn btn-secondary btn-inline">刷新工作区列表</button>
+      <select id="extension-workspace-pick" class="step-select workspace-pick-select">
+        <option value="">— 从列表选择填入 —</option>
+      </select>
+
+      <hr class="settings-divider" />
+
       <label for="extension-llm-api-key">API Key</label>
       <input type="password" id="extension-llm-api-key" placeholder="留空则保持已保存的值" autocomplete="off" />
       <span id="extension-llm-key-mask" class="hint"></span>
-      <label for="extension-llm-model-type">模型</label>
-      <select id="extension-llm-model-type">
+
+      <label for="extension-llm-base-url">Base URL</label>
+      <input type="text" id="extension-llm-base-url" placeholder="如 https://api.deepseek.com" />
+
+      <label for="extension-llm-model">Model</label>
+      <input type="text" id="extension-llm-model" placeholder="如 deepseek-chat" />
+
+      <label for="extension-llm-preset">快捷填充</label>
+      <select id="extension-llm-preset" class="step-select">
+        <option value="">-- 选择预设自动填充 Base URL 和 Model --</option>
         <option value="deepseek">DeepSeek</option>
         <option value="doubao">豆包</option>
         <option value="openai">OpenAI 兼容</option>
       </select>
-      <button type="button" id="btn-save-llm-config" class="btn btn-secondary">保存 API 配置</button>
-      <span id="extension-llm-save-status" class="status"></span>
+
+      <div class="settings-actions">
+        <button type="button" id="btn-save-llm-config" class="btn btn-primary">保存配置</button>
+        <button type="button" id="btn-test-llm" class="btn btn-secondary">测试连接</button>
+      </div>
+      <div id="extension-llm-save-status" class="status" style="display:none;"></div>
+      <div id="extension-llm-test-status" class="status" style="display:none;"></div>
     </div>
-  </details>
+  </section>
 
   <section class="step-block" id="step1-block">
     <h2 class="step-title">1. 选择文件</h2>
@@ -43,15 +66,7 @@
   </section>
 
   <section class="step-block step-block-disabled" id="step2-block">
-    <h2 class="step-title">2. 选择生成框架</h2>
-    <label for="framework-select">框架</label>
-    <select id="framework-select" class="step-select">
-      <option value="">加载中…</option>
-    </select>
-  </section>
-
-  <section class="step-block step-block-disabled" id="step3-block">
-    <h2 class="step-title">3. 选择学生角色</h2>
+    <h2 class="step-title">2. 选择学生角色</h2>
     <label for="persona-select">人设</label>
     <select id="persona-select" class="step-select">
       <option value="">请先完成步骤 1</option>
@@ -64,39 +79,78 @@
     </div>
   </section>
 
-  <section class="step-block step-block-disabled" id="step4-block">
-    <h2 class="step-title">4. 选择评分体系</h2>
-    <label for="scoring-select">评分体系</label>
-    <select id="scoring-select" class="step-select">
-      <option value="default">默认（当前逻辑）</option>
-    </select>
-  </section>
-
-  <section class="step-block step-block-disabled" id="step5-block">
-    <h2 class="step-title">5. 生成卡片</h2>
+  <section class="step-block step-block-disabled" id="step3-block">
+    <h2 class="step-title">3. 生成卡片</h2>
     <button type="button" id="btn-generate" class="btn btn-primary">生成卡片</button>
     <div id="generate-status" class="status"></div>
     <div id="generate-progress" class="progress" style="display:none;">
       <div class="progress-text" id="progress-text">加载中...</div>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
-    <div id="cards-ready" class="cards-ready" style="display:none;">
-      <p id="cards-summary" class="cards-summary"></p>
-      <label>卡片内容（可编辑后再注入）</label>
-      <textarea id="cards-preview" class="cards-preview"></textarea>
-    </div>
+    <div id="cards-generated-hint" class="cards-summary" style="display:none;"></div>
   </section>
 
-  <section class="step-block step-block-disabled" id="step6-block">
-    <h2 class="step-title">6. 注入平台</h2>
+  <section class="step-block" id="step4-block">
+    <h2 class="step-title">4. 注入平台</h2>
+    <p class="hint">可跳过上文步骤，从本地 .md 或历史记录载入卡片后再注入。</p>
+
+    <div class="card-source-group">
+      <span class="sub-label">卡片来源（互斥填入下方编辑区）</span>
+      <label class="radio-row"><input type="radio" name="card-source" id="card-source-generated" value="generated" /> 使用步骤 3 生成结果</label>
+      <label class="radio-row"><input type="radio" name="card-source" id="card-source-file" value="file" /> 本地 .md 文件</label>
+      <label class="radio-row"><input type="radio" name="card-source" id="card-source-history" value="history" /> 历史记录</label>
+      <input type="file" id="inject-md-input" accept=".md" hidden />
+      <button type="button" id="btn-pick-inject-md" class="btn btn-secondary btn-inline file-pick-btn" style="display:none;">选择 .md 文件</button>
+      <select id="history-inject-select" class="step-select" style="display:none;">
+        <option value="">— 选择一条历史记录 —</option>
+      </select>
+    </div>
+
+    <div class="settings-module inject-config-module">
+      <div class="settings-header" id="card-config-header">
+        <h2 class="settings-title">卡片配置</h2>
+        <span class="settings-toggle" id="card-config-toggle">展开</span>
+      </div>
+      <div class="settings-body" id="card-config-body" style="display:none;">
+        <label for="card-config-model-id">AI 模型 (modelId)</label>
+        <input type="text" id="card-config-model-id" placeholder="Doubao-Seed-1.6" />
+        <label for="card-config-history-num">历史记录数 (historyRecordNum)</label>
+        <input type="number" id="card-config-history-num" placeholder="-1 全部，0 不保留" />
+        <p class="hint">-1 表示全部，0 表示不保留</p>
+        <label for="card-config-trainer">训练官名字 (trainerName)</label>
+        <input type="text" id="card-config-trainer" placeholder="agent" />
+        <label for="card-config-rounds">默认交互轮次 (interactiveRounds)</label>
+        <input type="number" id="card-config-rounds" placeholder="0 表示用卡片内 STAGE_META" />
+        <p class="hint">0 表示使用卡片 Markdown 中 STAGE_META 指定的值</p>
+      </div>
+    </div>
+
+    <label>卡片内容（可编辑后再注入）</label>
+    <textarea id="cards-preview" class="cards-preview" placeholder="生成卡片、选择本地 .md 或从历史记录载入后显示在此"></textarea>
+
     <button type="button" id="btn-inject" class="btn btn-primary">注入平台</button>
     <div id="inject-status" class="status"></div>
+    <button type="button" id="btn-generate-ai-bg" class="btn btn-secondary" disabled>生成 背景图</button>
+    <div id="ai-bg-status" class="status"></div>
+  </section>
+
+  <section class="settings-module" id="history-module">
+    <div class="settings-header" id="history-header">
+      <h2 class="settings-title">历史记录</h2>
+      <span class="settings-toggle" id="history-toggle">展开</span>
+    </div>
+    <div class="settings-body" id="history-body" style="display:none;">
+      <p class="hint">最多保留 20 条；点击「填入注入区」写入步骤 4 编辑框。</p>
+      <ul id="history-list" class="history-list"></ul>
+      <p id="history-empty" class="hint">暂无记录</p>
+    </div>
   </section>
 
   <section class="step-block" id="platform-config-block">
     <h2 class="step-title">复制到 Web 端</h2>
     <p class="hint">在智慧树能力训练配置页打开本扩展，点击下方按钮获取配置，可逐一复制到 Web 端「平台配置」使用。</p>
     <button type="button" id="btn-get-platform-config" class="btn btn-secondary">一键获取平台配置</button>
+    <button type="button" id="btn-sync-web-platform" class="btn btn-primary">一键写入 Web 端</button>
     <div id="platform-config-status" class="status"></div>
     <div id="platform-config-fields" class="platform-config-fields" style="display:none;">
       <label>当前页面 URL</label>

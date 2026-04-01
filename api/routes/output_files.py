@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request, UploadFile, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 router = APIRouter()
 
@@ -28,6 +29,10 @@ async def _parse_form(request: Request):
         return await request.form(max_part_size=MAX_UPLOAD_PART_SIZE)
     except TypeError:
         return await request.form()
+
+
+def _is_upload_file(value: object) -> bool:
+    return isinstance(value, (UploadFile, StarletteUploadFile))
 
 
 class WriteBody(BaseModel):
@@ -107,7 +112,7 @@ async def upload_to_output(
     """
     form = await _parse_form(request)
     file = form.get("file")
-    if file is None or not isinstance(file, UploadFile):
+    if file is None or not _is_upload_file(file):
         raise BadRequestError("请上传文件", details={"field": "file"})
     subpath = form.get("subpath")
     subpath_str = (subpath if isinstance(subpath, str) else (subpath or "")) or "output/optimizer"

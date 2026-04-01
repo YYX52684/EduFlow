@@ -59,6 +59,64 @@ class LLMNPC:
         
         # 跳转检测
         self._transition_pattern = re.compile(r'\*\*卡片\d+[AB]\*\*|卡片\d+[AB]')
+
+        # 仅清洗“括号内动作/神态/旁白式描写”，不要一刀切禁止所有括号。
+        self._paren_stage_direction_pattern = re.compile(r"[（(](.*?)[)）]", flags=re.DOTALL)
+        self._paren_forbidden_keywords = (
+            # 明确的声音/语气/颤动类
+            "清了清嗓子",
+            "清嗓子",
+            "声音",
+            "发颤",
+            "颤",
+            "颤抖",
+            "呼吸",
+            "吸了口气",
+            "呼出",
+            # 神态/动作类（常见“括号式舞台提示”）
+            "微笑",
+            "笑着",
+            "点头",
+            "摇头",
+            "看向",
+            "注视",
+            "凝视",
+            "轻声",
+            "低声",
+            "停顿",
+            "叹气",
+            "叹息",
+            "转身",
+            "转过身",
+            "起身",
+            "坐下",
+            "站起",
+            "伸手",
+            "握",
+            "攥",
+            "抓",
+            "拍",
+            "摸",
+            "擦",
+            "摩挲",
+            "摩擦",
+            "打断",
+        )
+
+    def _strip_paren_action_and_stage_directions(self, text: str) -> str:
+        """移除“括号内动作/神态/旁白式描写”；其余括号内容尽量保留。"""
+        if not text:
+            return text
+
+        def _maybe_strip(match: re.Match) -> str:
+            inner = (match.group(1) or "").strip()
+            if not inner:
+                return ""
+            if any(k in inner for k in self._paren_forbidden_keywords):
+                return ""
+            return match.group(0)
+
+        return self._paren_stage_direction_pattern.sub(_maybe_strip, text)
     
     def respond(self, student_message: str, context: Optional[List[dict]] = None) -> str:
         """
@@ -75,9 +133,12 @@ class LLMNPC:
         role_fix = (
             "\n\n【角色约束】你是 NPC，对方是剧情中的角色（由当前卡片的 Context 设定）。"
             "你的每条回复可以是讲解、提问、点评或引导，但不要替对方陈述思路、答案或设计方案。"
-            "单条回复控制在 250 字以内。"
-            "严禁在回复中使用括号暴露思考、元叙述或后续计划，保持沉浸、不出戏。"
+            "单条回复控制在 200 字以内；如果内容会重复，就先删减重复点。"
+            "严禁在括号里写动作/神态/旁白式描写；如果括号只是纯术语或补充说明，可适当保留，保持沉浸、不出戏。"
             "回复时只输出角色台词（讲解/提问/点评/引导），不要输出动作或神态描写（如「你微笑着说道」「你看向学生」），否则会破坏沉浸感。"
+            "教学策略：当学生给出建议/回答后，你必须追问至少一个开放式问题（如“为什么/怎么做/具体步骤/会遇到什么困难/如何应对/能否举个例子”），避免只做情绪性认可。"
+            "追问节奏：每轮只追问一个核心点，确保信息密度但不过长。"
+            "去重：避免频繁使用同一种固定句式/连接词（如“对了”“真……真”“以前在村里”等）；避免多轮重复提及同一具体人物名或同一教学细节。若必须引用例子，换一种表述或用泛称。"
         )
         system_content = (self.system_prompt or "").strip() + role_fix
         messages = [
@@ -142,8 +203,10 @@ class LLMNPC:
         Returns:
             清理后的回复
         """
-        # 移除跳转指令
-        cleaned = self._transition_pattern.sub("", response)
+        # 先清洗括号内“动作/神态/旁白式描写”
+        cleaned = self._strip_paren_action_and_stage_directions(response)
+        # 再移除跳转指令
+        cleaned = self._transition_pattern.sub("", cleaned)
         return cleaned.strip()
     
     def reset(self):
@@ -210,7 +273,12 @@ class NPCFactory:
             配置好的LLMNPC实例
         """
         import os
-        from dotenv import load_dotenv
+        import importlib
+
+        try:
+            load_dotenv = importlib.import_module("dotenv").load_dotenv
+        except Exception:  # pragma: no cover - 测试/静态分析环境下可缺失 dotenv
+            load_dotenv = lambda: None
         
         load_dotenv()
         defaults = get_simulator_default_config()
@@ -235,7 +303,12 @@ class NPCFactory:
             配置好的LLMNPC实例
         """
         import os
-        from dotenv import load_dotenv
+        import importlib
+
+        try:
+            load_dotenv = importlib.import_module("dotenv").load_dotenv
+        except Exception:  # pragma: no cover - 测试/静态分析环境下可缺失 dotenv
+            load_dotenv = lambda: None
         
         load_dotenv()
         defaults = get_simulator_default_config()

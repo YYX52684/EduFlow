@@ -8,13 +8,20 @@
 """
 from .content_splitter import ContentSplitter
 
-# DSPy生成器可能需要额外安装dspy-ai
+# DSPy 生成器可能需要额外安装 dspy-ai
 try:
-    from .dspy_card_generator import DSPyCardGenerator
+    from .dspy_card_orchestrator import DSPyCardGenerator
     DSPY_AVAILABLE = True
 except ImportError:
     DSPyCardGenerator = None
     DSPY_AVAILABLE = False
+
+try:
+    from .dspy_training_doc_orchestrator import TrainingDocGenerator
+    TRAINING_DOC_GENERATOR_AVAILABLE = True
+except ImportError:
+    TrainingDocGenerator = None
+    TRAINING_DOC_GENERATOR_AVAILABLE = False
 
 # 框架库：发现与选择
 from .frameworks import list_frameworks, get_framework
@@ -23,6 +30,8 @@ __all__ = [
     "ContentSplitter",
     "DSPyCardGenerator",
     "DSPY_AVAILABLE",
+    "TrainingDocGenerator",
+    "TRAINING_DOC_GENERATOR_AVAILABLE",
     "list_frameworks",
     "get_framework",
 ]

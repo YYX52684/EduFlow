@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from generators.dspy_utils import (
     post_process_fields,
     reset_positive_feedback_history,
+    sanitize_interaction_style,
     select_diverse_phrase,
     should_inject_positive_feedback,
 )
@@ -40,3 +41,19 @@ def test_post_process_fields_keeps_existing_positive_feedback():
 
     assert obj.interaction_section == "很好，这个判断已经抓住关键了。"
     assert obj.context_section == "病房"
+
+
+def test_sanitize_interaction_style_removes_hint_and_restatement_tone():
+    text = "你提到的这些参数方向是对的（反映配风合理性）。提示：继续说明关键偏差。"
+    out = sanitize_interaction_style(text)
+    assert "你提到的" not in out
+    assert "提示：" not in out
+    assert "反映配风合理性" in out
+
+
+def test_post_process_fields_compresses_long_praise_prefix():
+    obj = SimpleNamespace(
+        interaction_section="不错，手动开旁路阀稳水位的临时措施很贴合现场应急操作逻辑，改造方案也比较全面。那我们继续看真空联动。",
+    )
+    post_process_fields(obj, ["interaction_section"], inject_positive_feedback=False)
+    assert obj.interaction_section.startswith("这个方向对了。")

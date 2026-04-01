@@ -41,8 +41,15 @@ function getAuthToken(): string {
   }
 }
 
+function normalizeAppPath(pathname: string): string {
+  if (pathname === "/app") return "/";
+  if (pathname.startsWith("/app/")) return pathname.slice(4) || "/";
+  return pathname;
+}
+
 function getWorkspaceIdFromPath(pathname: string): string {
-  const m = /^\/w\/([^/]+)\/?/.exec(pathname);
+  const normalized = normalizeAppPath(pathname || "/");
+  const m = /^\/w\/([^/]+)\/?/.exec(normalized);
   if (m) {
     try {
       return decodeURIComponent(m[1]);

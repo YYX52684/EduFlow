@@ -25,5 +25,5 @@
   }],
   "action": {"default_title": "EduFlow 智慧树卡片注入"},
   "side_panel": {"default_path": "sidepanel.html"},
-  "web_accessible_resources": [{"resources": ["lib/*"], "matches": []}]
+  "web_accessible_resources": []
 }

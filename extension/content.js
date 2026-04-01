@@ -5,19 +5,46 @@
 
 (function () {
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type !== "INJECT_CARDS") return;
-    const cards_markdown = msg.payload?.cards_markdown;
-    if (!cards_markdown) {
-      sendResponse({ success: false, error: "缺少 cards_markdown" });
+    if (msg.type === "INJECT_CARDS") {
+      const cards_markdown = msg.payload?.cards_markdown;
+      if (!cards_markdown) {
+        sendResponse({ success: false, error: "缺少 cards_markdown" });
+        return true;
+      }
+      const extra = {
+        task_name: msg.payload?.task_name || "",
+        description: msg.payload?.description || "",
+        evaluation_items: msg.payload?.evaluation_items || [],
+        card_config: msg.payload?.card_config || {},
+      };
+      runInject(cards_markdown, extra)
+        .then((result) =>
+          sendResponse({
+            success: true,
+            message: `节点 ${result.aCount}，连线 ${result.bCount}，评价项 ${result.evalCount}`,
+            details: result,
+          })
+        )
+        .catch((err) => sendResponse({ success: false, error: err.message }));
       return true;
     }
-    runInject(cards_markdown)
-      .then((result) => sendResponse({ success: true, message: `已注入 ${result.aCount} 个节点，${result.bCount} 条连线` }))
-      .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true;
+    if (msg.type === "GENERATE_A_BACKGROUNDS") {
+      const bodies = msg.payload?.a_step_bodies;
+      const trainName = msg.payload?.train_name || "";
+      const trainDescription = msg.payload?.train_description || "";
+      if (!Array.isArray(bodies) || !bodies.length) {
+        sendResponse({ success: false, error: "缺少 a_step_bodies" });
+        return true;
+      }
+      runGenerateBackgrounds(bodies, trainName, trainDescription)
+        .then((r) => sendResponse({ success: true, details: r }))
+        .catch((err) => sendResponse({ success: false, error: err.message }));
+      return true;
+    }
+    return false;
   });
 
-  async function runInject(cardsMarkdown) {
+  async function runInject(cardsMarkdown, extra) {
     const idsRes = await chrome.runtime.sendMessage({ type: "EXTRACT_PAGE_IDS", payload: { url: location.href } });
     if (!idsRes.success) throw new Error(idsRes.error || "获取页面 ID 失败");
     const { trainTaskId, courseId } = idsRes.data;
@@ -26,13 +53,110 @@
     const { start_node_id, end_node_id } = await getStartEndNodes(trainTaskId, courseId || "");
     if (!start_node_id || !end_node_id) throw new Error("无法获取开始/结束节点 ID，请刷新页面后重试");
 
-    return await injectCards({
-      cardsMarkdown: cardsMarkdown,
+    if (extra.task_name || extra.description) {
+      try {
+        await chrome.runtime.sendMessage({
+          type: "API_REQUEST",
+          payload: {
+            endpoint: "/teacher-course/abilityTrain/editConfiguration",
+            method: "POST",
+            body: {
+              trainTaskId,
+              taskName: extra.task_name || "训练任务",
+              description: extra.description || "",
+              trainTime: -1,
+            },
+          },
+        });
+      } catch (_) {}
+    }
+
+    const result = await injectCards({
+      cardsMarkdown,
       trainTaskId,
       courseId: courseId || "",
       startNodeId: start_node_id,
       endNodeId: end_node_id,
+      cardConfig: extra.card_config || {},
     });
+
+    let evalCount = 0;
+    for (const item of extra.evaluation_items || []) {
+      try {
+        const scoreRes = await chrome.runtime.sendMessage({
+          type: "API_REQUEST",
+          payload: {
+            endpoint: "/teacher-course/abilityTrain/createScoreItem",
+            method: "POST",
+            body: {
+              trainTaskId,
+              itemName: item.item_name || "未命名",
+              score: parseInt(item.score) || 0,
+              description: item.description || "",
+              requireDetail: item.require_detail || "",
+            },
+          },
+        });
+        if (scoreRes?.success) evalCount++;
+        await sleep(300);
+      } catch (_) {}
+    }
+    result.evalCount = evalCount;
+    return result;
+  }
+
+  async function runGenerateBackgrounds(aStepBodies, trainName, trainDescription) {
+    const ok = [];
+    const fail = [];
+    for (let i = 0; i < aStepBodies.length; i++) {
+      const body = aStepBodies[i];
+      const stepDetail = body.stepDetailDTO || {};
+      const genRes = await chrome.runtime.sendMessage({
+        type: "API_REQUEST",
+        payload: {
+          endpoint: "/ai-tools/image/generate",
+          method: "POST",
+          body: {
+            trainName: trainName || "训练任务",
+            trainDescription: trainDescription || "",
+            stageName: stepDetail.stepName || "",
+            stageDescription: stepDetail.description || "",
+          },
+        },
+      });
+      if (!genRes.success) {
+        fail.push({ index: i + 1, stepName: stepDetail.stepName, error: genRes.error || "生成失败" });
+        continue;
+      }
+      const raw = genRes.data;
+      const d = raw && typeof raw === "object" ? raw.data || raw : {};
+      const fileId = d.fileId;
+      const ossUrl = d.ossUrl;
+      if (!fileId || !ossUrl) {
+        fail.push({ index: i + 1, stepName: stepDetail.stepName, error: "图片接口未返回 fileId/ossUrl" });
+        continue;
+      }
+      const editBody = JSON.parse(JSON.stringify(body));
+      editBody.stepDetailDTO = {
+        ...editBody.stepDetailDTO,
+        scriptStepCover: { fileId, contentType: "image/png", fileUrl: ossUrl },
+      };
+      const editRes = await chrome.runtime.sendMessage({
+        type: "API_REQUEST",
+        payload: {
+          endpoint: "/teacher-course/abilityTrain/editScriptStep",
+          method: "POST",
+          body: editBody,
+        },
+      });
+      if (!editRes.success) {
+        fail.push({ index: i + 1, stepName: stepDetail.stepName, error: editRes.error || "写回封面失败" });
+      } else {
+        ok.push(i + 1);
+      }
+      await sleep(400);
+    }
+    return { okCount: ok.length, fail, total: aStepBodies.length };
   }
 
   async function getStartEndNodes(trainTaskId, courseId) {
@@ -104,11 +228,64 @@
     return {};
   }
 
-  async function injectCards({ cardsMarkdown, trainTaskId, courseId, startNodeId, endNodeId }) {
+  function normalizeCardConfig(raw) {
+    const c = raw && typeof raw === "object" ? raw : {};
+    const modelId = String(c.modelId != null ? c.modelId : "").trim() || "Doubao-Seed-1.6";
+    const trainerName = String(c.trainerName != null ? c.trainerName : "").trim() || "agent";
+    let historyRecordNum = parseInt(c.historyRecordNum, 10);
+    if (!Number.isFinite(historyRecordNum)) historyRecordNum = -1;
+    let interactiveRounds = parseInt(c.interactiveRounds, 10);
+    if (!Number.isFinite(interactiveRounds)) interactiveRounds = 0;
+    return { modelId, trainerName, historyRecordNum, interactiveRounds };
+  }
+
+  function buildCreateStepBody(card, trainTaskId, courseId, stepId, position, cardConfig) {
+    const cfg = normalizeCardConfig(cardConfig);
+    const content = cleanCardContent(card.full_content);
+    const stepName = card.stage_name || card.title || `阶段${card.stage_num}`;
+    const description = card.stage_description || `阶段${card.stage_num}`;
+    const prologue = card.prologue || "";
+    let rounds;
+    if (cfg.interactiveRounds > 0) {
+      rounds = cfg.interactiveRounds;
+    } else if (card.interaction_rounds > 0) {
+      rounds = card.interaction_rounds;
+    } else {
+      rounds = 5;
+    }
+    return {
+      trainTaskId,
+      stepId,
+      courseId: courseId || "",
+      libraryFolderId: "",
+      positionDTO: { x: position.x, y: position.y },
+      stepDetailDTO: {
+        nodeType: "SCRIPT_NODE",
+        stepName,
+        description,
+        prologue,
+        modelId: cfg.modelId,
+        llmPrompt: content,
+        knowledgeBaseSwitch: 0,
+        searchEngineSwitch: 0,
+        videoSwitch: 0,
+        whiteBoardSwitch: 0,
+        trainSubType: "ability",
+        trainerName: cfg.trainerName,
+        scriptStepCover: {},
+        scriptStepResourceList: [],
+        interactiveRounds: rounds,
+        historyRecordNum: cfg.historyRecordNum,
+      },
+    };
+  }
+
+  async function injectCards({ cardsMarkdown, trainTaskId, courseId, startNodeId, endNodeId, cardConfig }) {
     const cards = parseCardsMarkdown(cardsMarkdown);
     const aCards = cards.filter((c) => c.card_type === "A");
     const bCards = cards.filter((c) => c.card_type === "B");
     const stepIds = [];
+    const aStepBodies = [];
     const basePos = { x: 570, y: 100 };
     const step = { x: 0, y: 200 };
 
@@ -116,16 +293,18 @@
       const a = aCards[i];
       const pos = { x: basePos.x + step.x * i, y: basePos.y + step.y * i };
       const stepId = generateId(21);
+      const createBody = buildCreateStepBody(a, trainTaskId, courseId, stepId, pos, cardConfig);
       const createRes = await chrome.runtime.sendMessage({
         type: "API_REQUEST",
         payload: {
           endpoint: "/teacher-course/abilityTrain/createScriptStep",
           method: "POST",
-          body: buildCreateStepBody(a, trainTaskId, courseId, stepId, pos),
+          body: createBody,
         },
       });
       if (!createRes.success) throw new Error(`创建节点 ${i + 1} 失败: ${createRes.error}`);
       stepIds.push(stepId);
+      aStepBodies.push(createBody);
       await sleep(500);
     }
 
@@ -170,7 +349,7 @@
       await createFlow(stepIds[stepIds.length - 1], endNodeId, trainTaskId);
     }
 
-    return { aCount: aCards.length, bCount: aCards.length - 1 };
+    return { aCount: aCards.length, bCount: aCards.length - 1, aStepBodies };
   }
 
   async function createFlow(startId, endId, trainTaskId) {
@@ -199,39 +378,6 @@
     });
     const id = res?.success ? (res.data?.data?.flowId ?? res.data?.flowId ?? res.data?.id ?? flowId) : null;
     return res?.success ? { _flow_id: id } : null;
-  }
-
-  function buildCreateStepBody(card, trainTaskId, courseId, stepId, position) {
-    const content = cleanCardContent(card.full_content);
-    const stepName = card.stage_name || card.title || `阶段${card.stage_num}`;
-    const description = card.stage_description || `阶段${card.stage_num}`;
-    const prologue = card.prologue || "";
-    const rounds = card.interaction_rounds > 0 ? card.interaction_rounds : 5;
-    return {
-      trainTaskId,
-      stepId,
-      courseId: courseId || "",
-      libraryFolderId: "",
-      positionDTO: { x: position.x, y: position.y },
-      stepDetailDTO: {
-        nodeType: "SCRIPT_NODE",
-        stepName,
-        description,
-        prologue,
-        modelId: "",
-        llmPrompt: content,
-        knowledgeBaseSwitch: 0,
-        searchEngineSwitch: 0,
-        videoSwitch: 0,
-        whiteBoardSwitch: 0,
-        trainSubType: "ability",
-        trainerName: "",
-        scriptStepCover: {},
-        scriptStepResourceList: [],
-        interactiveRounds: rounds,
-        historyRecordNum: 0,
-      },
-    };
   }
 
   function cleanCardContent(content) {
@@ -269,6 +415,7 @@
     const metaPattern = /<!--\s*STAGE_META:\s*(\{.*?\})\s*-->/;
     const sectionPattern = /#\s+([^\n]+)\n([\s\S]*?)(?=\n#\s|$)/g;
     for (const card of cards) {
+      sectionPattern.lastIndex = 0;
       const metaM = metaPattern.exec(card.full_content);
       if (metaM) {
         try {

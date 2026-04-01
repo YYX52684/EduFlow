@@ -48,15 +48,22 @@ def _optimizer_worker(req_dict: dict, workspace_id: str, result_queue: mp.Queue)
         result_queue.put(("error", str(e)))
 
 
+def _precheck_trainset_path(workspace_id: str, trainset_path: str | None) -> None:
+    """仅在显式传入 trainset_path 时做前置存在性检查。"""
+    if not trainset_path:
+        return
+    trainset_abs = resolve_output_path(workspace_id, trainset_path)
+    if not os.path.isfile(trainset_abs):
+        raise NotFoundError("trainset 文件不存在", details={"path": trainset_path})
+
+
 @router.post("/run")
 def run_optimizer(req: OptimizeRequest, workspace_id: str = Depends(require_workspace_owned)):
     """运行 DSPy 优化。耗时可较长，完成后返回优化结果说明。使用子进程避免 dspy 线程冲突。"""
     if not DSPY_AVAILABLE:
         raise ConfigError("未安装 dspy-ai，请运行 pip install dspy-ai")
     require_llm_config(workspace_id)
-    trainset_abs = resolve_output_path(workspace_id, req.trainset_path)
-    if not os.path.isfile(trainset_abs):
-        raise NotFoundError("trainset 文件不存在", details={"path": req.trainset_path})
+    _precheck_trainset_path(workspace_id, req.trainset_path)
 
     result_queue = mp.Queue()
     proc = mp.Process(
@@ -64,7 +71,13 @@ def run_optimizer(req: OptimizeRequest, workspace_id: str = Depends(require_work
         args=(req.model_dump(), workspace_id, result_queue),
     )
     proc.start()
-    proc.join()
+    proc.join(timeout=60 * 60 * 3)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(timeout=5)
+        raise LLMError("优化运行超时", details={"reason": "优化进程执行超时，已终止"})
+    if result_queue.empty():
+        raise LLMError("优化运行失败", details={"reason": "优化进程未返回结果"})
     typ, payload = result_queue.get()
     if typ == "error":
         raise LLMError("优化运行失败", details={"reason": payload})
@@ -77,10 +90,7 @@ async def run_optimizer_stream(req: OptimizeRequest, workspace_id: str = Depends
     if not DSPY_AVAILABLE:
         raise ConfigError("未安装 dspy-ai，请运行 pip install dspy-ai")
     require_llm_config(workspace_id)
-    # 提前校验路径，避免进程内再抛
-    trainset_abs = resolve_output_path(workspace_id, req.trainset_path)
-    if not os.path.isfile(trainset_abs):
-        raise NotFoundError("trainset 文件不存在", details={"path": req.trainset_path})
+    _precheck_trainset_path(workspace_id, req.trainset_path)
 
     result_queue = mp.Queue()
     proc = mp.Process(

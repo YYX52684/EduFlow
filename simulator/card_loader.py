@@ -33,6 +33,7 @@ class CardData:
     constraints: str = ""     # 约束条件
     prologue: str = ""        # 开场白（仅1A有）
     output: str = ""          # B类卡片的输出内容
+    response_logic: str = ""  # B类卡片的动态响应逻辑
     
     # 元数据
     stage_name: str = ""           # 阶段名称
@@ -48,10 +49,10 @@ class CardData:
         return ""
 
     def get_transition_output(self) -> str:
-        """获取过渡类卡片的静态兜底输出"""
+        """获取过渡类卡片的静态兜底输出（默认不输出固定台词）。"""
         from config import CARD_TYPE_ROLE
         if CARD_TYPE_ROLE.get(self.card_type) == "transition":
-            return self.output or self.transition_prompt
+            return self.output
         return ""
 
     def get_transition_prompt(self) -> str:
@@ -65,15 +66,29 @@ class CardData:
         """将上一张A卡的对话记录注入 B 类卡片提示词。"""
         prompt = (self.get_transition_prompt() or "").strip()
         dialogue = (previous_dialogue or "").strip()
+        dialogue_block = dialogue
+        if dialogue:
+            dialogue_block = (
+                "【对话历史优先规则】\n"
+                "先依据下方“最后一轮重点”回应学生刚刚的具体表达，不要复述前一A卡设计目标。\n"
+                "若历史不足，再参考当前卡片 Context/Response Logic 做最小承接。\n\n"
+                "【输出长度规则】\n"
+                "最终输出建议50-120词，硬上限不超过150词；信息不足时宁可更短，也不要重复铺陈。\n\n"
+                f"{dialogue}"
+            ).strip()
         if not prompt:
-            return dialogue
+            return dialogue_block
 
         if "${previous_dialogue}" in prompt:
-            replacement = dialogue or "上一张A卡暂无可用对话记录。若无法判断最后一轮细节，就先做一句自然承接，再进入下一环节。"
+            replacement = dialogue_block or (
+                "【对话历史优先规则】\n"
+                "上一张A卡暂无可用对话记录。先做一句最小自然承接，再给出下一步具体任务。\n"
+                "不要复述前一A卡设计目标。"
+            )
             return prompt.replace("${previous_dialogue}", replacement).strip()
 
         if dialogue:
-            return f"{dialogue}\n\n{prompt}".strip()
+            return f"{dialogue_block}\n\n{prompt}".strip()
         return prompt
 
 
@@ -162,6 +177,7 @@ class LocalCardLoader:
         card.transition = sections.get("Transition", "")
         card.constraints = sections.get("Constraints", "")
         card.prologue = sections.get("Prologue", "")
+        card.response_logic = sections.get("Response Logic", "")
         card.output = sections.get("Output", "")
         
         # 构建LLM提示词（对话类）或过渡提示（过渡类）

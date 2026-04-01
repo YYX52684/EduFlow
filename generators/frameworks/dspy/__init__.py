@@ -6,7 +6,7 @@ from typing import List, Optional, Callable, Any
 from ..base import BaseCardGenerator
 
 try:
-    from ...dspy_card_generator import DSPyCardGenerator
+    from ...dspy_card_orchestrator import DSPyCardGenerator
     _AVAILABLE = True
 except ImportError:
     DSPyCardGenerator = None

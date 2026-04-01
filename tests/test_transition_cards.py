@@ -12,8 +12,8 @@ ${previous_dialogue}
 # Context
 先回应最后一轮，再过渡。
 
-# Output
-先接住学生最后一轮回答，再带到下一题。
+# Response Logic
+锚定：先接住学生最后一轮回答，再带到下一题。
 
 # Constraints
 - 简洁自然。
@@ -25,8 +25,8 @@ ${previous_dialogue}
     card = cards[0]
     assert "${previous_dialogue}" in card.transition_prompt
     assert "# Role" in card.transition_prompt
-    assert "# Output" in card.transition_prompt
-    assert card.output == "先接住学生最后一轮回答，再带到下一题。"
+    assert "# Response Logic" in card.transition_prompt
+    assert card.response_logic == "锚定：先接住学生最后一轮回答，再带到下一题。"
 
 
 def test_render_transition_prompt_replaces_previous_dialogue():

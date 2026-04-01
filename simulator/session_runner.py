@@ -10,6 +10,7 @@
 
 import os
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Callable
@@ -135,6 +136,12 @@ class SessionLog:
 
 
 class SessionRunner:
+    _ANCHOR_STOPWORDS = {
+        "我们", "你们", "这个", "那个", "以及", "然后", "还有", "就是", "已经", "可以", "需要",
+        "进行", "相关", "问题", "情况", "内容", "方面", "这些", "那些", "一下", "因为", "所以",
+        "如果", "那么", "然后", "继续", "说明", "分析", "回答", "学生", "老师", "参数", "系统",
+    }
+
     """会话运行器"""
     
     def __init__(self, config: SessionConfig = None):
@@ -371,7 +378,13 @@ class SessionRunner:
                 last_student_msg = student_message or self.npc.history[-1].content if self.npc.history else ""
                 
                 if last_student_msg:
-                    npc_response = self.npc.respond(last_student_msg)
+                    npc_prompt = (
+                        "请基于学生这条最新回答继续推进。"
+                        "避免围绕同一小知识点连续追问超过2轮；若已连续2轮没有新增信息，"
+                        "请先做一句阶段性收束并切换到本幕下一个关键要点。\n\n"
+                        f"学生最新回答：{last_student_msg}"
+                    )
+                    npc_response = self.npc.respond(npc_prompt)
                     
                     # 检查跳转指令
                     transition = self.npc.check_transition(npc_response)
@@ -395,7 +408,13 @@ class SessionRunner:
                 student_message = self._get_student_first_message()
                 self._log_turn(card.card_id, "student", student_message)
                 
-                npc_response = self.npc.respond(student_message)
+                npc_prompt = (
+                    "请基于学生这条最新回答继续推进。"
+                    "避免围绕同一小知识点连续追问超过2轮；若已连续2轮没有新增信息，"
+                    "请先做一句阶段性收束并切换到本幕下一个关键要点。\n\n"
+                    f"学生最新回答：{student_message}"
+                )
+                npc_response = self.npc.respond(npc_prompt)
                 transition = self.npc.check_transition(npc_response)
                 clean_response = self.npc.get_clean_response(npc_response)
                 
@@ -451,18 +470,36 @@ class SessionRunner:
 
     def _run_transition_card(self, b_card: CardData, current_card: CardData) -> str:
         """执行 B 类卡片：基于上一张A卡最后一轮对话做回应，再过渡。"""
-        prompt = b_card.render_transition_prompt(
-            self._build_transition_dialogue_context(current_card)
-        )
+        dialogue_context = self._build_transition_dialogue_context(current_card)
+        anchor_keywords = self._extract_recent_student_keywords(current_card)
+        prompt = b_card.render_transition_prompt(dialogue_context)
         if not prompt:
             return b_card.get_transition_output()
 
         try:
             transition_npc = self._build_transition_npc(prompt, b_card)
             response = transition_npc.respond(
-                "请根据系统提示，先回应上一张A卡最后一轮学生回答，再自然衔接下一环节。不要做泛泛的整体总结。"
+                "请根据系统提示，先回应上一张A卡最后一轮学生回答，再自然衔接下一环节。"
+                "不要做泛泛的整体总结。输出建议50-120词，硬上限不超过150词。"
             )
             clean_response = transition_npc.get_clean_response(response)
+            if anchor_keywords and not self._contains_anchor_keyword(clean_response, anchor_keywords):
+                # 强历史锚定重试：要求命中至少一个最近学生关键词
+                must_hit = "、".join(anchor_keywords[:3])
+                retry_instruction = (
+                    "请重写上一条过渡回复：必须先回应学生最后一轮的具体表达，"
+                    f"并至少出现以下关键词之一：{must_hit}。"
+                    "不要做静态总结，随后给出下一步具体任务。"
+                    "输出建议50-120词，硬上限不超过150词。"
+                )
+                retry_response = transition_npc.respond(retry_instruction)
+                retry_clean = transition_npc.get_clean_response(retry_response)
+                if retry_clean:
+                    clean_response = retry_clean
+
+            if anchor_keywords and not self._contains_anchor_keyword(clean_response, anchor_keywords):
+                clean_response = self._force_anchor_into_transition(clean_response, anchor_keywords)
+
             return clean_response or b_card.get_transition_output()
         except Exception as e:
             print(f"\n[警告] B类卡片执行失败，回退到静态输出: {e}")
@@ -516,6 +553,45 @@ class SessionRunner:
             lines.append(f"学生最后一轮回答: {turns[last_student_idx].content}")
 
         return "\n".join(lines)
+
+    def _extract_recent_student_keywords(self, current_card: CardData, limit: int = 5) -> List[str]:
+        """从上一张A卡最近学生回复中提取关键词（过滤停用词）。"""
+        turns = [turn for turn in self.log.dialogue if turn.card_id == current_card.card_id and turn.speaker == "student"]
+        if not turns:
+            return []
+        last_student = turns[-1].content or ""
+        # 提取中文连续词片段与英文术语
+        raw_tokens = re.findall(r"[\u4e00-\u9fff]{2,}|[A-Za-z][A-Za-z0-9_\-]{2,}", last_student)
+        keywords: List[str] = []
+        for token in raw_tokens:
+            t = token.strip()
+            if not t or t in self._ANCHOR_STOPWORDS:
+                continue
+            if t not in keywords:
+                keywords.append(t)
+            if len(keywords) >= limit:
+                break
+        return keywords
+
+    @staticmethod
+    def _contains_anchor_keyword(text: Optional[str], keywords: List[str]) -> bool:
+        if not text or not keywords:
+            return False
+        return any(k and k in text for k in keywords)
+
+    @staticmethod
+    def _force_anchor_into_transition(text: Optional[str], keywords: List[str]) -> str:
+        """兜底：若模型未命中关键词，强制在开头注入一个锚点。"""
+        base = (text or "").strip()
+        kw = next((k for k in keywords if k), "")
+        if not kw:
+            return base
+        prefix = f"你刚才提到“{kw}”，这个点先落实。"
+        if not base:
+            return prefix + "请继续说明下一步要怎么做。"
+        if kw in base:
+            return base
+        return prefix + base
     
     def _log_turn(self, card_id: str, speaker: str, content: str):
         """记录对话轮次"""

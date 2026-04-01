@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import sys
+import warnings
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
@@ -16,6 +17,15 @@ if _ROOT not in sys.path:
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
+# 部分 OpenAI 兼容服务会把 created 返回为字符串（如 "1774580976"），
+# 上游 SDK 在序列化时会触发 PydanticSerializationUnexpectedValue 警告。
+# 该警告不影响业务结果，这里仅对该已知噪音做精确降噪，保留其他告警。
+warnings.filterwarnings(
+    "ignore",
+    message=r".*PydanticSerializationUnexpectedValue.*field_name='created'.*",
+    category=UserWarning,
+)
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -149,8 +159,17 @@ frontend_dist_dir = os.path.join(_ROOT, "frontend", "dist")
 spa_index_path = os.path.join(frontend_dist_dir, "index.html")
 
 
-def _serve_index():
-    """根据是否已构建新前端，优先返回 React SPA 的 index.html。"""
+def _serve_legacy_index():
+    """默认返回旧版静态页；若旧版缺失则回退到 React 构建产物。"""
+    if os.path.isfile(legacy_index_path):
+        return FileResponse(legacy_index_path)
+    if os.path.isfile(spa_index_path):
+        return FileResponse(spa_index_path)
+    return {"message": "EduFlow API", "docs": "/docs"}
+
+
+def _serve_spa_index():
+    """React 并行入口；若未构建则回退到旧版页面。"""
     if os.path.isfile(spa_index_path):
         return FileResponse(spa_index_path)
     if os.path.isfile(legacy_index_path):
@@ -160,19 +179,30 @@ def _serve_index():
 
 @app.get("/")
 def index():
-    return _serve_index()
+    return _serve_legacy_index()
 
 
 @app.get("/w/{rest:path}")
 def workspace_page(rest: str):
-    """SPA 工作区路由，始终返回首页由前端解析 /w/<workspace_id>。"""
-    return _serve_index()
+    """旧版工作区路由，始终返回旧版首页由前端解析 /w/<workspace_id>。"""
+    return _serve_legacy_index()
+
+
+@app.get("/app")
+def react_index():
+    return _serve_spa_index()
+
+
+@app.get("/app/{rest:path}")
+def react_page(rest: str):
+    """React 并行入口，支持 /app/w/<workspace_id> 等前端路由。"""
+    return _serve_spa_index()
 
 
 if os.path.isdir(web_dir):
     app.mount("/static", StaticFiles(directory=web_dir), name="static")
 
-# 若已构建新的 React SPA，挂载其静态资源目录（Vite 默认输出到 frontend/dist）
+# 若已构建 React SPA，挂载其静态资源目录；与旧版静态资源并行存在。
 if os.path.isdir(frontend_dist_dir):
     assets_dir = os.path.join(frontend_dist_dir, "assets")
     if os.path.isdir(assets_dir):

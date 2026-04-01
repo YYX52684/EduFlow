@@ -11,6 +11,9 @@
     var IDB_NAME = 'EduFlowIDB';
     var IDB_STORE = 'handles';
     var LAST_DIR_KEY = 'lastDir';
+    var lastUploadData = null;
+    var lastUploadBatchData = [];
+
 
     function openIDB() {
       return new Promise(function(res, rej) {
@@ -200,14 +203,14 @@
       restoreLastDir().catch(function() {});
     }
 
-    function updateScriptDropZoneDisplay(filename) {
+    function updateScriptDropZoneDisplay(label) {
       var dz = document.getElementById('scriptDropZone');
       var textEl = document.getElementById('scriptDropZoneText');
       var hintEl = document.getElementById('scriptDropZoneHint');
-      var emptyText = (dz && dz.getAttribute('data-empty-text')) || '将 .md / .docx / .pdf 拖至此处，或点击选取';
+      var emptyText = (dz && dz.getAttribute('data-empty-text')) || '将一个或多个 .md / .docx / .pdf 拖至此处，或点击选取';
       if (!dz || !textEl) return;
-      if (filename) {
-        textEl.textContent = '已加载：' + filename;
+      if (label) {
+        textEl.textContent = '已加载：' + label;
         if (hintEl) { hintEl.style.display = 'block'; hintEl.textContent = '点击或拖入新文件可更换'; }
         dz.classList.add('loaded');
       } else {
@@ -217,40 +220,134 @@
       }
     }
 
+    function getSuccessfulUploadBatchItems() {
+      return (lastUploadBatchData || []).filter(function(item) {
+        return item && item.success !== false && item.full_content && item.stages && item.stages.length;
+      });
+    }
+
+    function renderScriptBatchState() {
+      var summaryEl = document.getElementById('scriptBatchSummary');
+      var listEl = document.getElementById('scriptBatchList');
+      if (!summaryEl || !listEl) return;
+      var items = lastUploadBatchData || [];
+      if (!items.length) {
+        summaryEl.style.display = 'none';
+        summaryEl.textContent = '';
+        listEl.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+      }
+      var analyzeSuccess = 0, analyzeFailure = 0, generateSuccess = 0, generateFailure = 0, generating = 0;
+      items.forEach(function(item) {
+        if (item.uploading) return;
+        if (item.success === false) { analyzeFailure++; return; }
+        analyzeSuccess++;
+        if (item.generating) generating++;
+        else if (item.generate_success === true) generateSuccess++;
+        else if (item.generate_success === false) generateFailure++;
+      });
+      var summary = '已选择 ' + items.length + ' 个文件';
+      summary += '；解析成功 ' + analyzeSuccess + ' 个';
+      if (analyzeFailure) summary += '，解析失败 ' + analyzeFailure + ' 个';
+      if (generating) summary += '；生成中 ' + generating + ' 个';
+      if (generateSuccess || generateFailure) summary += '；生成成功 ' + generateSuccess + ' 个，生成失败 ' + generateFailure + ' 个';
+      summaryEl.textContent = summary;
+      summaryEl.style.display = 'block';
+      listEl.style.display = 'block';
+      listEl.innerHTML = items.map(function(item, idx) {
+        var statusText = '待生成';
+        var statusColor = 'var(--natsume-ink-light)';
+        if (item.uploading) {
+          statusText = '解析中';
+          statusColor = 'var(--natsume-ink-light)';
+        } else if (item.success === false) {
+          statusText = '解析失败';
+          statusColor = '#b2523c';
+        } else if (item.generating) {
+          statusText = '生成中';
+          statusColor = 'var(--natsume-ink)';
+        } else if (item.generate_success === true) {
+          statusText = '生成成功';
+          statusColor = 'var(--natsume-leaf, #7a9a74)';
+        } else if (item.generate_success === false) {
+          statusText = '生成失败';
+          statusColor = '#b2523c';
+        }
+        var metaHtml = '';
+        if (item.success === false && item.error) {
+          metaHtml = '<div class="hint" style="margin-top:0.35rem;color:#b2523c;">' + esc(item.error) + '</div>';
+        } else if (item.generate_success === false && item.generate_error) {
+          metaHtml = '<div class="hint" style="margin-top:0.35rem;color:#b2523c;">' + esc(item.generate_error) + '</div>';
+        } else if (item.generate_success === true && item.output_path) {
+          var outputPath = item.output_path || item.output_filename || '';
+          var escPath = outputPath.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          metaHtml = '卡片文件：<a href="#" class="card-path-link" data-path="' + escPath + '">' + escPath + '</a>';
+        } else if (item.success !== false && item.stages_count != null) {
+          metaHtml = '<div class="hint" style="margin-top:0.35rem;">识别阶段：' + item.stages_count + '</div>';
+        }
+        return '<div class="card-muted" style="margin-top:0.35rem;">' +
+          '<div style="display:flex;justify-content:space-between;gap:0.75rem;align-items:flex-start;">' +
+          '<div style="min-width:0;flex:1;word-break:break-word;">' + (idx + 1) + '. ' + esc(item.filename || ('文件' + (idx + 1))) + '</div>' +
+          '<span style="color:' + statusColor + ';flex-shrink:0;font-size:0.82rem;">' + statusText + '</span>' +
+          '</div>' + metaHtml + '</div>';
+      }).join('');
+    }
+
     /** 仅上传并解析结构，不生成卡片。解析完成后提示用户点击「生成卡片」。 */
     async function runUploadAndAnalyze(file) {
+      if (!file) return;
+      return runUploadAndAnalyzeBatch([file]);
+    }
+
+    async function runUploadAndAnalyzeBatch(files) {
+      files = (files || []).filter(Boolean);
+      if (!files.length) return;
       var msg = document.getElementById('uploadMsg');
-      msg.textContent = '解析文件中…';
-      msg.classList.remove('err');
-      lastUploadData = null;
-      window.lastScriptFile = file || null;
-      updateScriptDropZoneDisplay(null);
       var genBtn = document.getElementById('btnGenCards');
       var personaBtn = document.getElementById('btnGenPersonaFromScript');
+      msg.textContent = files.length > 1 ? ('正在批量解析 ' + files.length + ' 个文件…') : '解析文件中…';
+      msg.classList.remove('err');
+      lastUploadData = null;
+      lastUploadBatchData = files.map(function(file, index) {
+        return { index: index, filename: (file && file.name) || ('文件' + (index + 1)), uploading: true, success: null };
+      });
+      window.lastScriptFile = files.length === 1 ? (files[0] || null) : null;
+      updateScriptDropZoneDisplay(null);
+      renderScriptBatchState();
       if (genBtn) genBtn.disabled = true;
-      if (personaBtn) personaBtn.disabled = !window.lastScriptFile;
+      if (personaBtn) personaBtn.disabled = files.length !== 1 || !window.lastScriptFile;
       try {
         var fd = new FormData();
-        fd.append('file', file);
-        msg.textContent = '解析与分幕中…（首次约 10–30 秒，同内容会走缓存）';
-        var r = await apiFetch('/api/script/upload', { method: 'POST', body: fd });
+        files.forEach(function(file) { fd.append('files', file); });
+        if (files.length > 1) fd.append('max_concurrency', String(Math.min(files.length, 3)));
+        var r = await apiFetch('/api/script/upload-batch', { method: 'POST', body: fd });
         var d = await safeResponseJson(r);
-        if (!r.ok) throw new Error(getUserMsg(d, '上传解析失败，请稍后重试'));
-        lastUploadData = d;
-        var fn = file && file.name ? file.name : (d.filename || '');
-        updateScriptDropZoneDisplay(fn);
-        var tc = d.trainset_count != null ? d.trainset_count : 0;
-        msg.textContent = '分析完成：识别出 ' + (d.stages_count || 0) + ' 个阶段。' + (tc ? ' Trainset 已更新（共 ' + tc + ' 条），闭环优化时将使用。' : '') + ' 现在可点击「生成卡片」。';
-        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({1: true});
-        if (genBtn) genBtn.disabled = false;
-        if (personaBtn) personaBtn.disabled = !window.lastScriptFile;
-        if (tc && typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
+        if (!r.ok) throw new Error(getUserMsg(d, '批量上传解析失败，请稍后重试'));
+        lastUploadBatchData = (d.results || []).map(function(item, index) {
+          return Object.assign({ index: item.index != null ? item.index : index, uploading: false }, item);
+        });
+        var successItems = getSuccessfulUploadBatchItems();
+        lastUploadData = successItems.length ? successItems[0] : null;
+        updateScriptDropZoneDisplay(files.length === 1 ? (((files[0] && files[0].name) || (lastUploadData && lastUploadData.filename) || '')) : (files.length + ' 个文件'));
+        renderScriptBatchState();
+        var successCount = d.success_count != null ? d.success_count : successItems.length;
+        var failureCount = d.failure_count != null ? d.failure_count : Math.max(0, files.length - successCount);
+        msg.textContent = '批量分析完成：成功 ' + successCount + ' 个，失败 ' + failureCount + ' 个。' + (successCount ? ' 现在可点击「生成卡片」。' : '');
+        if (typeof window.updateSimProgress === 'function' && successCount) window.updateSimProgress({1: true});
+        if (genBtn) genBtn.disabled = !successCount;
+        if (personaBtn) personaBtn.disabled = files.length !== 1 || !window.lastScriptFile;
+        if (successCount && typeof refreshTrainsetSelect === 'function') refreshTrainsetSelect();
       } catch (err) {
         msg.classList.add('err');
-        msg.innerHTML = '<span class="err">' + esc(err.message || '上传解析失败，请稍后重试') + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(err.message || '批量上传解析失败，请稍后重试') + '</span>';
         lastUploadData = null;
+        lastUploadBatchData = (lastUploadBatchData || []).map(function(item) {
+          return Object.assign({}, item, { uploading: false, success: false, error: err.message || '批量上传解析失败，请稍后重试' });
+        });
+        renderScriptBatchState();
         if (genBtn) genBtn.disabled = true;
-        if (personaBtn) personaBtn.disabled = !window.lastScriptFile;
+        if (personaBtn) personaBtn.disabled = files.length !== 1 || !window.lastScriptFile;
       }
     }
 
@@ -1322,12 +1419,15 @@
         var isAdmin = !!(window.AUTH_USER && window.AUTH_USER.is_optimizer_admin);
         var optimizerTypeSelect = document.getElementById('optimizerType');
         var optimizerType = (isAdmin && optimizerTypeSelect && optimizerTypeSelect.value) || 'bootstrap';
+        var noCacheEl = document.getElementById('optimizerNoCache');
+        var noCache = !!(noCacheEl && noCacheEl.checked);
         const body = {
           trainset_path: trainsetPath || null,
           devset_path: null,
           cards_output_path: null,
           export_path: null,
           optimizer_type: optimizerType,
+          no_cache: noCache,
           use_auto_eval: true,
           max_rounds: maxRounds,
           persona_id: (document.getElementById('personaId') && document.getElementById('personaId').value) || 'excellent',
@@ -1368,7 +1468,14 @@
                 msg.textContent = d.message || '优化完成';
                 var reportPath = d.evaluation_report_path || '';
                 var cardsPath = d.cards_output_path || '';
-                pre.textContent = (d.hint || '') + (reportPath ? '\n\n评估报告: ' + reportPath : '') + (cardsPath ? '\n生成卡片: ' + cardsPath : '') + '\n\n' + JSON.stringify(d, null, 2);
+                var manifestPath = d.run_manifest_path || '';
+                var artifactPath = d.compiled_artifact_path || '';
+                pre.textContent = (d.hint || '') +
+                  (reportPath ? '\n\n评估报告: ' + reportPath : '') +
+                  (cardsPath ? '\n生成卡片: ' + cardsPath : '') +
+                  (manifestPath ? '\n运行清单: ' + manifestPath : '') +
+                  (artifactPath ? '\n编译产物: ' + artifactPath : '') +
+                  '\n\n' + JSON.stringify(d, null, 2);
                 pre.style.display = 'block';
                 var wrap = pre.parentNode;
                 var btnsId = 'optimizerResultBtns';
@@ -1472,10 +1579,16 @@
     var scriptFileInput = document.getElementById('scriptFile');
     scriptDZ.onclick = function() { scriptFileInput.click(); };
 
+    async function handleScriptFiles(files) {
+      files = (files || []).filter(Boolean);
+      if (!files.length) return;
+      await runUploadAndAnalyzeBatch(files);
+      scriptFileInput.value = '';
+    }
+
     async function handleScriptFile(file) {
       if (!file) return;
-      await runUploadAndAnalyze(file);
-      scriptFileInput.value = '';
+      await handleScriptFiles([file]);
     }
 
     document.getElementById('btnGenCards').onclick = async function() {
@@ -1487,93 +1600,100 @@
       var progressMsg = document.getElementById('cardGenProgressMsg');
       var progressPct = document.getElementById('cardGenProgressPct');
       var streamPreview = document.getElementById('cardGenStreamPreview');
-      if (!lastUploadData) {
-        msg.innerHTML = '<span class="err">请先上传并解析剧本</span>';
+      var successItems = getSuccessfulUploadBatchItems();
+      if (!successItems.length) {
+        msg.innerHTML = '<span class="err">请先上传并解析至少一个可用剧本</span>';
         return;
       }
       msg.textContent = '';
       if (qaEl) qaEl.style.display = 'none';
       if (genBtn) genBtn.disabled = true;
-      var srcName = (lastUploadData && lastUploadData.filename) ? lastUploadData.filename : (window.lastScriptFile && window.lastScriptFile.name ? window.lastScriptFile.name : '');
+      var requestItems = successItems.map(function(item) {
+        return {
+          originalIndex: item.index,
+          body: {
+            full_content: item.full_content,
+            stages: item.stages,
+            framework_id: 'dspy',
+            source_filename: item.filename || null,
+          },
+        };
+      });
+      lastUploadBatchData = (lastUploadBatchData || []).map(function(item) {
+        if (item.success === false) return Object.assign({}, item, { generating: false });
+        return Object.assign({}, item, { generating: true, generate_success: null, generate_error: '', output_path: '' });
+      });
+      renderScriptBatchState();
       if (progressWrap) {
         progressWrap.style.display = 'block';
         if (progressBar) progressBar.style.width = '0%';
-        if (progressMsg) progressMsg.textContent = srcName ? '正在根据《' + srcName + '》生成卡片…' : '正在连接…';
+        if (progressMsg) progressMsg.textContent = '正在并发生成 ' + requestItems.length + ' 个文件…';
         if (progressPct) progressPct.textContent = '0%';
       }
       if (streamPreview) streamPreview.textContent = '';
       try {
-        var r = await apiFetch('/api/cards/generate-stream', {
+        var r = await apiFetch('/api/cards/generate-batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            full_content: lastUploadData.full_content,
-            stages: lastUploadData.stages,
-            framework_id: 'dspy',
-            source_filename: lastUploadData.filename || null,
+            items: requestItems.map(function(item) { return item.body; }),
+            max_concurrency: requestItems.length,
           }),
         });
-        if (!r.ok) throw new Error(r.status === 502 ? '生成失败，请检查 LLM 配置与网络' : '请求失败');
-        var reader = r.body.getReader();
-        var decoder = new TextDecoder();
-        var buf = '';
-        var d = null;
-        while (true) {
-          var chunk = await reader.read();
-          if (chunk.done) break;
-          buf += decoder.decode(chunk.value, { stream: true });
-          var parts = buf.split('\n\n');
-          buf = parts.pop() || '';
-          for (var i = 0; i < parts.length; i++) {
-            var event = null, dataStr = null;
-            parts[i].split('\n').forEach(function(line) {
-              if (line.startsWith('event: ')) event = line.slice(7).trim();
-              else if (line.startsWith('data: ')) dataStr = line.slice(6);
-            });
-            if (!event || !dataStr) continue;
-            try {
-              var data = JSON.parse(dataStr);
-              if (event === 'progress') {
-                var pct = data.percent != null ? data.percent : (data.total ? Math.round(100 * data.current / data.total) : 0);
-                if (progressBar) progressBar.style.width = pct + '%';
-                if (progressMsg) progressMsg.textContent = srcName ? '正在根据《' + srcName + '》生成卡片… ' + (data.message || '') : (data.message || '生成中…');
-                if (progressPct) progressPct.textContent = pct + '%';
-              } else if (event === 'card') {
-                if (streamPreview) {
-                  if (streamPreview.textContent) streamPreview.textContent += '\n\n---\n\n';
-                  streamPreview.textContent += data.content || '';
-                  streamPreview.scrollTop = streamPreview.scrollHeight;
-                }
-              } else if (event === 'done') {
-                d = data;
-                if (progressBar) progressBar.style.width = '100%';
-                if (progressMsg) progressMsg.textContent = '完成';
-                if (progressPct) progressPct.textContent = '100%';
-              } else if (event === 'error') {
-                throw new Error(getUserMsg(data, '生成失败，请稍后重试'));
-              }
-            } catch (parseErr) {
-              if (event === 'error') throw new Error('生成失败，请稍后重试');
-            }
+        var d = await safeResponseJson(r);
+        if (!r.ok) throw new Error(getUserMsg(d, '批量生成失败，请稍后重试'));
+        var resultByOriginalIndex = {};
+        var successCount = 0;
+        var firstSuccessPath = '';
+        (d.results || []).forEach(function(result, idx) {
+          var reqMeta = requestItems[result.index != null ? result.index : idx];
+          if (reqMeta) resultByOriginalIndex[reqMeta.originalIndex] = result;
+          if (result.success) {
+            successCount++;
+            if (!firstSuccessPath && result.output_path) firstSuccessPath = result.output_path;
           }
-        }
-        if (!d) throw new Error('未收到完成数据');
-        var outputPath = d.output_path || d.output_filename || '';
-        var escPath = (outputPath || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        msg.innerHTML = '已完成生成。卡片文件：<a href="#" class="card-path-link" data-path="' + escPath + '">' + escPath + '</a>（点击可查看并编辑）';
-        if (typeof window.updateSimProgress === 'function') window.updateSimProgress({2: true});
-        if (d.output_path) {
+          if (streamPreview) {
+            if (streamPreview.textContent) streamPreview.textContent += '\n';
+            streamPreview.textContent += (result.success ? '✓ ' : '✗ ') + (result.source_filename || '未命名') + (result.success ? (' -> ' + (result.output_path || result.output_filename || '')) : (' -> ' + (result.error || '失败')));
+            streamPreview.scrollTop = streamPreview.scrollHeight;
+          }
+        });
+        lastUploadBatchData = (lastUploadBatchData || []).map(function(item) {
+          var result = resultByOriginalIndex[item.index];
+          if (!result) return Object.assign({}, item, { generating: false });
+          return Object.assign({}, item, {
+            generating: false,
+            generate_success: !!result.success,
+            generate_error: result.error || '',
+            output_path: result.output_path || '',
+            output_filename: result.output_filename || '',
+            full_path: result.full_path || '',
+          });
+        });
+        renderScriptBatchState();
+        var failureCount = d.failure_count != null ? d.failure_count : (requestItems.length - successCount);
+        if (progressBar) progressBar.style.width = '100%';
+        if (progressMsg) progressMsg.textContent = '完成';
+        if (progressPct) progressPct.textContent = '100%';
+        msg.textContent = '批量生成完成：成功 ' + successCount + ' 个，失败 ' + failureCount + ' 个。';
+        if (typeof window.updateSimProgress === 'function' && successCount) window.updateSimProgress({2: true});
+        if (firstSuccessPath) {
           var injectCardsPathInput = document.getElementById('injectCardsPath');
-          if (injectCardsPathInput) injectCardsPathInput.value = d.output_path;
+          if (injectCardsPathInput) injectCardsPathInput.value = firstSuccessPath;
         }
       } catch (e) {
-        msg.innerHTML = '<span class="err">' + esc(e.message || '生成失败，请稍后重试') + '</span>';
+        msg.innerHTML = '<span class="err">' + esc(e.message || '批量生成失败，请稍后重试') + '</span>';
+        lastUploadBatchData = (lastUploadBatchData || []).map(function(item) {
+          if (!item.generating) return item;
+          return Object.assign({}, item, { generating: false, generate_success: false, generate_error: e.message || '批量生成失败，请稍后重试' });
+        });
+        renderScriptBatchState();
       } finally {
         if (genBtn) genBtn.disabled = false;
         if (progressWrap) setTimeout(function() { progressWrap.style.display = 'none'; }, 8000);
       }
     };
-    scriptFileInput.onchange = function() { handleScriptFile(this.files[0]); };
+    scriptFileInput.onchange = function() { handleScriptFiles(Array.prototype.slice.call(this.files || [])); };
     scriptDZ.ondragover = function(e) { e.preventDefault(); this.classList.add('dragover'); };
     scriptDZ.ondragleave = function() { this.classList.remove('dragover'); };
     scriptDZ.ondrop = async function(e) {
@@ -1587,8 +1707,8 @@
         window._eduflowDraggedFileHandle = null;
         return;
       }
-      var f = e.dataTransfer.files[0];
-      if (f) handleScriptFile(f);
+      var files = Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || []);
+      if (files.length) handleScriptFiles(files);
     };
 
     /** 将任意路径规范为后端可用的形式：只保留 output/... 或 input/... 或相对文件名，去掉多余前缀 */

@@ -119,11 +119,12 @@ def run_simulate_and_evaluate(
     status = (log.summary or {}).get("status", "")
     if status != "completed":
         # 未完成时返回一个低分报告，避免优化器误用
-        from simulator.evaluator import EvaluationReport, DimensionScore
+        from simulator.evaluator import EvaluationReport
+        fallback_score = float(_cfg.get("closed_loop_incomplete_score", 10.0))
         dummy_report = EvaluationReport(
             session_id=log.session_id,
             evaluation_time="",
-            total_score=0.0,
+            total_score=fallback_score,
             dimensions=[],
             summary=f"会话未完成 (status={status})",
             recommendations=["请检查卡片逻辑或轮次限制"],
@@ -223,7 +224,8 @@ def make_auto_metric(
             print(f"\n  [metric] 已写入卡片到: {path}")
             print(f"  [metric] 运行闭环（{len(ids_to_run)} 档人设）...")
 
-        scores: List[float] = []
+        persona_scores: Dict[str, float] = {}
+        persona_errors: Dict[str, str] = {}
         reports: List[Any] = []
         logs: List[Any] = []
 
@@ -240,13 +242,20 @@ def make_auto_metric(
                     for persona in ids_to_run
                 }
                 for fut in as_completed(futures):
+                    persona = futures[fut]
                     sc, lg, rpt = fut.result()
-                    scores.append(sc)
+                    persona_scores[persona] = float(sc)
                     if rpt:
                         reports.append(rpt)
                     if lg:
                         logs.append(lg)
-            mean_score = sum(scores) / len(scores) if scores else 0.0
+                    if rpt is None:
+                        persona_errors[persona] = "仿真/评估失败，已回退低分"
+            mean_score = (
+                sum(persona_scores.values()) / len(persona_scores)
+                if persona_scores
+                else 0.0
+            )
             report = reports[0] if reports else None
             log = logs[0] if logs else None
         else:
@@ -265,18 +274,33 @@ def make_auto_metric(
             except Exception as e:
                 if prompt_user:
                     print(f"  [metric] 仿真/评估失败: {e}")
+                fallback_score = 10.0
+                persona_scores[ids_to_run[0]] = fallback_score
+                persona_errors[ids_to_run[0]] = str(e)
                 os.makedirs(os.path.dirname(os.path.abspath(export_path)) or ".", exist_ok=True)
                 with open(export_path, "w", encoding="utf-8") as f:
-                    json.dump({"total_score": 0.0, "error": str(e)}, f, ensure_ascii=False, indent=2)
-                return 0.0
+                    json.dump(
+                        {
+                            "total_score": fallback_score,
+                            "error": str(e),
+                            "persona_scores": persona_scores,
+                            "persona_errors": persona_errors,
+                        },
+                        f,
+                        ensure_ascii=False,
+                        indent=2,
+                    )
+                return fallback_score
 
         export_dir = os.path.dirname(os.path.abspath(export_path))
         os.makedirs(export_dir or ".", exist_ok=True)
         export_data = report.to_dict() if report is not None else {"total_score": mean_score}
-        if len(scores) > 1:
-            export_data["persona_scores"] = dict(zip(ids_to_run, scores))
+        if len(persona_scores) > 1:
+            export_data["persona_scores"] = persona_scores
             export_data["mean_score"] = mean_score
             export_data["total_score"] = mean_score
+        if persona_errors:
+            export_data["persona_errors"] = persona_errors
         with open(export_path, "w", encoding="utf-8") as f:
             json.dump(export_data, f, ensure_ascii=False, indent=2)
 
@@ -287,9 +311,10 @@ def make_auto_metric(
             final_report_path = os.path.join(export_dir, "closed_loop_final_report.md")
             with open(final_report_path, "w", encoding="utf-8") as f:
                 f.write(report.to_markdown())
-                if len(scores) > 1:
+                if len(persona_scores) > 1:
                     f.write(f"\n\n---\n\n## 三档人设得分\n\n")
-                    for pid, sc in zip(ids_to_run, scores):
+                    for pid in ids_to_run:
+                        sc = persona_scores.get(pid, 0.0)
                         f.write(f"- {pid}: {sc}\n")
                     f.write(f"- **均值**: {mean_score}\n\n")
                 f.write("\n---\n\n## 本次模拟会话日志\n\n")

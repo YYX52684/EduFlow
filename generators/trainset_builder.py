@@ -203,6 +203,17 @@ def sanitize_trainset_basename(source_filename: str) -> str:
     return name
 
 
+def _pick_unique_trainset_filename(lib_dir: str, safe_name: str) -> tuple[str, str]:
+    filename = f"{safe_name}_trainset.json"
+    path = os.path.join(lib_dir, filename)
+    counter = 2
+    while os.path.exists(path):
+        filename = f"{safe_name}_{counter}_trainset.json"
+        path = os.path.join(lib_dir, filename)
+        counter += 1
+    return filename, path
+
+
 def write_trainset_for_document(
     output_dir: str,
     source_filename: str,
@@ -212,6 +223,7 @@ def write_trainset_for_document(
 ) -> Optional[str]:
     """
     为单份原文档写入 trainset 到 output_dir/trainset_lib/{basename}_trainset.json。
+    若同名文件已存在，则自动追加序号后缀避免覆盖。
     任何异常均不抛出，返回 None；成功则返回相对路径 output/trainset_lib/{basename}_trainset.json。
     """
     if not stages:
@@ -220,7 +232,7 @@ def write_trainset_for_document(
         safe_name = sanitize_trainset_basename(source_filename)
         lib_dir = os.path.join(output_dir, "trainset_lib")
         os.makedirs(lib_dir, exist_ok=True)
-        json_path = os.path.join(lib_dir, f"{safe_name}_trainset.json")
+        trainset_filename, json_path = _pick_unique_trainset_filename(lib_dir, safe_name)
 
         item: Dict[str, Any] = {
             "full_script": full_script,
@@ -233,7 +245,7 @@ def write_trainset_for_document(
         except Exception:
             pass
         save_trainset([item], json_path)
-        return f"output/trainset_lib/{safe_name}_trainset.json"
+        return f"output/trainset_lib/{trainset_filename}"
     except Exception:
         return None
 

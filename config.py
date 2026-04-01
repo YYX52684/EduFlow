@@ -66,7 +66,21 @@ CARD_DEFAULTS = {
     # 虚拟训练官名字 (trainerName)
     "trainer_name": "agent",
     # 默认交互轮次 (interactiveRounds)，如果LLM未指定
-    "default_interaction_rounds": 5,
+    "default_interaction_rounds": 0,
+}
+
+# 标准能力训练文档生成（与 generators/dspy_training_doc_* 一致）
+TRAINING_DOC_CONFIG = {
+    "generator_type": os.getenv("TRAINING_DOC_GENERATOR_TYPE", "dspy"),
+    "target_total_score": int(os.getenv("TRAINING_DOC_TARGET_SCORE", "100")),
+    "max_validation_retries": int(os.getenv("TRAINING_DOC_MAX_RETRIES", "2")),
+    "section_h2_titles": [
+        "任务目标",
+        "智能体人设",
+        "任务描述",
+        "智能体各板块任务要求",
+        "评价标准",
+    ],
 }
 
 # 卡片生成器配置
@@ -114,4 +128,5 @@ DSPY_OPTIMIZER_CONFIG = {
     # 闭环仿真参数：缩短可加快单次评估，减少「卡在10%」的等待感
     "closed_loop_max_rounds_per_card": int(os.getenv("DSPY_CLOSED_LOOP_ROUNDS_PER_CARD", "5")),
     "closed_loop_total_max_rounds": int(os.getenv("DSPY_CLOSED_LOOP_TOTAL_ROUNDS", "50")),
+    "closed_loop_incomplete_score": float(os.getenv("DSPY_CLOSED_LOOP_INCOMPLETE_SCORE", "10")),
 }

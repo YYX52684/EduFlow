@@ -5,11 +5,13 @@ import App from "./App";
 import "./styles/global.css";
 
 const rootElement = document.getElementById("root");
+const pathname = window.location.pathname || "/";
+const routerBase = pathname === "/app" || pathname.startsWith("/app/") ? "/app" : "/";
 
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <BrowserRouter>
+      <BrowserRouter basename={routerBase === "/" ? undefined : routerBase}>
         <App />
       </BrowserRouter>
     </React.StrictMode>

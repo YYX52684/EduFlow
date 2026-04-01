@@ -43,24 +43,32 @@ data/
 # 项目文档（仅本地保留，不提交到仓库）
 docs/
 
-# 项目文档（仅本地，不提交到仓库）
-docs/
-
-# 项目文档（仅本地保留，不提交到仓库）
-docs/
-
-# Environment variables
+# Environment variables（勿提交真实密钥；可保留 .env.example）
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+
+# 敏感配置：LLM API 密钥、智慧树平台 cookie / authorization 等
+**/llm_config.json
+**/platform_config.json
+
+# 证书与常见私钥容器（含本地 HTTPS 开发证书目录）
+.certs/
+*.pem
+*.p12
+secrets/
 
 # Output files (可选：如果不想追踪生成的卡片)
 # output/*.md
 
-# Workspaces 用户数据（保留说明文档与示例结构）
-workspaces/*/input/
-workspaces/*/output/
-workspaces/*/optimizer/
+# 输入目录（本地数据，不提交）
+input/
+
+# 工作区：用户教材、生成物、优化结果与各类 JSON 配置，一律勿提交；仅保留根目录说明
+workspaces/*
+!workspaces/README.md
 
 # OS generated files
 .DS_Store
@@ -95,3 +103,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+
+# Node（前端依赖）
+node_modules/
+frontend/node_modules/

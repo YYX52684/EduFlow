@@ -77,15 +77,22 @@ if __name__ == "__main__":
     args = p.parse_args()
     use_https = args.https
     port = 8000
+    common_kwargs = {
+        "host": "0.0.0.0",
+        "port": port,
+        "reload": True,
+        "reload_excludes": [
+            ".venv/*",
+            "**/.venv/*",
+        ],
+    }
     if use_https:
         _ensure_self_signed_cert()
         _print_lan_urls(port, use_https=True)
         import uvicorn
         uvicorn.run(
             "api.app:app",
-            host="0.0.0.0",
-            port=port,
-            reload=True,
+            **common_kwargs,
             ssl_keyfile=_KEY_FILE,
             ssl_certfile=_CERT_FILE,
         )
@@ -94,7 +101,5 @@ if __name__ == "__main__":
         import uvicorn
         uvicorn.run(
             "api.app:app",
-            host="0.0.0.0",
-            port=port,
-            reload=True,
+            **common_kwargs,
         )
