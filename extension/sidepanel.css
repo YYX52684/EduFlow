@@ -74,6 +74,27 @@ h1 { font-size: 16px; margin: 0 0 12px 0; }
 }
 .step-block:last-of-type { border-bottom: none; }
 .step-block-disabled { opacity: 0.7; }
+.workflow-block .workflow-hint { margin-bottom: 10px; }
+.workflow-sub {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+.workflow-sub-hidden { display: none; }
+.generate-stream-log {
+  margin-top: 10px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.45;
+  background: #f9fafb;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, monospace;
+}
 .step-title {
   font-size: 14px;
   font-weight: 600;

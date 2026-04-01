@@ -20,7 +20,7 @@
 
       <label for="extension-workspace-id">Web 工作区 ID（一键写入平台配置用）</label>
       <input type="text" id="extension-workspace-id" placeholder="如 u1124360866 或项目名" autocomplete="off" />
-      <p class="hint">与浏览器打开 Web 端 <code>/app/w/工作区</code> 路径一致；可点「刷新列表」从后端拉取目录名</p>
+      <p class="hint">与 <code>workspaces/</code> 下目录名一致；同步成功后会打开静态说明页，可在页底进入旧版控制台 <code>/w/工作区</code></p>
       <button type="button" id="btn-refresh-workspaces" class="btn btn-secondary btn-inline">刷新工作区列表</button>
       <select id="extension-workspace-pick" class="step-select workspace-pick-select">
         <option value="">— 从列表选择填入 —</option>
@@ -55,48 +55,48 @@
     </div>
   </section>
 
-  <section class="step-block" id="step1-block">
-    <h2 class="step-title">1. 选择文件</h2>
+  <section class="step-block workflow-block" id="workflow-block">
+    <h2 class="step-title">生成流程</h2>
+    <p class="hint workflow-hint">上传剧本 → 选择学生人设 → 生成卡片（下方可查看分幕进度）</p>
     <div class="drop-zone" id="drop-zone">
       <p>拖入 .md / .docx / .pdf 剧本文件，或点击选择</p>
       <input type="file" id="file-input" accept=".md,.docx,.pdf" hidden />
     </div>
     <div id="file-status" class="status"></div>
     <div id="step1-result" class="step-result" style="display:none;"></div>
-  </section>
 
-  <section class="step-block step-block-disabled" id="step2-block">
-    <h2 class="step-title">2. 选择学生角色</h2>
-    <label for="persona-select">人设</label>
-    <select id="persona-select" class="step-select">
-      <option value="">请先完成步骤 1</option>
-    </select>
-    <div id="persona-content-wrap" class="persona-content-wrap" style="display:none;">
-      <label>人设内容（可编辑后保存）</label>
-      <textarea id="persona-content" class="persona-content" rows="8" readonly></textarea>
-      <button type="button" id="btn-save-persona" class="btn btn-secondary" style="display:none;">保存人设</button>
-      <span id="persona-save-status" class="status"></span>
+    <div id="workflow-persona-block" class="workflow-sub workflow-sub-hidden">
+      <label for="persona-select">学生人设</label>
+      <select id="persona-select" class="step-select">
+        <option value="">请先上传并解析剧本</option>
+      </select>
+      <div id="persona-content-wrap" class="persona-content-wrap" style="display:none;">
+        <label>人设内容（可编辑后保存）</label>
+        <textarea id="persona-content" class="persona-content" rows="8" readonly></textarea>
+        <button type="button" id="btn-save-persona" class="btn btn-secondary" style="display:none;">保存人设</button>
+        <span id="persona-save-status" class="status"></span>
+      </div>
     </div>
-  </section>
 
-  <section class="step-block step-block-disabled" id="step3-block">
-    <h2 class="step-title">3. 生成卡片</h2>
-    <button type="button" id="btn-generate" class="btn btn-primary">生成卡片</button>
-    <div id="generate-status" class="status"></div>
-    <div id="generate-progress" class="progress" style="display:none;">
-      <div class="progress-text" id="progress-text">加载中...</div>
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div id="workflow-generate-block" class="workflow-sub workflow-sub-hidden">
+      <button type="button" id="btn-generate" class="btn btn-primary">生成卡片</button>
+      <div id="generate-status" class="status"></div>
+      <div id="generate-progress" class="progress" style="display:none;">
+        <div class="progress-text" id="progress-text">加载中...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <pre id="generate-stream-log" class="generate-stream-log" style="display:none;" aria-live="polite"></pre>
+      <div id="cards-generated-hint" class="cards-summary" style="display:none;"></div>
     </div>
-    <div id="cards-generated-hint" class="cards-summary" style="display:none;"></div>
   </section>
 
   <section class="step-block" id="step4-block">
-    <h2 class="step-title">4. 注入平台</h2>
-    <p class="hint">可跳过上文步骤，从本地 .md 或历史记录载入卡片后再注入。</p>
+    <h2 class="step-title">注入平台</h2>
+    <p class="hint">可跳过生成流程，从本地 .md 或历史记录载入卡片后再注入。</p>
 
     <div class="card-source-group">
       <span class="sub-label">卡片来源（互斥填入下方编辑区）</span>
-      <label class="radio-row"><input type="radio" name="card-source" id="card-source-generated" value="generated" /> 使用步骤 3 生成结果</label>
+      <label class="radio-row"><input type="radio" name="card-source" id="card-source-generated" value="generated" /> 使用上文生成的卡片</label>
       <label class="radio-row"><input type="radio" name="card-source" id="card-source-file" value="file" /> 本地 .md 文件</label>
       <label class="radio-row"><input type="radio" name="card-source" id="card-source-history" value="history" /> 历史记录</label>
       <input type="file" id="inject-md-input" accept=".md" hidden />
@@ -140,7 +140,7 @@
       <span class="settings-toggle" id="history-toggle">展开</span>
     </div>
     <div class="settings-body" id="history-body" style="display:none;">
-      <p class="hint">最多保留 20 条；点击「填入注入区」写入步骤 4 编辑框。</p>
+      <p class="hint">最多保留 20 条；点击「填入注入区」写入下方注入编辑框。</p>
       <ul id="history-list" class="history-list"></ul>
       <p id="history-empty" class="hint">暂无记录</p>
     </div>

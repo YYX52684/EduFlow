@@ -237,11 +237,15 @@ class CardInjector:
             列表，每项为 {"item_name", "score", "description", "require_detail"}
         """
         items = []
-        if not md_content or "## 评价项" not in md_content:
+        headings = ("## 评价项", "## 评分标准", "## 评价标准")
+        start = -1
+        for h in headings:
+            i = md_content.find(h) if md_content else -1
+            if i >= 0 and (start < 0 or i < start):
+                start = i
+        if start < 0:
             return items
-        
-        # 只取 ## 评价项 及其后内容（到下一个 ## 或文件末尾）
-        start = md_content.find("## 评价项")
+
         rest = md_content[start:]
         end = rest.find("\n## ", 1)
         section = rest[:end] if end > 0 else rest

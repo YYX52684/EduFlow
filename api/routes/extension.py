@@ -7,13 +7,17 @@ Chrome 插件专用 API：六步流程（上传解析、框架、人设、评分
 import os
 import json
 import re
+import asyncio
+import queue as thread_queue
 import tempfile
+import threading
 import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, File, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.workspace import get_project_dirs, get_workspace_file_path, WORKSPACE_ID_PATTERN
@@ -570,28 +574,14 @@ def generate_cards(req: GenerateCardsRequest):
     按所选框架生成卡片 Markdown，并可附加评价项章节。
     不写文件，返回 cards_markdown 供前端展示/编辑后注入。
     """
-    from generators import list_frameworks, get_framework
-    from generators.evaluation_section import build_evaluation_markdown
-
-    stages = req.stages
-    if not stages:
-        return {"error": "stages 不能为空"}
-    frameworks = list_frameworks() or []
-    framework_id = req.framework_id or "dspy"
-    if not any(m["id"] == framework_id for m in frameworks):
-        framework_id = frameworks[0]["id"] if frameworks else "dspy"
     try:
-        GeneratorClass, _ = get_framework(framework_id)
+        stages, _framework_id, run_gen, build_evaluation_markdown, _llm = _extension_generate_cards_core(req)
     except ValueError as e:
         return {"error": str(e)}
-    llm = _get_llm_config()
-    generator = GeneratorClass(
-        api_key=llm.get("api_key"),
-        model_type=llm.get("model_type"),
-        base_url=llm.get("base_url") or None,
-        model=llm.get("model") or None,
-    )
-    cards_content = generator.generate_all_cards(stages, req.full_content)
+    try:
+        cards_content = run_gen()
+    except Exception as e:
+        return {"error": str(e)}
 
     evaluation_md = build_evaluation_markdown(
         req.evaluation_items or [],
@@ -614,6 +604,108 @@ def generate_cards(req: GenerateCardsRequest):
 """
     cards_markdown = header + cards_content
     return {"success": True, "cards_markdown": cards_markdown}
+
+
+def _extension_generate_cards_core(req: GenerateCardsRequest):
+    """同步生成卡片正文 + 评价章节（供流式与非流式共用）。"""
+    from generators import list_frameworks, get_framework
+    from generators.evaluation_section import build_evaluation_markdown
+
+    stages = req.stages
+    if not stages:
+        raise ValueError("stages 不能为空")
+    frameworks = list_frameworks() or []
+    framework_id = req.framework_id or "dspy"
+    if not any(m["id"] == framework_id for m in frameworks):
+        framework_id = frameworks[0]["id"] if frameworks else "dspy"
+    GeneratorClass, _ = get_framework(framework_id)
+    llm = _get_llm_config()
+    generator = GeneratorClass(
+        api_key=llm.get("api_key"),
+        model_type=llm.get("model_type"),
+        base_url=llm.get("base_url") or None,
+        model=llm.get("model") or None,
+    )
+
+    def _run_with_callbacks(progress_callback=None, card_callback=None):
+        return generator.generate_all_cards(
+            stages,
+            req.full_content,
+            progress_callback=progress_callback,
+            card_callback=card_callback,
+        )
+
+    return stages, framework_id, _run_with_callbacks, build_evaluation_markdown, llm
+
+
+@router.post("/generate-cards-stream")
+async def generate_cards_stream(req: GenerateCardsRequest):
+    """
+    流式生成卡片：SSE（event: progress | card | done | error）。
+    done 事件的 data 含完整 cards_markdown，与 POST /generate-cards 结果一致。
+    """
+    try:
+        stages, _framework_id, run_gen, build_evaluation_markdown, _llm = _extension_generate_cards_core(req)
+    except ValueError as e:
+        async def err_only():
+            yield f"event: error\ndata: {json.dumps({'message': str(e)}, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(err_only(), media_type="text/event-stream")
+
+    out_q: thread_queue.Queue = thread_queue.Queue()
+
+    def worker():
+        try:
+            def progress_callback(cur, total, message):
+                out_q.put(
+                    (
+                        "progress",
+                        {"message": message, "current": cur, "total": total},
+                    )
+                )
+
+            def card_callback(label, chunk):
+                out_q.put(("card", {"label": label, "chunk": chunk}))
+
+            cards_content = run_gen(progress_callback=progress_callback, card_callback=card_callback)
+
+            evaluation_md = build_evaluation_markdown(
+                req.evaluation_items or [],
+                stages,
+                target_total_score=100,
+                auto_generate_if_empty=True,
+            )
+            if evaluation_md:
+                cards_content = cards_content + "\n\n---\n\n" + evaluation_md
+
+            header = f"""# 教学卡片
+
+> 生成时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+> 源文件: {req.source_filename or 'API'}
+> 任务名称: {req.task_name or '未命名'}
+> 阶段数量: {len(stages)}
+
+---
+
+"""
+            cards_markdown = header + cards_content
+            out_q.put(("done", {"success": True, "cards_markdown": cards_markdown}))
+        except Exception as e:
+            out_q.put(("error", {"message": str(e)}))
+        finally:
+            out_q.put(None)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    async def event_gen():
+        while True:
+            item = await asyncio.to_thread(out_q.get)
+            if item is None:
+                break
+            kind, data = item
+            yield f"event: {kind}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 class PreviewInjectionRequest(BaseModel):

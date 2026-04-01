@@ -80,8 +80,11 @@
       cardConfig: extra.card_config || {},
     });
 
+    const fromMarkdown = parseEvaluationItemsFromMarkdown(cardsMarkdown);
+    const mergedEval = mergeEvaluationItems(extra.evaluation_items || [], fromMarkdown);
+
     let evalCount = 0;
-    for (const item of extra.evaluation_items || []) {
+    for (const item of mergedEval) {
       try {
         const scoreRes = await chrome.runtime.sendMessage({
           type: "API_REQUEST",
@@ -103,6 +106,85 @@
     }
     result.evalCount = evalCount;
     return result;
+  }
+
+  /**
+   * 与 api_platform.CardInjector.parse_evaluation_items 对齐；支持 ## 评价项 / ## 评分标准 / ## 评价标准
+   */
+  function findEvaluationSection(mdContent) {
+    if (!mdContent) return "";
+    const headings = ["## 评价项", "## 评分标准", "## 评价标准"];
+    let start = -1;
+    for (const h of headings) {
+      const i = mdContent.indexOf(h);
+      if (i >= 0 && (start < 0 || i < start)) start = i;
+    }
+    if (start < 0) return "";
+    const rest = mdContent.slice(start);
+    const end = rest.indexOf("\n## ", 1);
+    return end > 0 ? rest.slice(0, end) : rest;
+  }
+
+  function parseEvaluationItemsFromMarkdown(mdContent) {
+    const section = findEvaluationSection(mdContent);
+    if (!section) return [];
+    const items = [];
+    const parts = section.split(/\n###\s*评价项\d*[：:]\s*/);
+    for (let p = 0; p < parts.length; p++) {
+      let block = parts[p].trim();
+      if (!block || block.startsWith("#")) continue;
+      const lines = block.split("\n");
+      let name = lines[0] ? lines[0].trim() : "";
+      let score = 0;
+      let description = "";
+      let require_detail = "";
+      for (let li = 1; li < lines.length; li++) {
+        const line = lines[li].trim();
+        if (!line || !line.startsWith("-")) continue;
+        const mScore = line.match(/\*\*满分值\*\*\s*[：:]\s*(\d+)/);
+        const mDesc = line.match(/\*\*评价描述\*\*\s*[：:]\s*(.+)/);
+        const mReq = line.match(/\*\*详细要求\*\*\s*[：:]\s*(.+)/);
+        if (mScore) score = parseInt(mScore[1], 10) || 0;
+        if (mDesc) description = mDesc[1].trim();
+        if (mReq) require_detail = mReq[1].trim();
+      }
+      if (name || score > 0) {
+        items.push({
+          item_name: name || "未命名评价项",
+          score,
+          description,
+          require_detail,
+        });
+      }
+    }
+    return items;
+  }
+
+  function normEvalKey(it) {
+    return (it.item_name || "").trim().toLowerCase();
+  }
+
+  /** payload 优先，再追加 Markdown 解析中尚未出现的项 */
+  function mergeEvaluationItems(payloadItems, markdownItems) {
+    const out = [];
+    const seen = new Set();
+    for (const it of payloadItems || []) {
+      const k = normEvalKey(it);
+      if (k) seen.add(k);
+      out.push({
+        item_name: it.item_name || "未命名",
+        score: parseInt(it.score, 10) || 0,
+        description: it.description || "",
+        require_detail: it.require_detail || "",
+      });
+    }
+    for (const it of markdownItems || []) {
+      const k = normEvalKey(it);
+      if (k && seen.has(k)) continue;
+      if (k) seen.add(k);
+      out.push(it);
+    }
+    return out;
   }
 
   async function runGenerateBackgrounds(aStepBodies, trainName, trainDescription) {

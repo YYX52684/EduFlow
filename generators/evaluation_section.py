@@ -42,13 +42,34 @@ def build_evaluation_markdown(
         if score <= 0:
             score = 5
         title = stage.get("title", f"阶段{stage.get('id', i + 1)}")
-        task = stage.get("task", "")
-        key_points = stage.get("key_points", [])
+        task = (stage.get("task") or "").strip()
+        role = (stage.get("role") or "").strip()
+        excerpt = (stage.get("content_excerpt") or "").strip()
+        key_points = stage.get("key_points") or []
+
+        desc_parts = []
+        if task:
+            desc_parts.append(task[:420] + ("…" if len(task) > 420 else ""))
+        if excerpt and excerpt not in task:
+            desc_parts.append("内容要点摘录：" + excerpt[:320] + ("…" if len(excerpt) > 320 else ""))
+        if role:
+            desc_parts.append("本阶段智能体角色定位：" + role[:200] + ("…" if len(role) > 200 else ""))
+        description = "\n".join(desc_parts) if desc_parts else f"综合考察学员在「{title}」环节的理解、操作与表达是否达到教学目标。"
+
+        kp_text = "、".join(str(x).strip() for x in key_points[:8] if str(x).strip())
+        req_parts = []
+        if kp_text:
+            req_parts.append("须体现以下要点：" + kp_text)
+        if role:
+            req_parts.append("对话风格与人设须符合角色设定。")
+        req_parts.append("完成该阶段交互目标，逻辑清晰、无明显事实性错误。")
+        require_detail = "；".join(req_parts)
+
         items.append({
             "item_name": f"{title}完成度",
             "score": score,
-            "description": task[:200] if task else f"考察阶段「{title}」的完成质量",
-            "require_detail": "、".join(key_points[:5]) if key_points else "按要求完成该阶段任务",
+            "description": description,
+            "require_detail": require_detail,
         })
     return _format_evaluation_items(items)
 
@@ -61,8 +82,8 @@ def _format_evaluation_items(items: List[Dict[str, Any]]) -> str:
     for i, it in enumerate(items, 1):
         name = it.get("item_name", f"评价项{i}")
         score = it.get("score", 0)
-        desc = it.get("description", "")
-        req = it.get("require_detail", "")
+        desc = (it.get("description") or "").replace("\n", " ").strip()
+        req = (it.get("require_detail") or "").replace("\n", " ").strip()
         lines.append(f"### 评价项{i}：{name}")
         lines.append(f"- **满分值**: {score}")
         if desc:

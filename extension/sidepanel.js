@@ -26,6 +26,7 @@
     taskName: "",
     description: "",
     cardsMarkdown: null,
+    evaluationItems: [],
   };
 
   let lastInjectBodies = null;
@@ -40,9 +41,9 @@
   const fileInput = document.getElementById("file-input");
   const fileStatusEl = document.getElementById("file-status");
   const step1ResultEl = document.getElementById("step1-result");
-  const step2Block = document.getElementById("step2-block");
-  const step3Block = document.getElementById("step3-block");
-  const step4Block = document.getElementById("step4-block");
+  const workflowPersonaBlock = document.getElementById("workflow-persona-block");
+  const workflowGenerateBlock = document.getElementById("workflow-generate-block");
+  const generateStreamLog = document.getElementById("generate-stream-log");
   const personaSelect = document.getElementById("persona-select");
   const personaContentWrap = document.getElementById("persona-content-wrap");
   const personaContent = document.getElementById("persona-content");
@@ -103,10 +104,44 @@
     if (progressTextEl) progressTextEl.textContent = label || "加载中...";
   }
 
-  function enableStepBlocks(stepIndex) {
-    for (let i = 2; i <= stepIndex; i++) {
-      const block = document.getElementById("step" + i + "-block");
-      if (block) block.classList.remove("step-block-disabled");
+  function setWorkflowAfterParse(visible) {
+    if (workflowPersonaBlock) workflowPersonaBlock.classList.toggle("workflow-sub-hidden", !visible);
+    if (workflowGenerateBlock) workflowGenerateBlock.classList.toggle("workflow-sub-hidden", !visible);
+  }
+
+  function appendStreamLog(line) {
+    if (!generateStreamLog) return;
+    generateStreamLog.style.display = "block";
+    const cur = generateStreamLog.textContent;
+    const next = (cur ? cur + "\n" : "") + line;
+    generateStreamLog.textContent = next.length > 4000 ? "…\n" + next.slice(-3500) : next;
+    generateStreamLog.scrollTop = generateStreamLog.scrollHeight;
+  }
+
+  async function readSseFromResponse(response, onEvent) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let sep;
+      while ((sep = buffer.indexOf("\n\n")) >= 0) {
+        const raw = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        let eventName = "message";
+        let dataStr = "";
+        for (const line of raw.split("\n")) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataStr += line.slice(5).trimStart();
+        }
+        if (dataStr) {
+          try {
+            onEvent(eventName, JSON.parse(dataStr));
+          } catch (_) {}
+        }
+      }
     }
   }
 
@@ -568,6 +603,8 @@
     state.taskName = "";
     state.description = "";
     state.cardsMarkdown = null;
+    state.evaluationItems = [];
+    setWorkflowAfterParse(false);
     if (cardsGeneratedHint) cardsGeneratedHint.style.display = "none";
     step1ResultEl.style.display = "none";
     setStatus(generateStatus, "");
@@ -600,6 +637,7 @@
       state.personaDir = data.persona_dir || null;
       state.taskName = data.task_name || "";
       state.description = data.description || "";
+      state.evaluationItems = data.evaluation_items || [];
 
       setProgress(100, "完成");
       setStatus(fileStatusEl, "解析完成：" + (data.filename || file.name), "success");
@@ -613,7 +651,7 @@
         (state.taskName ? "；任务：" + escapeHtml(state.taskName) : "");
       step1ResultEl.className = "step-result success";
 
-      enableStepBlocks(4);
+      setWorkflowAfterParse(true);
       await fillPersonaSelect();
     } catch (err) {
       setStatus(fileStatusEl, "解析失败：" + (err.message || ""), "error");
@@ -711,7 +749,7 @@
 
   async function generateCards() {
     if (!state.stages || !state.fullContent) {
-      setStatus(generateStatus, "请先完成步骤 1 选择文件", "error");
+      setStatus(generateStatus, "请先上传并解析剧本", "error");
       return;
     }
     if (!llmCanGenerate) {
@@ -720,39 +758,75 @@
     }
     const base = getApiBase();
     btnGenerate.disabled = true;
-    setStatus(generateStatus, "生成中...", "info");
-    setProgress(20, "调用生成接口...");
-    try {
-      const res = await fetch(base + "/api/extension/generate-cards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          framework_id: state.selectedFrameworkId || "dspy",
-          stages: state.stages,
-          full_content: state.fullContent,
-          source_filename: state.fileName || null,
-          task_name: state.taskName || null,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (data.error) throw new Error(data.error);
-      if (!data.success || !data.cards_markdown) throw new Error(data.error || "生成失败");
+    if (generateStreamLog) {
+      generateStreamLog.textContent = "";
+      generateStreamLog.style.display = "block";
+    }
+    setStatus(generateStatus, "连接生成服务…", "info");
+    setProgress(5, "准备中…");
+    if (generateProgress) generateProgress.style.display = "block";
 
-      state.cardsMarkdown = data.cards_markdown;
+    const body = JSON.stringify({
+      framework_id: state.selectedFrameworkId || "dspy",
+      stages: state.stages,
+      full_content: state.fullContent,
+      source_filename: state.fileName || null,
+      evaluation_items: state.evaluationItems || [],
+      task_name: state.taskName || null,
+    });
+
+    try {
+      const res = await fetch(base + "/api/extension/generate-cards-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body,
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error("HTTP " + res.status + ": " + t.slice(0, 200));
+      }
+      let donePayload = null;
+      await readSseFromResponse(res, (ev, data) => {
+        if (ev === "progress") {
+          const msg = data.message || "";
+          const tot = data.total || 0;
+          const cur = data.current || 0;
+          const pct = tot > 0 ? Math.min(95, (cur / tot) * 90 + 5) : 40;
+          setProgress(pct, msg);
+          appendStreamLog("[进度] " + msg);
+          setStatus(generateStatus, msg, "info");
+        } else if (ev === "card") {
+          const chunk = data.chunk || "";
+          const preview = chunk.slice(0, 240).replace(/\n/g, " ");
+          appendStreamLog(
+            "[完成] " +
+              (data.label || "") +
+              (preview ? " — " + preview + (chunk.length > 240 ? "…" : "") : "")
+          );
+        } else if (ev === "done") {
+          donePayload = data;
+        } else if (ev === "error") {
+          throw new Error(data.message || "生成失败");
+        }
+      });
+      if (!donePayload || !donePayload.cards_markdown) throw new Error("未收到完整生成结果");
+
+      state.cardsMarkdown = donePayload.cards_markdown;
       setProgress(100, "完成");
       setStatus(generateStatus, "已生成卡片", "success");
+      appendStreamLog("[完成] 全部卡片与评价章节已就绪");
       if (cardsGeneratedHint) {
         cardsGeneratedHint.textContent =
-          "已生成 " + state.stages.length + " 个阶段。请在步骤 4 编辑区确认或修改后注入。";
+          "已生成 " + state.stages.length + " 个阶段。请在下方「注入平台」编辑区确认或修改后注入。";
         cardsGeneratedHint.style.display = "block";
       }
       if (cardsPreview) cardsPreview.value = state.cardsMarkdown;
       setCardSource("generated");
       setStatus(injectStatus, "");
-      enableStepBlocks(4);
       pushHistory(buildHistoryEntry(state.cardsMarkdown, state.fileName));
     } catch (err) {
       setStatus(generateStatus, "错误：" + (err.message || ""), "error");
+      appendStreamLog("[错误] " + (err.message || ""));
       if (cardsGeneratedHint) cardsGeneratedHint.style.display = "none";
     } finally {
       setProgress(0, "");
@@ -778,7 +852,7 @@
     saveCardConfigToStorage();
     const markdown = cardsPreview ? cardsPreview.value : "";
     if (!markdown || !markdown.trim()) {
-      setStatus(injectStatus, "请填写步骤 4 中的卡片内容（生成、本地文件或历史记录）", "error");
+      setStatus(injectStatus, "请填写注入区的卡片内容（生成、本地文件或历史记录）", "error");
       return;
     }
     const tabRes = await chrome.runtime.sendMessage({ type: "GET_CURRENT_TAB_INFO" });
@@ -796,7 +870,7 @@
           cards_markdown: markdown,
           task_name: state.taskName || "",
           description: state.description || "",
-          evaluation_items: [],
+          evaluation_items: state.evaluationItems || [],
           card_config: getCardConfigForInject(),
         },
       });
@@ -923,7 +997,8 @@
           return;
         }
         setStatus(platformConfigStatus, data.message || "已写入", "success");
-        const webUrl = base.replace(/\/$/, "") + "/app/w/" + encodeURIComponent(wid);
+        const webUrl =
+          base.replace(/\/$/, "") + "/static/extension-sync-done.html?workspace=" + encodeURIComponent(wid);
         chrome.tabs.create({ url: webUrl });
       } catch (e) {
         setStatus(platformConfigStatus, "同步失败：" + (e.message || ""), "error");
@@ -959,6 +1034,7 @@
     await storageReady;
     loadCardConfigFromStorage();
     await loadExtensionLlmConfig();
+    setWorkflowAfterParse(false);
     setCardSource("generated");
     updateCardSourceUI();
   })();
