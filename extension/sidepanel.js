@@ -1,7 +1,6 @@
 (function () {
   const STORAGE_EDUFLOW_API_URL = "eduflow_api_url";
   const STORAGE_CARD_CONFIG = "eduflow_card_config";
-  const STORAGE_WORKSPACE_ID = "eduflow_workspace_id";
   const STORAGE_HISTORY = "eduflow_history";
   const DEFAULT_EDUFLOW_API_URL = "https://eduflows.cn";
   const MAX_HISTORY = 20;
@@ -34,9 +33,6 @@
 
   const tabStatusEl = document.getElementById("tab-status");
   const eduflowApiUrlEl = document.getElementById("eduflow-api-url");
-  const extensionWorkspaceIdEl = document.getElementById("extension-workspace-id");
-  const extensionWorkspacePickEl = document.getElementById("extension-workspace-pick");
-  const btnRefreshWorkspaces = document.getElementById("btn-refresh-workspaces");
   const dropZone = document.getElementById("drop-zone");
   const fileInput = document.getElementById("file-input");
   const fileStatusEl = document.getElementById("file-status");
@@ -85,7 +81,6 @@
   const platformConfigStatus = document.getElementById("platform-config-status");
   const platformConfigFields = document.getElementById("platform-config-fields");
   const btnGetPlatformConfig = document.getElementById("btn-get-platform-config");
-  const btnSyncWebPlatform = document.getElementById("btn-sync-web-platform");
 
   function getApiBase() {
     return (eduflowApiUrlEl?.value || "").trim().replace(/\/$/, "") || DEFAULT_EDUFLOW_API_URL;
@@ -349,9 +344,8 @@
   let llmCanGenerate = false;
 
   let storageReady = new Promise((resolve) => {
-    chrome.storage.local.get([STORAGE_EDUFLOW_API_URL, STORAGE_WORKSPACE_ID, STORAGE_HISTORY], (r) => {
+    chrome.storage.local.get([STORAGE_EDUFLOW_API_URL, STORAGE_HISTORY], (r) => {
       eduflowApiUrlEl.value = r[STORAGE_EDUFLOW_API_URL] || DEFAULT_EDUFLOW_API_URL;
-      if (extensionWorkspaceIdEl) extensionWorkspaceIdEl.value = r[STORAGE_WORKSPACE_ID] || "";
       historyEntries = Array.isArray(r[STORAGE_HISTORY]) ? r[STORAGE_HISTORY] : [];
       renderHistoryList();
       refreshHistoryInjectSelect();
@@ -359,11 +353,6 @@
     });
   });
   eduflowApiUrlEl.addEventListener("change", () => chrome.storage.local.set({ [STORAGE_EDUFLOW_API_URL]: eduflowApiUrlEl.value }));
-  if (extensionWorkspaceIdEl) {
-    extensionWorkspaceIdEl.addEventListener("change", () =>
-      chrome.storage.local.set({ [STORAGE_WORKSPACE_ID]: (extensionWorkspaceIdEl.value || "").trim() })
-    );
-  }
 
   if (llmEl.header) {
     llmEl.header.addEventListener("click", () => {
@@ -431,43 +420,6 @@
       setCardSource("history");
       const ent = historyEntries.find((x) => x.id === id);
       if (ent && cardsPreview) cardsPreview.value = ent.cardsMarkdown || "";
-    });
-  }
-
-  async function fetchWorkspacesList() {
-    const base = getApiBase();
-    const res = await fetch(base + "/api/extension/workspaces");
-    const data = await res.json().catch(() => ({}));
-    return Array.isArray(data.workspaces) ? data.workspaces : [];
-  }
-
-  if (btnRefreshWorkspaces) {
-    btnRefreshWorkspaces.addEventListener("click", async () => {
-      try {
-        const list = await fetchWorkspacesList();
-        if (!extensionWorkspacePickEl) return;
-        extensionWorkspacePickEl.innerHTML = '<option value="">— 从列表选择填入 —</option>';
-        list.forEach((w) => {
-          const opt = document.createElement("option");
-          opt.value = w;
-          opt.textContent = w;
-          extensionWorkspacePickEl.appendChild(opt);
-        });
-        setStatus(llmEl.testStatus, "工作区列表已刷新（" + list.length + " 个）", "success");
-      } catch (err) {
-        setStatus(llmEl.testStatus, "拉取工作区失败：" + (err.message || ""), "error");
-      }
-    });
-  }
-
-  if (extensionWorkspacePickEl) {
-    extensionWorkspacePickEl.addEventListener("change", () => {
-      const v = extensionWorkspacePickEl.value;
-      if (v && extensionWorkspaceIdEl) {
-        extensionWorkspaceIdEl.value = v;
-        chrome.storage.local.set({ [STORAGE_WORKSPACE_ID]: v });
-      }
-      extensionWorkspacePickEl.value = "";
     });
   }
 
@@ -956,52 +908,6 @@
         if (platformConfigFields) platformConfigFields.style.display = "block";
       } catch (e) {
         setStatus(platformConfigStatus, "获取失败：" + (e.message || ""), "error");
-      }
-    });
-  }
-
-  if (btnSyncWebPlatform) {
-    btnSyncWebPlatform.addEventListener("click", async () => {
-      const wid = (extensionWorkspaceIdEl?.value || "").trim();
-      if (!wid) {
-        setStatus(platformConfigStatus, "请先在 LLM 设置中填写 Web 工作区 ID", "error");
-        return;
-      }
-      setStatus(platformConfigStatus, "同步中…", "info");
-      try {
-        const res = await chrome.runtime.sendMessage({ type: "GET_PLATFORM_CONFIG" });
-        if (!res.success) {
-          setStatus(platformConfigStatus, res.error || "请先在本页一键获取平台配置（需在智慧树配置页）", "error");
-          return;
-        }
-        const d = res.data;
-        const base = getApiBase();
-        const syncRes = await fetch(base + "/api/extension/sync-platform-config", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            workspace_id: wid,
-            url: d.url || undefined,
-            cookie: d.cookie || undefined,
-            authorization: d.jwt || undefined,
-            start_node_id: d.startNodeId || undefined,
-            end_node_id: d.endNodeId || undefined,
-            course_id: d.courseId || undefined,
-            train_task_id: d.trainTaskId || undefined,
-          }),
-        });
-        const data = await syncRes.json().catch(() => ({}));
-        if (!syncRes.ok) {
-          const msg = data.error_detail?.message || data.message || data.detail || "同步失败";
-          setStatus(platformConfigStatus, msg, "error");
-          return;
-        }
-        setStatus(platformConfigStatus, data.message || "已写入", "success");
-        const webUrl =
-          base.replace(/\/$/, "") + "/static/extension-sync-done.html?workspace=" + encodeURIComponent(wid);
-        chrome.tabs.create({ url: webUrl });
-      } catch (e) {
-        setStatus(platformConfigStatus, "同步失败：" + (e.message || ""), "error");
       }
     });
   }

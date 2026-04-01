@@ -18,18 +18,8 @@
       <input type="text" id="eduflow-api-url" placeholder="https://eduflows.cn" />
       <p class="hint">默认 eduflows.cn。本地部署可填 http://localhost:端口</p>
 
-      <label for="extension-workspace-id">Web 工作区 ID（一键写入平台配置用）</label>
-      <input type="text" id="extension-workspace-id" placeholder="如 u1124360866 或项目名" autocomplete="off" />
-      <p class="hint">与 <code>workspaces/</code> 下目录名一致；同步成功后会打开静态说明页，可在页底进入旧版控制台 <code>/w/工作区</code></p>
-      <button type="button" id="btn-refresh-workspaces" class="btn btn-secondary btn-inline">刷新工作区列表</button>
-      <select id="extension-workspace-pick" class="step-select workspace-pick-select">
-        <option value="">— 从列表选择填入 —</option>
-      </select>
-
-      <hr class="settings-divider" />
-
       <label for="extension-llm-api-key">API Key</label>
-      <input type="password" id="extension-llm-api-key" placeholder="留空则保持已保存的值" autocomplete="off" />
+      <input type="password" id="extension-llm-api-key" placeholder="" autocomplete="off" />
       <span id="extension-llm-key-mask" class="hint"></span>
 
       <label for="extension-llm-base-url">Base URL</label>
@@ -57,7 +47,6 @@
 
   <section class="step-block workflow-block" id="workflow-block">
     <h2 class="step-title">生成流程</h2>
-    <p class="hint workflow-hint">上传剧本 → 选择学生人设 → 生成卡片（下方可查看分幕进度）</p>
     <div class="drop-zone" id="drop-zone">
       <p>拖入 .md / .docx / .pdf 剧本文件，或点击选择</p>
       <input type="file" id="file-input" accept=".md,.docx,.pdf" hidden />
@@ -92,10 +81,8 @@
 
   <section class="step-block" id="step4-block">
     <h2 class="step-title">注入平台</h2>
-    <p class="hint">可跳过生成流程，从本地 .md 或历史记录载入卡片后再注入。</p>
 
     <div class="card-source-group">
-      <span class="sub-label">卡片来源（互斥填入下方编辑区）</span>
       <label class="radio-row"><input type="radio" name="card-source" id="card-source-generated" value="generated" /> 使用上文生成的卡片</label>
       <label class="radio-row"><input type="radio" name="card-source" id="card-source-file" value="file" /> 本地 .md 文件</label>
       <label class="radio-row"><input type="radio" name="card-source" id="card-source-history" value="history" /> 历史记录</label>
@@ -112,16 +99,14 @@
         <span class="settings-toggle" id="card-config-toggle">展开</span>
       </div>
       <div class="settings-body" id="card-config-body" style="display:none;">
-        <label for="card-config-model-id">AI 模型 (modelId)</label>
+        <label for="card-config-model-id">AI 模型 </label>
         <input type="text" id="card-config-model-id" placeholder="Doubao-Seed-1.6" />
-        <label for="card-config-history-num">历史记录数 (historyRecordNum)</label>
+        <label for="card-config-history-num">历史记录数 (-1 表示全部)</label>
         <input type="number" id="card-config-history-num" placeholder="-1 全部，0 不保留" />
-        <p class="hint">-1 表示全部，0 表示不保留</p>
-        <label for="card-config-trainer">训练官名字 (trainerName)</label>
+        <label for="card-config-trainer">训练官名字</label>
         <input type="text" id="card-config-trainer" placeholder="agent" />
-        <label for="card-config-rounds">默认交互轮次 (interactiveRounds)</label>
+        <label for="card-config-rounds">默认交互轮次</label>
         <input type="number" id="card-config-rounds" placeholder="0 表示用卡片内 STAGE_META" />
-        <p class="hint">0 表示使用卡片 Markdown 中 STAGE_META 指定的值</p>
       </div>
     </div>
 
@@ -150,7 +135,6 @@
     <h2 class="step-title">复制到 Web 端</h2>
     <p class="hint">在智慧树能力训练配置页打开本扩展，点击下方按钮获取配置，可逐一复制到 Web 端「平台配置」使用。</p>
     <button type="button" id="btn-get-platform-config" class="btn btn-secondary">一键获取平台配置</button>
-    <button type="button" id="btn-sync-web-platform" class="btn btn-primary">一键写入 Web 端</button>
     <div id="platform-config-status" class="status"></div>
     <div id="platform-config-fields" class="platform-config-fields" style="display:none;">
       <label>当前页面 URL</label>
