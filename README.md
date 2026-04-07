@@ -2,6 +2,8 @@
 
 一个面向高校教师的自动化工具，可以将教学剧本（类似"课程版剧本杀"）自动转换为智慧树平台的沉浸式教学卡片。
 
+EduFlow automates the creation of immersive teaching agents for educational platforms. Given a teaching script, it uses LLMs to generate multi-agent NPC characters with coordinated system prompts, then auto-deploys them to the target platform via API injection. Built with FastAPI, supports multi-user workspaces, and handles PDF/DOCX/Markdown input formats.
+
 ## 功能特点
 
 - **多格式支持**：支持 Markdown、DOCX、PDF 格式的剧本输入
